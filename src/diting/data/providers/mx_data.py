@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 # ── 查询模板 ──────────────────────────────────────
 
 _REALTIME_FIELDS = (
-    "最新价", "涨跌幅", "今开", "最高", "最低",
+    "收盘价", "涨跌幅", "开盘价", "最高价", "最低价",
     "成交量", "成交额", "市盈率", "市净率", "总市值",
 )
 
@@ -128,7 +128,7 @@ class MxDataProvider(DataProvider):
                 continue
 
             for row in rows:
-                symbol = self._extract_symbol(row, fieldnames, symbols)
+                symbol = self._extract_symbol(row, fieldnames, symbols, table)
                 if not symbol or symbol in results:
                     continue
 
@@ -215,15 +215,39 @@ class MxDataProvider(DataProvider):
 
     @staticmethod
     def _extract_symbol(
-        row: dict, fieldnames: list[str], requested: list[str]
+        row: dict,
+        fieldnames: list[str],
+        requested: list[str],
+        table: dict | None = None,
     ) -> str | None:
-        """从行数据中提取股票代码"""
-        # 尝试直接从请求列表匹配
+        """从行数据中提取股票代码。
+
+        mx-data 的 parsed table 中 fieldnames 不包含股票代码，
+        代码在 entityName（如 "立讯精密 (002475.SZ)"）中但 parse_result 不保留。
+        因此优先从已知的 requested 列表按顺序映射。
+        """
+        import re
+
+        # 单 symbol：直接返回
+        if len(requested) == 1:
+            return requested[0]
+
+        # 多 symbol：尝试从 sheet_name 提取 6 位代码
+        if table:
+            sheet = str(table.get("sheet_name", ""))
+            m = re.search(r"(\d{6})", sheet)
+            if m:
+                code = m.group(1)
+                if code in requested:
+                    return code
+
+        # 最后尝试从 row 的字段值中匹配
         for col in fieldnames:
             val = str(row.get(col, ""))
             for sym in requested:
                 if sym in val:
                     return sym
+
         return None
 
     @staticmethod
@@ -257,11 +281,11 @@ class MxDataProvider(DataProvider):
             except ValueError:
                 return 0
 
-        price = to_float("最新价")
+        price = to_float("最新价", "收盘价")
         change_pct = to_float("涨跌幅")
-        open_price = to_float("今开")
-        high = to_float("最高")
-        low = to_float("最低")
+        open_price = to_float("今开", "开盘价")
+        high = to_float("最高", "最高价")
+        low = to_float("最低", "最低价")
         volume = to_int("成交量")
         turnover = to_float("成交额")
 

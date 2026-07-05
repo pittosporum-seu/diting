@@ -67,10 +67,11 @@
 - [x] 单元测试：11 tests ✅
 **依赖：** #7 | **大小：** M
 
-### #9 watchlist 解析
-- [ ] `config/watchlist.example.csv`：标准格式定义
-- [ ] Config 类支持加载 watchlist
-- [ ] 验证：代码格式 / 必填字段
+### #9 watchlist 解析 ✅
+- [x] `config/watchlist.example.csv`：标准格式定义
+- [x] Config 类支持加载 + 验证（代码格式/市场/必填列）
+- [x] 去重 + validate=False 跳过
+- [x] 单元测试：9 tests ✅
 **依赖：** #4 | **大小：** S
 
 ---
