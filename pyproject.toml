@@ -24,6 +24,7 @@ dependencies = [
     "PyWavelets>=1.7.0",
     "PyEMD>=0.4.0",
     "pyyaml>=6.0",
+    "akshare>=1.18.64",
 ]
 
 [project.optional-dependencies]

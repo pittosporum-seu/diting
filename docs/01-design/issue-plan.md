@@ -47,10 +47,10 @@
 
 ## M2: 数据层（4 个 Issue）
 
-### #6 DataProvider ABC
-- [ ] `src/diting/data/providers/base.py`：DataProvider ABC
-- [ ] `health_check()`, `fetch_realtime()`, `fetch_historical()` 抽象方法
-- [ ] 单元测试：mock provider
+### #6 DataProvider ABC ✅
+- [x] `src/diting/data/providers/base.py`：DataProvider ABC
+- [x] `health_check()`, `fetch_realtime()`, `fetch_historical()` 抽象方法
+- [x] 单元测试：10 tests ✅
 **依赖：** #2 | **大小：** S
 
 ### #7 MxDataProvider + AkShareProvider
