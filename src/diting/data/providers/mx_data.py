@@ -31,7 +31,7 @@ _REALTIME_FIELDS = (
 )
 
 _HISTORICAL_FIELDS = (
-    "收盘价", "开盘价", "最高价", "最低价", "成交量",
+    "每日收盘价", "开盘价", "最高价", "最低价", "成交量",
 )
 
 
@@ -188,20 +188,40 @@ class MxDataProvider(DataProvider):
 
         df = pd.DataFrame(data)
 
-        # 清理数值列中的 "元" 后缀
+        # 清理日期列
+        if "date" in df.columns:
+            df["date"] = df["date"].astype(str).str.replace(r"\(.*?\)", "", regex=True)
+
+        # 清理数值列中的单位后缀 —— 先转 object 避免 StringDtype 无法赋值
+        num_cols = [c for c in df.columns if c != "date"]
+        df[num_cols] = df[num_cols].astype(object)
+        unit_map = {
+            "亿股": 1e8, "万股": 1e4, "股": 1,
+            "亿元": 1e8, "万元": 1e4,
+        }
         for col in df.columns:
-            if col == "date" or df[col].dtype == object:
+            if col == "date":
                 continue
-            try:
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.replace("元", "", regex=False)
-                    .str.replace(",", "", regex=False)
+            series = df[col].astype(str)
+            # 检测是否含单位
+            has_unit = any(u in "".join(series) for u in unit_map)
+            if has_unit:
+                for unit, mult in unit_map.items():
+                    mask = series.str.contains(unit, regex=False, na=False)
+                    if mask.any():
+                        cleaned = (
+                            series[mask]
+                            .str.replace(unit, "", regex=False)
+                            .str.replace("元", "", regex=False)
+                            .str.replace(",", "", regex=False)
+                        )
+                        df.loc[mask, col] = pd.to_numeric(cleaned, errors="coerce") * mult
+            else:
+                df[col] = pd.to_numeric(
+                    series.str.replace("元", "", regex=False)
+                    .str.replace(",", "", regex=False),
+                    errors="coerce",
                 )
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-            except Exception:
-                pass
 
         return HistoricalData(
             symbol=symbol,

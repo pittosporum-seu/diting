@@ -75,7 +75,7 @@ class TestMxDataProvider:
 
     def test_health_check_requires_valid_key(self):
         """无有效 apikey 时 health_check 返回 False。
-        
+
         注意：此测试依赖环境中没有 MX_APIKEY。如果已设，改为验证带 apikey 的正常路径。
         """
         import os
