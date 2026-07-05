@@ -60,11 +60,11 @@
 - [ ] 集成测试：mock API 响应，验证降级链
 **依赖：** #6 | **大小：** L
 
-### #8 MarketDataRepository
-- [ ] `src/diting/data/repository.py`：统一数据访问层
-- [ ] 降级链：mx-data → akshare → SQLite cache
-- [ ] 健康检查 + 自动降级 + 来源标注
-- [ ] 集成测试
+### #8 MarketDataRepository ✅
+- [x] `src/diting/data/repository.py`：统一数据访问层
+- [x] 降级链：mx-data → akshare → SQLite cache
+- [x] 健康检查 + 自动降级 + 来源标注
+- [x] 单元测试：11 tests ✅
 **依赖：** #7 | **大小：** M
 
 ### #9 watchlist 解析
