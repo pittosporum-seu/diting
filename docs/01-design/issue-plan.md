@@ -1,44 +1,46 @@
 # 谛听 · Issue 拆分
 
-> 基于架构设计 v2.0 | 日期：2026-07-04
+> 基于架构设计 v2.0 | 日期：2026-07-05
 > 原则：一个 Issue = 一个可独立验证的交付物，依赖最小化
+> 进度：M1 完成 ✅ | 22 tests · ruff ✅ · CLI ✅ | 下一步 M2 数据层
 
 ---
 
-## M1: 骨架跑通（5 个 Issue）
+## M1: 骨架跑通（5 个 Issue）✅ 已完成
 
-### #1 项目初始化
-- [ ] `pyproject.toml`：项目元数据 + 依赖声明（litellm, sandboxmcp, click, structlog, requests, openpyxl, vmdpy, PyWavelets, PyEMD, echarts）
-- [ ] `.gitignore`：排除 venv/__pycache__/.env/output/
-- [ ] `config/.env.example`：环境变量模板（不含真实值）
-- [ ] `LICENSE`：MIT
-- [ ] `README.md` ✅ 已有
+### #1 项目初始化 ✅
+- [x] `pyproject.toml`：项目元数据 + 依赖声明（litellm, sandboxmcp, click, structlog, requests, openpyxl, vmdpy, PyWavelets, PyEMD, echarts）
+- [x] `.gitignore`：排除 venv/__pycache__/.env/output/
+- [x] `config/.env.example`：环境变量模板（不含真实值）
+- [x] `LICENSE`：MIT
+- [x] `README.md` ✅ 已有
+- [x] `config/watchlist.example.csv`
 **依赖：** 无 | **大小：** S
 
-### #2 数据协议层
-- [ ] `src/diting/schema.py`：所有 @dataclass（RealtimeQuote, HistoricalData, VMDResult, TechnicalSignals, AnalysisContext, AnalysisResult, ConsensusScore, PipelineResult, PipelineMetrics）
-- [ ] `src/diting/enums.py`：Rating, DataSource, DataType, Signal
-- [ ] 单元测试：dataclass 序列化/反序列化
+### #2 数据协议层 ✅
+- [x] `src/diting/schema.py`：所有 @dataclass（RealtimeQuote, HistoricalData, VMDResult, TechnicalSignals, AnalysisContext, AnalysisResult, ConsensusScore, PipelineResult, PipelineMetrics）
+- [x] `src/diting/enums.py`：Rating, DataSource, DataType, Signal
+- [x] 单元测试：11 tests ✅
 **依赖：** 无 | **大小：** M
 
-### #3 基础设施层
-- [ ] `src/diting/infra/logging_config.py`：structlog 配置
-- [ ] `src/diting/infra/errors.py`：异常层次结构（DitingError, DataUnavailableError, EngineFailedError, SandboxError, PipelineError）
-- [ ] `src/diting/infra/decorators.py`：@cached, @retry, @log_latency
-- [ ] 单元测试
+### #3 基础设施层 ✅
+- [x] `src/diting/infra/logging_config.py`：structlog 配置
+- [x] `src/diting/infra/errors.py`：异常层次结构（DitingError, DataUnavailableError, EngineFailedError, SandboxError, PipelineError）
+- [x] `src/diting/infra/decorators.py`：@cached, @retry, @log_latency
+- [x] 单元测试：11 tests ✅
 **依赖：** 无 | **大小：** M
 
-### #4 CLI 入口
-- [ ] `src/diting/__init__.py`
-- [ ] `src/diting/config.py`：.env + watchlist.csv 解析
-- [ ] `src/diting/main.py`：click CLI（l0/l1/l2/run 命令占位，print 提示）
-- [ ] `diting --help` 可运行，显示 4 个子命令
+### #4 CLI 入口 ✅
+- [x] `src/diting/__init__.py`
+- [x] `src/diting/config.py`：.env + watchlist.csv 解析
+- [x] `src/diting/main.py`：click CLI（l0/l1/l2/run 命令已实现）
+- [x] `diting --help` 可运行，显示 4 个子命令 ✅
 **依赖：** #3 | **大小：** M
 
-### #5 CI 流水线
-- [ ] `.github/workflows/ci.yml`：lint（ruff）+ 骨架测试（pytest）
-- [ ] `pyproject.toml` 中配置 ruff + pytest
-- [ ] CI 绿灯
+### #5 CI 流水线 ✅
+- [x] `.github/workflows/ci.yml`：lint（ruff）+ 骨架测试（pytest）
+- [x] `pyproject.toml` 中配置 ruff + pytest
+- [x] ruff ✅ + pytest 22/22 ✅
 **依赖：** #1-#4 | **大小：** S
 
 ---

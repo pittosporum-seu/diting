@@ -4,7 +4,7 @@ import functools
 import hashlib
 import json
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from .logging_config import get_logger
 
@@ -19,7 +19,8 @@ def cached(ttl_seconds: int = 3600):
     def decorator(func: Callable):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            key_parts = [func.__name__, json.dumps(args, default=str), json.dumps(kwargs, default=str, sort_keys=True)]
+            kws = json.dumps(kwargs, default=str, sort_keys=True)
+            key_parts = [func.__name__, json.dumps(args, default=str), kws]
             key = hashlib.sha256("|".join(key_parts).encode()).hexdigest()
 
             now = time.time()
@@ -54,7 +55,12 @@ def retry(max_attempts: int = 3, backoff: float = 2.0, on: tuple = (TimeoutError
                     last_exc = e
                     if attempt < max_attempts - 1:
                         wait = backoff**attempt
-                        logger.warning("retry.waiting", func=func.__name__, attempt=attempt + 1, wait_seconds=wait)
+                        logger.warning(
+                            "retry.waiting",
+                            func=func.__name__,
+                            attempt=attempt + 1,
+                            wait_seconds=wait,
+                        )
                         time.sleep(wait)
             logger.error("retry.exhausted", func=func.__name__, attempts=max_attempts)
             raise last_exc  # type: ignore

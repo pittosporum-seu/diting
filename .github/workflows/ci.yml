@@ -1,3 +1,5 @@
+name: CI
+
 on:
   push:
     branches: [main]
@@ -5,13 +7,13 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-test:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-      - run: uv sync --dev
+      - run: uv sync --extra dev
       - run: uv run ruff check src/ tests/
-      - run: uv run pytest -v --cov=src/diting --cov-report=term-missing
+      - run: uv run pytest tests/ -v

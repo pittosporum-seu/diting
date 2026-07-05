@@ -4,22 +4,22 @@
 
 ---
 
-## 🎯 当前阶段：设计
+## 🎯 当前阶段：M2 数据层
 
-- [ ] 架构设计文档 v2.0 评审通过
-- [ ] 所有设计文档补全 + 评审
-- [ ] Issue 拆分 + Milestone 规划
+- [x] ~~架构设计文档 v2.0 评审通过~~ ✅
+- [x] ~~所有设计文档补全 + 评审~~ ✅
+- [x] ~~Issue 拆分 + Milestone 规划~~ ✅
 
-## 🏗️ Sprint 1: 项目骨架
+## 🏗️ Sprint 1: 项目骨架 ✅ 已完成
 
-- [ ] pyproject.toml + 依赖声明
-- [ ] 目录结构创建
-- [ ] schema.py（所有 @dataclass）
-- [ ] enums.py
-- [ ] config.py
-- [ ] infra/ 基础设施（logging, errors, decorators）
-- [ ] CLI 入口（diting --help 可运行）
-- [ ] CI pipeline（lint + test）
+- [x] pyproject.toml + 依赖声明
+- [x] 目录结构创建
+- [x] schema.py（所有 @dataclass）
+- [x] enums.py
+- [x] config.py
+- [x] infra/ 基础设施（logging, errors, decorators）
+- [x] CLI 入口（diting --help 可运行）
+- [x] CI pipeline（lint + test）→ ruff ✅ + pytest 22/22 ✅
 
 ## 📊 Sprint 2: 数据层
 

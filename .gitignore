@@ -4,23 +4,24 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Virtualenv
 .venv/
 venv/
-
-# 环境变量（含真实密钥，绝不提交）
-.env
-
-# 输出
-output/
 
 # IDE
 .vscode/
 .idea/
 *.swp
+*.swo
 
-# OS
-.DS_Store
-Thumbs.db
+# Environment (DO NOT COMMIT REAL KEYS)
+.env
 
-# uv
-uv.lock
+# Output
+output/
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/

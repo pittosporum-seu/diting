@@ -45,7 +45,7 @@ diting l2 --watchlist config/watchlist.csv --notify feishu,email
 
 ## 项目状态
 
-🟡 **设计阶段** — 架构设计 v2.0 审查中
+🟢 **M1 骨架完成** — 22 tests ✅ · ruff ✅ · CLI ✅ | 下一步 M2 数据层
 
 - 📐 [架构设计](docs/01-design/architecture.md)
 - 📋 [功能设计](docs/01-design/features.md)

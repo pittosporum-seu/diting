@@ -1,6 +1,5 @@
 """infra 层测试：异常 + 装饰器"""
 
-import time
 
 import pytest
 
