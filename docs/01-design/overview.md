@@ -68,7 +68,7 @@ Layer 0: Infrastructure — Config · structlog · Metrics · Error Hierarchy
 
 23 个 Issue，6 个 Milestone：骨架 → 数据 → 信号 → 沙箱+引擎 → 全引擎 → 发布。
 
-**当前状态：🟢 设计完成，即将进入 Sprint 1。**
+**当前状态：🎉 v0.1.0 全部完成 · 154 tests · ruff ✅**
 
 ---
 
