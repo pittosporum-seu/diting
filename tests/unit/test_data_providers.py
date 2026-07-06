@@ -74,18 +74,16 @@ class TestMxDataProvider:
         assert p.priority == 10
 
     def test_health_check_requires_valid_key(self):
-        """无有效 apikey 时 health_check 返回 False。
-
-        注意：此测试依赖环境中没有 MX_APIKEY。如果已设，改为验证带 apikey 的正常路径。
-        """
+        """无有效 apikey 时 health_check 返回 False。"""
         import os
         if os.getenv("MX_APIKEY"):
-            # 环境已有真实 key，测试正常路径
             p = MxDataProvider()
             assert p.health_check() is True
         else:
-            p = MxDataProvider(api_key="invalid_key")
-            assert p.health_check() is False
+            with patch("src.diting.data.providers.mx_data.MXData") as mock_mx:
+                mock_mx.side_effect = ValueError("invalid api key")
+                p = MxDataProvider(api_key="invalid_key")
+                assert p.health_check() is False
 
     def test_fetch_realtime_with_mock(self):
         # 直接构建 parse 后的 mock_tables，测试 _row_to_quote
