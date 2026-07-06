@@ -12,7 +12,55 @@
 
 谛听是一款开源的A股投资分析工具，融合多种经典分析流派，通过AI + Python沙箱进行计算，输出多引擎共识评分和可视化报告。
 
-**六层架构：**
+## 当前形态：命令行工具（CLI）
+
+目前为纯 CLI 工具，没有网页版、没有 npm 包、没有发 PyPI。通过以下方式使用：
+
+### 方式一：克隆运行（推荐）
+
+```bash
+git clone https://github.com/pittosporum-seu/diting.git
+cd diting
+
+# Python 3.12+，需要 uv（推荐）或 pip
+uv run diting l0 --symbols 002475
+```
+
+### 方式二：pip 从 GitHub 安装
+
+```bash
+pip install git+https://github.com/pittosporum-seu/diting.git
+diting l0 --symbols 002475
+```
+
+### 前提
+
+- Python 3.12+
+- 东方财富妙想数据平台 API Key（MX_APIKEY）
+- 可选：DeepSeek / LiteLLM 支持的 AI 模型 API Key（用于 Wyckoff/Buffett/CANSLIM 引擎）
+
+### 快速体验
+
+```bash
+# 先配 key（环境变量或 .env）
+export MX_APIKEY=your_key_here
+
+# L0: 实时行情快照（不需要 AI）
+diting l0 --symbols 002475,603659
+
+# L1: 标准分析 + 技术信号
+diting l1 --symbols 002475 --engines vmd_rsi
+
+# L2: 深度分析 + 多引擎共识 + HTML 报告
+diting l2 --symbols 002475 --engines all --output reports/
+
+# 查看 HTML 报告
+open reports/report-002475.html
+```
+
+## 架构
+
+**六层：**
 
 ```
 L5  CLI / Report / Notify
@@ -21,26 +69,6 @@ L3  5 Engines (Wyckoff·Buffett·CANSLIM·Vol·VMD+RSI)
 L2  Signals (RSI·VMD·Wavelet·CEEMDAN)
 L1  Data (mx-data → akshare → SQLite)
 L0  Infra (structlog·@cached·@retry)
-```
-
-## 快速开始
-
-```bash
-# 安装
-pip install diting
-
-# 配置
-cp config/.env.example .env
-# 编辑 .env，填入 MX_APIKEY 和 AI_API_KEY
-
-# L0: 快速行情快照
-diting l0 --symbols 002475,603659
-
-# L1: 标准分析 + AI解读
-diting l1 --symbols 002475 --engines wyckoff,vmd_rsi
-
-# L2: 深度分析 + 多引擎共识 + 报告
-diting l2 --watchlist config/watchlist.csv --output reports/
 ```
 
 ## 三档层级
