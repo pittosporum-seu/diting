@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "谛听 · A股多模型AI投资分析工具"
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "小爪 · 谛听项目组" }]
+authors = [{ name = "孙海桐", email = "sunhaitong123@gmail.com" }]
 requires-python = ">=3.12"
 classifiers = [
     "Development Status :: 4 - Beta",

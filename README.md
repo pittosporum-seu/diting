@@ -82,6 +82,10 @@ diting l2 --watchlist config/watchlist.csv --output reports/
 | [功能设计](docs/01-design/features.md) | 功能全景 |
 | [开发手册](AGENTS.md) | 开发规范与避坑 |
 
+## 贡献者
+
+- **孙海桐** (sunhaitong123@gmail.com) — 项目发起人、唯一代码贡献者
+
 ## 许可
 
 MIT License — 自由使用、修改、分发。
