@@ -25,3 +25,14 @@ output/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Task files
+.codewhale*
+
+# Notification script (contains bot credentials)
+scripts/notify-diting.sh
+
+# Docs in progress
+docs/01-design/*-plan.md
+docs/01-design/architecture-overview.md
+diting-web-prototype.html

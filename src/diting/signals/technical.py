@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
+from ..infra.config_loader import ConfigLoader
 from ..infra.errors import DataUnavailableError
 from ..schema import HistoricalData, TechnicalSignals
 
@@ -22,6 +23,10 @@ class TechnicalCalculator:
     """
 
     # ── 公开接口 ──────────────────────────────────
+
+    @classmethod
+    def _indicator_config(cls) -> dict:
+        return ConfigLoader.get_section("indicators")
 
     @classmethod
     def calculate(cls, data: HistoricalData) -> TechnicalSignals:
@@ -47,7 +52,9 @@ class TechnicalCalculator:
                 f"Need >=20 rows for {data.symbol}, got {len(close)}"
             )
 
-        rsi_14 = cls._rsi(close, 14)
+        ind = cls._indicator_config()
+        rsi_period = ind.get("rsi", {}).get("period", 14)
+        rsi_14 = cls._rsi(close, rsi_period)
         macd, signal_line, histogram = cls._macd(close)
         k, d, j = cls._kdj(high, low, close)
         upper, middle, lower, boll_pos = cls._bollinger(close)
@@ -81,8 +88,11 @@ class TechnicalCalculator:
     # ── 指标计算 ──────────────────────────────────
 
     @staticmethod
-    def _rsi(close: ndarray, period: int = 14) -> float:
+    def _rsi(close: ndarray, period: int | None = None) -> float:
         """RSI 相对强弱指标"""
+        if period is None:
+            ind = ConfigLoader.get_section("indicators")
+            period = ind.get("rsi", {}).get("period", 14)
         if len(close) < period + 1:
             return 50.0
         diff = np.diff(close)
@@ -96,18 +106,38 @@ class TechnicalCalculator:
         return float(100.0 - 100.0 / (1.0 + rs))
 
     @staticmethod
-    def _macd(close: ndarray) -> tuple[float, float, float]:
-        """MACD (12, 26, 9)"""
-        ema12 = TechnicalCalculator._ema(close, 12)
-        ema26 = TechnicalCalculator._ema(close, 26)
+    def _macd(
+        close: ndarray,
+        fast: int | None = None,
+        slow: int | None = None,
+        signal: int | None = None,
+    ) -> tuple[float, float, float]:
+        """MACD (默认 12, 26, 9)"""
+        if fast is None:
+            ind = ConfigLoader.get_section("indicators")
+            fast = ind.get("macd", {}).get("fast", 12)
+            slow = ind.get("macd", {}).get("slow", 26)
+            signal = ind.get("macd", {}).get("signal", 9)
+        ema12 = TechnicalCalculator._ema(close, fast)
+        ema26 = TechnicalCalculator._ema(close, slow)
         macd_line = ema12 - ema26
-        signal = TechnicalCalculator._ema(np.array([macd_line]), 9)
-        return float(macd_line), float(signal), float(macd_line - signal)
+        sig_line = TechnicalCalculator._ema(np.array([macd_line]), signal)
+        return float(macd_line), float(sig_line), float(macd_line - sig_line)
 
     @staticmethod
-    def _kdj(high: ndarray, low: ndarray, close: ndarray) -> tuple[float, float, float]:
-        """KDJ (9, 3, 3)"""
-        n = 9
+    def _kdj(
+        high: ndarray,
+        low: ndarray,
+        close: ndarray,
+        period: int | None = None,
+        k_smooth: int | None = None,
+        d_smooth: int | None = None,
+    ) -> tuple[float, float, float]:
+        """KDJ (默认 9, 3, 3)"""
+        if period is None:
+            ind = ConfigLoader.get_section("indicators")
+            period = ind.get("kdj", {}).get("period", 9)
+        n = period
         if len(close) < n:
             return 50.0, 50.0, 50.0
         # 最近 9 个周期的最高最低
@@ -121,13 +151,21 @@ class TechnicalCalculator:
         return round(k, 2), round(d, 2), round(j, 2)
 
     @staticmethod
-    def _bollinger(close: ndarray) -> tuple[float, float, float, float]:
-        """布林带 (20, 2)"""
-        n = 20
+    def _bollinger(
+        close: ndarray,
+        period: int | None = None,
+        std_dev: float | None = None,
+    ) -> tuple[float, float, float, float]:
+        """布林带 (默认 20, 2.0)"""
+        if period is None:
+            ind = ConfigLoader.get_section("indicators")
+            period = ind.get("bollinger", {}).get("period", 20)
+            std_dev = ind.get("bollinger", {}).get("std_dev", 2.0)
+        n = period
         middle = float(np.mean(close[-n:]))
         std = float(np.std(close[-n:], ddof=1))
-        upper = middle + 2 * std
-        lower = middle - 2 * std
+        upper = middle + std_dev * std
+        lower = middle - std_dev * std
         # 当前位置 0=下轨, 1=上轨
         if upper == lower:
             pos = 0.5

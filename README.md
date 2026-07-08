@@ -12,74 +12,52 @@
 
 谛听是一款开源的A股投资分析工具，融合多种经典分析流派，通过AI + Python沙箱进行计算，输出多引擎共识评分和可视化报告。
 
-## 当前形态：命令行工具（CLI）
-
-目前为纯 CLI 工具，没有网页版、没有 npm 包、没有发 PyPI。通过以下方式使用：
-
-### 方式一：克隆运行（推荐）
+## 快速体验
 
 ```bash
+# 克隆
 git clone https://github.com/pittosporum-seu/diting.git
 cd diting
 
 # Python 3.12+，需要 uv（推荐）或 pip
-uv run diting l0 --symbols 002475
-```
+uv sync
 
-### 方式二：pip 从 GitHub 安装
+# 一键分析
+uv run diting 002475
 
-```bash
-pip install git+https://github.com/pittosporum-seu/diting.git
-diting l0 --symbols 002475
-```
+# 行情快照（无需 AI）
+uv run diting scan 002475
 
-### 前提
+# 详细分析
+uv run diting 002475 --more
 
-- Python 3.12+
-- 东方财富妙想数据平台 API Key（MX_APIKEY）
-- 可选：DeepSeek / LiteLLM 支持的 AI 模型 API Key（用于 Wyckoff/Buffett/CANSLIM 引擎）
+# HTML 报告
+uv run diting 002475 --report
 
-### 快速体验
+# 多股对比
+uv run diting compare 002475,603659
 
-```bash
-# 先配 key（环境变量或 .env）
-export MX_APIKEY=your_key_here
+# 自选股概览
+uv run diting watchlist
 
-# L0: 实时行情快照（不需要 AI）
-diting l0 --symbols 002475,603659
-
-# L1: 标准分析 + 技术信号
-diting l1 --symbols 002475 --engines vmd_rsi
-
-# L2: 深度分析 + 多引擎共识 + HTML 报告
-diting l2 --symbols 002475 --engines all --output reports/
-
-# 查看 HTML 报告
-open reports/report-002475.html
+# Web 版
+uv run diting serve
 ```
 
 ## 架构
 
-**六层：**
+**六层架构，六大引擎：**
 
 ```
-L5  CLI / Report / Notify
+L5  CLI / Web / Report / Notify
 L4  Pipeline / Consensus / Alert
-L3  5 Engines (Wyckoff·Buffett·CANSLIM·Vol·VMD+RSI)
+L3  6 Engines (Wyckoff·Buffett·CANSLIM·Vol·VMD+RSI·Verdict)
 L2  Signals (RSI·VMD·Wavelet·CEEMDAN)
-L1  Data (mx-data → akshare → SQLite)
+L1  Data (eltdx → ashare → mx-data → akshare)
 L0  Infra (structlog·@cached·@retry)
 ```
 
-## 三档层级
-
-| 层级 | 能力 | AI | 适用场景 |
-|------|------|:--:|------|
-| **L0** | 行情快照 | ❌ | 盘中快速扫一眼 |
-| **L1** | 标准分析 + 信号处理 | ✅ | 日常分析 |
-| **L2** | 深度分析 + 多引擎共识 + HTML报告 | ✅ | 周末复盘 |
-
-## 五大分析引擎
+### 六大分析引擎
 
 | 引擎 | 方法 | 驱动方式 |
 |------|------|---------|
@@ -88,23 +66,36 @@ L0  Infra (structlog·@cached·@retry)
 | **CANSLIM** | 七维成长股评分 | AI + 沙箱 |
 | **Volume Profile** | VAH/POC/VAL 支撑压力 | 纯计算 |
 | **VMD+RSI** | 三维择时（大盘×行业×个股） | 纯计算 |
+| **Verdict** | 信号→人话结论翻译 | 纯计算 |
+
+### 数据源降级链
+
+```
+eltdx（通达信直连，0.2s）
+  → ashare（新浪/腾讯，免费不限量）
+    → mx-data（东方财富，需 API Key）
+      → akshare（免费兜底）
+```
 
 ## 项目状态
 
-🎉 **v0.1.0 — 全部完成**
+🎉 **v0.2.1 — 全量配置化完成**
 
 | 统计 | |
-|---|---|
-| 测试 | **154 passed** |
-| 源码 | 42 个 .py 文件 |
-| 文档 | 10 份设计文档 + QUICKSTART |
-| 许可 | MIT |
+|------|---|
+| 测试 | **151 passed** |
+| 源码 | 45 个 .py 文件 |
+| 引擎 | 6 (5 AI/计算 + 1 结论翻译) |
+| 数据源 | 4 级降级链，免费可用 |
+| 文档 | 设计文档 + 开发手册 |
+| 配置 | config/diting.yaml 驱动全部策略 |
 
 ## 设计文档
 
 | 文档 | 说明 |
 |------|------|
 | [架构设计](docs/01-design/architecture.md) | 六层架构、设计模式、模块协议 |
+| [配置化设计](docs/01-design/config-driven-design.md) | v0.2.1 配置驱动改造方案 |
 | [API 契约](docs/01-design/api-contracts.md) | Python API + CLI + 配置 |
 | [数据模型](docs/01-design/data-models.md) | 所有 @dataclass 定义 |
 | [功能设计](docs/01-design/features.md) | 功能全景 |

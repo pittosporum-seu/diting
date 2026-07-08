@@ -109,3 +109,40 @@ class DataProvider(ABC):
         raise NotImplementedError(
             f"{self.name} does not support minute data"
         )
+
+    @classmethod
+    def from_config(cls, name: str, settings: dict | None = None):
+        """根据名称和配置创建 provider 实例。
+
+        Args:
+            name: provider 名称，如 'eltdx', 'mx_data', 'akshare', 'ashare'。
+            settings: 可选的初始化参数字典。
+
+        Returns:
+            DataProvider 实例。
+
+        Raises:
+            ValueError: 未知的 provider 名称。
+        """
+        mapping = {
+            "eltdx": "diting.data.providers.eltdx.ELtdxProvider",
+            "ashare": "diting.data.providers.ashare.AshareProvider",
+            "mx_data": "diting.data.providers.mx_data.MxDataProvider",
+            "akshare": "diting.data.providers.akshare.AkShareProvider",
+        }
+        class_path = mapping.get(name)
+        if class_path is None:
+            raise ValueError(f"Unknown provider: {name}")
+
+        mod_path, _, cls_name = class_path.rpartition(".")
+        import importlib
+        mod = importlib.import_module(mod_path)
+        provider_cls = getattr(mod, cls_name)
+
+        if settings:
+            provider = provider_cls()
+            for k, v in settings.items():
+                if hasattr(provider, k):
+                    setattr(provider, k, v)
+            return provider
+        return provider_cls()

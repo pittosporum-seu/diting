@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>谛听 · A股智能分析</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="search-container">
+  <div class="logo">🐾 谛听</div>
+  <div class="subtitle">A股多模型AI投资分析工具</div>
+
+  <form class="search-form" action="/stock/" method="get" onsubmit="go()">
+    <input
+      type="text"
+      id="code-input"
+      class="search-input"
+      placeholder="输入股票代码，如 002475"
+      autofocus
+      autocomplete="off"
+    >
+    <button type="submit" class="search-btn">分析 →</button>
+  </form>
+
+  <div class="hot-stocks">
+    热门：
+    <a href="/stock/002475" class="hot-link">002475 立讯精密</a>
+    <span class="sep">·</span>
+    <a href="/stock/603659" class="hot-link">603659 璞泰来</a>
+    <span class="sep">·</span>
+    <a href="/stock/600519" class="hot-link">600519 贵州茅台</a>
+    <span class="sep">·</span>
+    <a href="/stock/159770" class="hot-link">159770 机器人ETF</a>
+  </div>
+</div>
+
+<script>
+function go() {
+  var val = document.getElementById('code-input').value.trim();
+  if (val.length >= 2) {
+    document.querySelector('.search-form').action = '/stock/' + val;
+  }
+}
+</script>
+</body>
+</html>

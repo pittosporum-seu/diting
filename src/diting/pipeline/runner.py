@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 from ..engines.registry import discover_engines, get_engine
+from ..infra.config_loader import ConfigLoader
 from ..infra.logging_config import get_logger
 from ..schema import AnalysisContext, AnalysisResult, PipelineResult
 
@@ -15,6 +16,8 @@ class AnalysisPipeline:
 
     def __init__(self, engine_names: list[str] | None = None):
         self._engine_names = engine_names or discover_engines()
+        pipe_cfg = ConfigLoader.get_section("pipeline")
+        self._max_workers = pipe_cfg.get("max_workers", 4)
 
     def run(self, contexts: list[AnalysisContext]) -> PipelineResult:
         """对多只股票的多个引擎并行分析。
@@ -27,7 +30,7 @@ class AnalysisPipeline:
 
         for ctx in contexts:
             engine_results: list[AnalysisResult] = []
-            with ThreadPoolExecutor(max_workers=4) as pool:
+            with ThreadPoolExecutor(max_workers=self._max_workers) as pool:
                 futures = {
                     pool.submit(self._run_engine, name, ctx): name
                     for name in self._engine_names

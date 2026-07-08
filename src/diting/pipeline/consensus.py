@@ -1,6 +1,7 @@
 """谛听 · 多引擎共识融合"""
 
 
+from ..infra.config_loader import ConfigLoader
 from ..infra.logging_config import get_logger
 from ..schema import AnalysisResult, Conflict, ConsensusScore, Rating
 
@@ -11,7 +12,8 @@ class ConsensusEngine:
     """多引擎评分融合 —— 加权平均 + 冲突检测"""
 
     def __init__(self, weights: dict[str, float] | None = None):
-        self._weights = weights or {}
+        cfg = ConfigLoader.get_section("engines")
+        self._weights = weights or cfg.get("weights", {})
 
     def fuse(self, symbol: str, results: list[AnalysisResult]) -> ConsensusScore:
         """融合多个引擎的评分。
@@ -87,14 +89,19 @@ class ConsensusEngine:
 
     @staticmethod
     def _score_to_rating(score: float) -> Rating:
-        if score >= 80:
+        cfg = ConfigLoader.get_section("engines")
+        thresholds = cfg.get("scoring", {}).get("threshold", [80, 65, 50, 35, 20])
+        s0, s1, s2, s3, s4 = (
+            thresholds[0], thresholds[1], thresholds[2], thresholds[3], thresholds[4]
+        )
+        if score >= s0:
             return Rating.STRONG_BUY
-        if score >= 65:
+        if score >= s1:
             return Rating.BUY
-        if score >= 50:
+        if score >= s2:
             return Rating.ACCUMULATE
-        if score >= 35:
+        if score >= s3:
             return Rating.HOLD
-        if score >= 20:
+        if score >= s4:
             return Rating.REDUCE
         return Rating.SELL

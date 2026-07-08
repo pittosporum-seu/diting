@@ -9,6 +9,7 @@ import time
 from collections import OrderedDict
 from typing import Any
 
+from ..infra.config_loader import ConfigLoader
 from ..infra.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -23,11 +24,12 @@ class CacheLayer:
 
     def __init__(
         self,
-        max_size: int = 256,
-        default_ttl: int = 3600,
+        max_size: int | None = None,
+        default_ttl: int | None = None,
     ):
-        self._max_size = max_size
-        self._default_ttl = default_ttl
+        cache_cfg = ConfigLoader.get_section("pipeline").get("cache", {})
+        self._max_size = max_size or cache_cfg.get("max_size", 256)
+        self._default_ttl = default_ttl or cache_cfg.get("historical_ttl", 3600)
         self._store: OrderedDict[str, tuple[float, int, Any]] = OrderedDict()
 
     # ── 公共接口 ──────────────────────────────────

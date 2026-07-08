@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
+from ..infra.config_loader import ConfigLoader
 from ..infra.logging_config import get_logger
 from ..pipeline.consensus import ConsensusEngine
 from ..schema import AnalysisResult, PipelineResult, Rating
@@ -39,11 +40,15 @@ class ReportBuilder:
     """
 
     TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
+    ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+    ECHARTS_FILE = os.path.join(ASSETS_DIR, "echarts.min.js")
 
-    def __init__(self, level: str = "L1") -> None:
-        if level not in ("L1", "L2"):
-            raise ValueError(f"不支持的报告级别: {level}，请使用 L1 或 L2")
-        self._level = level
+    def __init__(self, level: str | None = None) -> None:
+        report_cfg = ConfigLoader.get_section("report")
+        self._level = level or report_cfg.get("level", "L1")
+        self._theme = report_cfg.get("theme", "light")
+        if self._level not in ("L1", "L2"):
+            raise ValueError(f"不支持的报告级别: {self._level}，请使用 L1 或 L2")
         self._consensus = ConsensusEngine()
 
     # ── 公开 API ──────────────────────────────────────
@@ -448,12 +453,22 @@ class ReportBuilder:
     # ── 工具方法 ──────────────────────────────────────
 
     def _load_template(self, level: str) -> str:
-        """加载 HTML 模板。"""
+        """加载 HTML 模板，内联 ECharts 库。"""
         path = os.path.join(self.TEMPLATE_DIR, f"{level.lower()}.html")
         if not os.path.isfile(path):
             raise FileNotFoundError(f"模板文件不存在: {path}")
         with open(path, encoding="utf-8") as f:
-            return f.read()
+            html = f.read()
+
+        # 内联 ECharts：用本地文件替换 CDN 引用
+        if os.path.isfile(self.ECHARTS_FILE):
+            with open(self.ECHARTS_FILE, encoding="utf-8") as f:
+                echarts_js = f.read()
+            cdn_tag = '<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>'
+            inline_tag = f"<script>\n{echarts_js}\n</script>"
+            html = html.replace(cdn_tag, inline_tag)
+
+        return html
 
     @staticmethod
     def _score_to_rating(score: float) -> Rating:

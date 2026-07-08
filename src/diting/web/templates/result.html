@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if error %}{{ code }}{% else %}{{ name }} ({{ code }}) · 谛听{% endif %}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+{% if error %}
+<div class="error-box">
+  <p>❌ {{ error }}</p>
+  <a href="/" class="back-link">← 返回搜索</a>
+</div>
+{% else %}
+<div class="result-page">
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <a href="/" class="back-link">🐾 谛听 ← 返回</a>
+  </div>
+
+  <div class="stock-title">
+    {{ code }} · {{ name }}
+    <span class="stock-code">{{ score | round | int }}/100 · {{ rating_label }}</span>
+  </div>
+
+  <div class="price-row">
+    <span class="current-price">{{ "%.2f" | format(price) }}</span>
+    {% set c = change_pct or 0 %}
+    <span class="change-pct" style="color: {% if c > 0 %}#16a34a{% elif c < 0 %}#dc2626{% else %}#6b7280{% endif %}">
+      {% if c > 0 %}+{% endif %}{{ "%.2f" | format(c) }}%
+    </span>
+  </div>
+
+  <div class="meta-row">
+    <span>PE {{ "%.1f"|format(pe) if pe else '-' }}</span>
+    <span>PB {{ "%.1f"|format(pb) if pb else '-' }}</span>
+    <span>市值 {{ "%.0f"|format(total_mv / 1e8) if total_mv else '-' }}亿</span>
+    <span>RSI {{ rsi_display }}</span>
+  </div>
+
+  <!-- Verdict Card -->
+  <div class="verdict-card">
+    <div class="verdict-left">
+      <div class="verdict-label">{{ rating_emoji }} {{ rating_label }}</div>
+      <div class="verdict-meta">信心中等 · {{ engine_scores | length }} 引擎参与分析</div>
+    </div>
+    <div class="verdict-score">{{ score | round | int }}</div>
+  </div>
+
+  <!-- Reasons -->
+  <div class="reasons-row">
+    <div class="reason-box bull">
+      <h3>✅ 看多理由</h3>
+      {% if bull_reasons %}
+      <ul>{% for r in bull_reasons %}<li>{{ r }}</li>{% endfor %}</ul>
+      {% else %}
+      <p class="no-reasons">暂无明确的看多信号</p>
+      {% endif %}
+    </div>
+    <div class="reason-box bear">
+      <h3>⚠️ 看空理由</h3>
+      {% if bear_reasons %}
+      <ul>{% for r in bear_reasons %}<li>{{ r }}</li>{% endfor %}</ul>
+      {% else %}
+      <p class="no-reasons">暂无明确的看空信号</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Charts -->
+  {% if chart_data and chart_data != '{}' %}
+  <div class="chart-section">
+    <div class="chart-box" id="price-chart"></div>
+  </div>
+  <div class="chart-section">
+    <div class="chart-box" id="rsi-chart"></div>
+  </div>
+  {% endif %}
+
+  <!-- Engine Scores -->
+  {% if engine_scores %}
+  <div class="engine-section">
+    <h3>📊 引擎评分</h3>
+    {% for e in engine_scores %}
+    <div class="engine-bar">
+      <span class="engine-name">{{ e.name }}</span>
+      <div class="engine-track">
+        <div class="engine-fill" style="width: {{ e.score }}%; background: {% if e.score >= 70 %}#16a34a{% elif e.score >= 50 %}#f59e0b{% else %}#dc2626{% endif %};"></div>
+      </div>
+      <span class="engine-score-val" style="color: {% if e.score >= 70 %}#16a34a{% elif e.score >= 50 %}#f59e0b{% else %}#dc2626{% endif %};">{{ "%.0f" | format(e.score) }}</span>
+      <span class="engine-rating">{{ e.rating_cn }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+
+{% if chart_data and chart_data != '{}' %}
+<script src="/static/echarts.min.js"></script>
+<script>
+(function() {
+  var data = {{ chart_data | safe }};
+
+  // ── Price Chart ──
+  var priceChart = echarts.init(document.getElementById('price-chart'));
+  var priceOption = {
+    tooltip: { trigger: 'axis' },
+    legend: { bottom: 0, textStyle: { fontSize: 11 } },
+    grid: { left: 55, right: 20, top: 15, bottom: 35 },
+    xAxis: {
+      type: 'category',
+      data: data.dates,
+      axisLabel: { rotate: 30, fontSize: 9 },
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+    },
+    yAxis: {
+      type: 'value',
+      name: '价格',
+      splitLine: { lineStyle: { color: '#e5e7eb' } },
+    },
+    series: [
+      {
+        name: '收盘价', type: 'line', data: data.prices,
+        lineStyle: { width: 2, color: '#3b82f6' }, symbol: 'none',
+      },
+      data.ma_5 ? {
+        name: 'MA5', type: 'line', data: data.ma_5,
+        lineStyle: { width: 1, color: '#f59e0b', type: 'dashed' }, symbol: 'none',
+      } : null,
+      data.ma_20 ? {
+        name: 'MA20', type: 'line', data: data.ma_20,
+        lineStyle: { width: 1, color: '#06b6d4', type: 'dashed' }, symbol: 'none',
+      } : null,
+      data.boll_upper ? {
+        name: '布林上轨', type: 'line', data: data.boll_upper,
+        lineStyle: { width: 0.5, color: '#9ca3af', type: 'dotted' }, symbol: 'none',
+      } : null,
+      data.boll_lower ? {
+        name: '布林下轨', type: 'line', data: data.boll_lower,
+        lineStyle: { width: 0.5, color: '#9ca3af', type: 'dotted' }, symbol: 'none',
+      } : null,
+    ].filter(Boolean),
+  };
+  priceChart.setOption(priceOption);
+
+  // ── RSI Chart ──
+  if (data.rsi_values) {
+    var rsiChart = echarts.init(document.getElementById('rsi-chart'));
+    var rsiOption = {
+      tooltip: { trigger: 'axis' },
+      legend: { bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { left: 55, right: 20, top: 15, bottom: 35 },
+      xAxis: {
+        type: 'category',
+        data: data.dates,
+        axisLabel: { rotate: 30, fontSize: 9 },
+        axisLine: { lineStyle: { color: '#e5e7eb' } },
+      },
+      yAxis: {
+        type: 'value', name: 'RSI', min: 0, max: 100,
+        splitLine: { lineStyle: { color: '#e5e7eb' } },
+      },
+      series: [{
+        name: 'RSI(14)', type: 'line', data: data.rsi_values,
+        lineStyle: { width: 2, color: '#f59e0b' }, symbol: 'none',
+        markLine: {
+          silent: true, symbol: 'none',
+          data: [
+            { yAxis: 30, label: { formatter: '超卖 30', fontSize: 10 }, lineStyle: { color: '#22c55e', type: 'dashed', width: 1 } },
+            { yAxis: 70, label: { formatter: '超买 70', fontSize: 10 }, lineStyle: { color: '#ef4444', type: 'dashed', width: 1 } },
+          ],
+        },
+      }],
+    };
+    rsiChart.setOption(rsiOption);
+
+    // Responsive resize
+    window.addEventListener('resize', function() {
+      priceChart.resize();
+      rsiChart.resize();
+    });
+  }
+})();
+</script>
+{% endif %}
+
+{% endif %}
+</body>
+</html>

@@ -11,6 +11,7 @@ from datetime import datetime
 import numpy as np
 from numpy import ndarray
 
+from ..infra.config_loader import ConfigLoader
 from ..infra.errors import DataUnavailableError
 from ..infra.logging_config import get_logger
 from ..schema import VMDResult
@@ -29,12 +30,16 @@ class VMDDecomposer:
     DEFAULT_ALPHA = 2000
 
     @classmethod
+    def _vmd_config(cls) -> dict:
+        return ConfigLoader.get_section("indicators").get("vmd", {})
+
+    @classmethod
     def decompose(
         cls,
         close: ndarray,
         symbol: str = "",
-        k: int = DEFAULT_K,
-        alpha: int = DEFAULT_ALPHA,
+        k: int | None = None,
+        alpha: int | None = None,
     ) -> VMDResult:
         """对收盘价序列执行 VMD 分解。
 
@@ -47,6 +52,12 @@ class VMDDecomposer:
         Returns:
             VMDResult @dataclass
         """
+        cfg = cls._vmd_config()
+        if k is None:
+            k = cfg.get("k", cls.DEFAULT_K)
+        if alpha is None:
+            alpha = cfg.get("alpha", cls.DEFAULT_ALPHA)
+
         if len(close) < k * 10:
             raise DataUnavailableError(
                 f"VMD needs >= {k * 10} rows, got {len(close)}"
