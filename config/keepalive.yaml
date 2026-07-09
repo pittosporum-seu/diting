@@ -1,0 +1,42 @@
+# 谛听 · 服务保活配置
+# 定义需要监控的服务和健康检查规则
+
+services:
+  - name: diting
+    type: systemd
+    systemd_name: diting
+    port_check: 8100
+    health_url: "http://127.0.0.1:8100/api/health"
+    health_expect: '"status":"ok"'
+    restart_limit: 3
+    restart_window: 300
+
+  - name: caddy
+    type: systemd
+    systemd_name: caddy
+    port_check: 8443
+    health_url: "http://127.0.0.1:8443/app/stocks/diting/api/health"
+    health_expect: '"status":"ok"'
+    restart_limit: 3
+    restart_window: 300
+
+  - name: trojan
+    type: systemd
+    systemd_name: trojan
+    port_check: 443
+    restart_limit: 3
+    restart_window: 300
+
+  - name: proxy (sing-box)
+    type: process
+    process_name: sing-box
+    port_check: 2080
+    start_cmd: "sing-box run -c /home/pitto/.config/sing-box/config.json &"
+    restart_limit: 3
+    restart_window: 300
+
+settings:
+  check_interval: 60       # 每 60 秒检查一次
+  log_file: /var/log/diting/keepalive.log
+  notify_on_restart: true  # 重启时通知海桐
+  notify_script: /root/diting/scripts/notify-diting.sh

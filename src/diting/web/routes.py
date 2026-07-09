@@ -10,7 +10,6 @@ import json
 
 from fastapi import APIRouter, HTTPException, Request
 
-from .app import templates
 from .services import AnalysisService
 
 router = APIRouter()
@@ -21,11 +20,13 @@ service = AnalysisService()
 
 @router.get("/")
 async def search_page(request: Request):
+    from .app import templates
     return templates.TemplateResponse(request, "search.html")
 
 
 @router.get("/stock/{code}")
 async def stock_page(request: Request, code: str):
+    from .app import templates
     data = service.analyze_stock(code)
 
     if data["error"]:
@@ -84,6 +85,19 @@ async def api_settings(request: Request):
     body = await request.json()
     result = service.save_settings(body)
     return result
+
+
+# ── SPA catch-all ────────────────────────────
+
+@router.get("/{path:path}")
+async def spa_files(path: str):
+    """Serve SPA static files for non-API paths."""
+    from fastapi.responses import FileResponse
+    from .app import FRONTEND
+    fp = FRONTEND / path
+    if fp.exists() and fp.is_file():
+        return FileResponse(fp)
+    return FileResponse(FRONTEND / "index.html")
 
 
 # ── Helpers ────────────────────────────────────

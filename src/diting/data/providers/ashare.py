@@ -83,17 +83,26 @@ def _fetch_tencent_daily(code: str, count: int = 500) -> list[dict] | None:
             klines = data["data"][code].get("day", [])
         result = []
         for row in klines:
-            if len(row) < 6:
-                continue
-            result.append({
-                "date": str(row[0]),
-                "open": float(row[1]),
-                "close": float(row[2]),
-                "high": float(row[3]),
-                "low": float(row[4]),
-                "volume": int(float(row[5])),
-                "amount": float(row[6]) if len(row) > 6 else 0.0,
-            })
+            if isinstance(row, dict):
+                result.append({
+                    "date": str(row.get("date", "")),
+                    "open": float(row.get("open", 0) or 0),
+                    "close": float(row.get("close", 0) or 0),
+                    "high": float(row.get("high", 0) or 0),
+                    "low": float(row.get("low", 0) or 0),
+                    "volume": int(float(row.get("volume", 0) or 0)),
+                    "amount": float(row.get("amount", 0) or 0),
+                })
+            elif len(row) >= 6:
+                result.append({
+                    "date": str(row[0]),
+                    "open": float(row[1]) if not isinstance(row[1], dict) else 0,
+                    "close": float(row[2]) if not isinstance(row[2], dict) else 0,
+                    "high": float(row[3]) if not isinstance(row[3], dict) else 0,
+                    "low": float(row[4]) if not isinstance(row[4], dict) else 0,
+                    "volume": int(float(row[5]) if not isinstance(row[5], dict) else 0),
+                    "amount": float(row[6]) if len(row) > 6 and not isinstance(row[6], dict) else 0.0,
+                })
         return result if result else None
     except Exception as e:
         logger.warning("ashare.tencent.daily.failed", code=code, error=str(e))
@@ -113,7 +122,7 @@ class AshareProvider(DataProvider):
 
     @property
     def priority(self) -> int:
-        return 20  # 介于 eltdx 和 mx_data 之间
+        return 5  # 最高优先级（免费可用，速度快）
 
     def __init__(self):
         self._available: bool | None = None

@@ -1,0 +1,291 @@
+openapi: 3.0.0
+info:
+  title: 谛听 API
+  version: 0.4.0
+  description: A股多模型AI投资分析工具 — 微服务 API 契约
+servers:
+  - url: /api/diting
+    description: Caddy 网关路由后去除前缀
+paths:
+  /health:
+    get:
+      summary: 健康检查
+      tags: [system]
+      responses:
+        '200':
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: diting-web
+
+  /stock/{code}:
+    get:
+      summary: 个股多引擎分析
+      tags: [analysis]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{6}$'
+          description: 6位A股代码
+        - name: more
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: 是否返回详细分析
+      responses:
+        '200':
+          description: 个股分析结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: 股票名称
+                  code:
+                    type: string
+                    description: 股票代码
+                  price:
+                    type: number
+                    description: 当前价格
+                  change_pct:
+                    type: number
+                    description: 涨跌幅(%)
+                  score:
+                    type: number
+                    description: 综合评分 0-100
+                  rating_label:
+                    type: string
+                    description: 评级标签（强力买入/买入/持有/减持/卖出）
+                  chart_data:
+                    type: object
+                    description: K线图表数据
+                  engine_scores:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EngineScore'
+                    description: 各引擎评分明细
+                  signals_summary:
+                    type: object
+                    description: 技术信号摘要
+                  bull_reasons:
+                    type: array
+                    items:
+                      type: string
+                    description: 看多理由
+                  bear_reasons:
+                    type: array
+                    items:
+                      type: string
+                    description: 看空理由
+        '404':
+          description: 股票代码无效或查询失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dashboard:
+    get:
+      summary: 仪表盘概览
+      tags: [analysis]
+      responses:
+        '200':
+          description: 仪表盘数据
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  watchlist_count:
+                    type: integer
+                    description: 自选股数量
+                  signal_distribution:
+                    type: object
+                    description: 信号分布统计
+                  market_sentiment:
+                    type: string
+                    description: 市场情绪（bullish/neutral/bearish）
+
+  /watchlist:
+    get:
+      summary: 自选股列表（含实时行情）
+      tags: [analysis]
+      responses:
+        '200':
+          description: 自选股数组
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stocks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WatchlistItem'
+
+  /opportunities:
+    get:
+      summary: 选股机会
+      tags: [analysis]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+          description: 返回数量上限
+      responses:
+        '200':
+          description: 按评分排序的选股机会列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  opportunities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Opportunity'
+
+  /market-sentiment:
+    get:
+      summary: 市场情绪（基于上证指数）
+      tags: [analysis]
+      responses:
+        '200':
+          description: 大盘情绪和指数数据
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  index:
+                    type: string
+                    description: 参考指数
+                  value:
+                    type: number
+                    description: 指数点位
+                  change_pct:
+                    type: number
+                    description: 涨跌幅(%)
+                  sentiment:
+                    type: string
+                    description: 情绪标签
+                  advance_decline:
+                    type: object
+                    description: 涨跌家数比
+
+  /settings:
+    get:
+      summary: 获取当前设置
+      tags: [system]
+      responses:
+        '200':
+          description: 当前设置
+          content:
+            application/json:
+              schema:
+                type: object
+                description: 用户设置键值对
+    post:
+      summary: 保存设置
+      tags: [system]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 要保存的设置键值对
+      responses:
+        '200':
+          description: 设置已保存
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+components:
+  schemas:
+    EngineScore:
+      type: object
+      properties:
+        engine:
+          type: string
+          description: 引擎名称（wyckoff/buffett/can_slim/volume_profile/vmd_rsi）
+        score:
+          type: number
+          description: 引擎评分 0-100
+        rating:
+          type: string
+          description: 引擎给出的评级
+        confidence:
+          type: number
+          description: 置信度 0-1
+
+    WatchlistItem:
+      type: object
+      properties:
+        code:
+          type: string
+          description: 6位A股代码
+        name:
+          type: string
+          description: 股票名称
+        price:
+          type: number
+          description: 当前价格
+        change_pct:
+          type: number
+          description: 涨跌幅(%)
+        volume:
+          type: number
+          description: 成交量
+        pe:
+          type: number
+          description: 市盈率
+
+    Opportunity:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        score:
+          type: number
+        rating_label:
+          type: string
+        key_signal:
+          type: string
+          description: 核心买入信号
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: 错误信息
+        detail:
+          type: string
+          description: 错误详情

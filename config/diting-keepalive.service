@@ -1,0 +1,14 @@
+[Unit]
+Description=谛听 · 服务保活守护进程
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/diting
+ExecStart=/usr/bin/python3 /root/diting/scripts/keepalive.py
+Restart=always
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target

@@ -3,11 +3,12 @@
  * 谛听 · v0.3.0
  */
 
-// 自动探测部署前缀
-const DEPLOY_PATH = window.location.pathname.includes('/app/')
-  ? window.location.pathname.split('/app/')[0]
-  : '';
-const API_BASE = DEPLOY_PATH ? `${DEPLOY_PATH}/api` : '/api';
+// 自动探测 API 路径
+// SPA 在 /app/stocks/diting/ 下时，API 在 /app/stocks/diting/api/
+// 本地开发 SPA 在 /app/ 下时，API 在 /api/
+const _path = window.location.pathname;
+const _m = _path.match(/^(.+?\/stocks\/diting\/)/);
+const API_BASE = _m ? `${_m[1]}api` : '/api';
 
 async function _request(method, path, body) {
   try {

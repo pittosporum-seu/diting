@@ -324,3 +324,58 @@ CodeWhale 执行完任务
     → Python 调用飞书 API（小爪 bot app_id + app_secret）
       → 海桐飞书私聊收到（发件人：小爪）
 ```
+
+---
+
+## 8. 微服务架构规范（v0.4.0）
+
+### 8.1 网关路由规则
+
+Caddy 作为统一 API 网关，按路径前缀分发：
+
+```
+/api/{service}/* → strip /{service} → 对应后端
+```
+
+| 路径前缀 | 后端 | 端口 |
+|----------|------|:----:|
+| `/api/diting` | diting FastAPI | 8100 |
+| `/api/xxx` | 未来服务 | 8200 |
+| `/app/diting/` | SPA file_server | — |
+
+**规则：**
+- Caddy 处理 `/api/diting/xxx` → strip `/diting` → `/api/xxx` → uvicorn
+- 后端 FastAPI 路由保持 `/api/health` 不变，不做任何路径修改
+- 新服务接入必须先在 `docs/api/diting-openapi.yaml` 注册端点
+
+### 8.2 新服务接入流程
+
+1. 在 `docs/api/diting-openapi.yaml` 新增 paths
+2. 运行 `scripts/gen-caddy-from-openapi.py` 重新生成 Caddy 路由段
+3. 新服务实现对应的 `/api/xxx` 路由
+4. 在 `config/diting.yaml` 的 `services` 块注册新服务（host:port 映射）
+5. 运行 `scripts/validate-api.py` 校验 OpenAPI 与路由实现一致性
+6. 部署后运行全链路验证（见 `docs/ops/deploy-checklist.md`）
+
+### 8.3 网关功能
+
+| 功能 | 配置 |
+|------|------|
+| 路径路由 | `handle_path /api/{service}/*` |
+| 限流 | 10 rps/服务，burst 2 |
+| access log | 结构化 JSON，stdout 输出 |
+| 健康检查 | 透传后端 `/api/health` |
+
+### 8.4 前端 API 调用
+
+```javascript
+// frontend/js/api.js — v0.4.0 硬编码，不再动态探测
+const API_BASE = '/api/diting';
+```
+
+### 8.5 契约工具
+
+| 脚本 | 用途 |
+|------|------|
+| `scripts/gen-caddy-from-openapi.py` | 从 openapi.yaml 生成 Caddy 路由 |
+| `scripts/validate-api.py` | 校验 YAML paths vs routes.py 一致性 |

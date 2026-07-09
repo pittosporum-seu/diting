@@ -1,6 +1,7 @@
 # 谛听 · API 契约
 
 > 版本：v1.0 | 日期：2026-07-04
+> REST API 契约见 `docs/api/diting-openapi.yaml`
 
 ---
 

@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta
 
 from ..config import Config
 from ..data.providers.akshare import AkShareProvider
+from ..data.providers.ashare import AshareProvider
 from ..data.providers.mx_data import MxDataProvider
 from ..data.repository import MarketDataRepository
 from ..engines.registry import discover_engines
@@ -62,13 +63,26 @@ class AnalysisService:
         mx_key = cfg.get("MX_APIKEY")
         if mx_key:
             providers.append(MxDataProvider(api_key=mx_key))
-        providers.append(AkShareProvider())
+        providers.append(AshareProvider())    # 新浪/腾讯免费源
+        providers.append(AkShareProvider())   # 东方财富源（兜底）
         return MarketDataRepository(providers=providers)
 
     @staticmethod
     def _extract_chart_arrays(df) -> dict:
         """从历史 DataFrame 提取图表数据（OHLC / Volume / MA / Boll / RSI 序列）。"""
         import numpy as np
+
+        def _safe(v):
+            """Convert numpy types to Python native for JSON safety."""
+            if v is None:
+                return None
+            if isinstance(v, (np.floating, float)):
+                if np.isnan(v) or np.isinf(v):
+                    return None
+                return float(v)
+            if isinstance(v, (np.integer, int)):
+                return int(v)
+            return v
 
         # 列名探测
         col_map: dict[str, str] = {}
@@ -96,7 +110,7 @@ class AnalysisService:
             close = close.astype(float)
         n = len(close)
 
-        result: dict = {"dates": dates, "prices": close.tolist()}
+        result: dict = {"dates": dates, "prices": [_safe(c) for c in close]}
 
         # OHLC — 新版前端优先使用 ohlc 字段绘制真蜡烛
         if all(k in col_map for k in ("open", "high", "low")):
@@ -110,7 +124,7 @@ class AnalysisService:
             if lows.dtype == object:
                 lows = lows.astype(float)
             result["ohlc"] = [
-                [float(o), float(c), float(lo), float(h)]
+                [_safe(o), _safe(c), _safe(lo), _safe(h)]
                 for o, c, lo, h in zip(opens, close, lows, highs)
             ]
 
@@ -119,21 +133,18 @@ class AnalysisService:
             volumes = df[col_map["volume"]].values
             if volumes.dtype == object:
                 volumes = volumes.astype(float)
-            result["volumes"] = volumes.tolist()
+            result["volumes"] = [_safe(v) for v in volumes]
 
         if n >= 5:
-            result["ma_5"] = (
-                df[col_map["close"]].astype(float).rolling(window=5).mean().tolist()
-            )
+            result["ma_5"] = [_safe(v) for v in df[col_map["close"]].astype(float).rolling(window=5).mean()]
         if n >= 20:
-            result["ma_20"] = (
-                df[col_map["close"]].astype(float).rolling(window=20).mean().tolist()
-            )
+            ma20 = df[col_map["close"]].astype(float).rolling(window=20).mean()
             roll = df[col_map["close"]].astype(float).rolling(window=20)
             middle = roll.mean()
             std = roll.std(ddof=1)
-            result["boll_upper"] = (middle + 2 * std).tolist()
-            result["boll_lower"] = (middle - 2 * std).tolist()
+            result["ma_20"] = [_safe(v) for v in ma20]
+            result["boll_upper"] = [_safe(v) for v in (middle + 2 * std)]
+            result["boll_lower"] = [_safe(v) for v in (middle - 2 * std)]
 
         if n >= 15:
             diff = np.diff(close)
@@ -153,7 +164,7 @@ class AnalysisService:
                     rsi[i] = 100.0
                 else:
                     rsi[i] = float(100 - 100 / (1 + avg_gain / avg_loss))
-            result["rsi_values"] = rsi.tolist()
+            result["rsi_values"] = [_safe(v) for v in rsi]
 
         return result
 
@@ -334,7 +345,35 @@ class AnalysisService:
         result["rating_emoji"] = _RATING_EMOJI.get(consensus.rating.value, "")
         result["confidence"] = consensus.confidence
 
+        # signals 保留原始 dataclass（routes.py 处理序列化）
+        _sig = result.pop("signals", None)
+        result = self._clean_numpy(result)
+        if _sig is not None:
+            result["signals"] = _sig
         return result
+
+    @staticmethod
+    def _clean_numpy(obj):
+        """Recursively convert numpy/dataclass types to Python natives."""
+        import numpy as np
+        from dataclasses import is_dataclass, asdict
+        from datetime import datetime
+        if is_dataclass(obj):
+            return AnalysisService._clean_numpy(asdict(obj))
+        if isinstance(obj, datetime):
+            return str(obj)
+        if isinstance(obj, dict):
+            return {k: AnalysisService._clean_numpy(v) for k, v in obj.items()
+                    if not k.startswith('_')}
+        if isinstance(obj, (list, tuple)):
+            return [AnalysisService._clean_numpy(v) for v in obj]
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            if np.isnan(obj) or np.isinf(obj):
+                return None
+            return float(obj)
+        return obj
 
     def get_dashboard_data(self) -> dict:
         """大盘/仪表盘概览数据。"""

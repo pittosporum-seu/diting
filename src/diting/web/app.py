@@ -5,12 +5,27 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
+
+import numpy as np
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """Handle numpy types in JSON serialization."""
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, (np.ndarray,)):
+            return obj.tolist()
+        return super().default(obj)
 
 # ── suppress LiteLLM debug noise ──
 os.environ.setdefault("LITELLM_LOG", "ERROR")
@@ -25,5 +40,5 @@ app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 app.mount("/app", StaticFiles(directory=str(FRONTEND), html=True), name="frontend")
 templates = Jinja2Templates(directory=str(TEMPLATES))
 
-from .routes import router  # noqa: E402, I001  — must follow templates init
+from .routes import router  # noqa: E402, I001
 app.include_router(router)
