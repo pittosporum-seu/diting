@@ -68,9 +68,33 @@ VPS_SCRIPT
 
 # ─── 4. 前端验证 ───
 say "Step 4/4: 验证前端"
-unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY 2>/dev/null || true
-if curl -sfI --max-time 10 "https://pittosporum.cloud/api/diting/health" > /dev/null 2>&1; then
+
+# Check each JS file is reachable and non-empty
+PASS=true
+for f in js/cache.js js/api.js js/ui.js js/app.js js/router.js js/charts.js \
+         js/pages/dashboard.js js/pages/stock.js js/pages/opportunities.js \
+         js/pages/watchlist.js js/pages/settings.js; do
+    SIZE=$(curl -sf --max-time 5 -o /dev/null -w '%{size_download}' \
+        "https://pittosporum.cloud/app/diting/$f" 2>/dev/null || echo 0)
+    if [ "$SIZE" -gt 100 ]; then
+        echo -e "  ${GREEN}✓${NC} $f (${SIZE}B)"
+    else
+        echo -e "  ${RED}✗${NC} $f (${SIZE}B)"
+        PASS=false
+    fi
+done
+
+# Check HTML has loading fallback
+HTML_OK=$(curl -sf --max-time 5 https://pittosporum.cloud/app/diting/ 2>/dev/null | grep -c '加载中')
+if [ "$HTML_OK" -gt 0 ]; then
+    echo -e "  ${GREEN}✓${NC} index.html (has fallback)"
+else
+    echo -e "  ${RED}✗${NC} index.html (no fallback, may be cached)"
+    PASS=false
+fi
+
+if [ "$PASS" = true ]; then
     echo -e "${GREEN}[deploy] ✓ 部署成功${NC}"
 else
-    warn "前端验证未通过（可能网络问题，VPS 后端已确认正常）"
+    die "前端验证失败，请刷新浏览器（Ctrl+Shift+R 强制刷新）"
 fi
