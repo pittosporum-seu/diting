@@ -33,6 +33,15 @@
   </nav>
   <main id="app-root"><p style="color:var(--text-secondary);text-align:center;padding:40px">加载中…</p></main>
   <!-- 诊断：如果此文本一直显示，说明 JS 模块加载失败 -->
+  <!-- 如果完全空白（连"加载中"都看不到），说明浏览器缓存了旧页面 -->
   <noscript><div style="text-align:center;padding:40px;color:red">需要启用 JavaScript</div></noscript>
+  <script>
+    // v0.7.2 诊断：确认 JS 可执行
+    console.log('[谛听] HTML loaded, v=0.7.2');
+    var el = document.getElementById('app-root');
+    if (el && el.textContent.trim() === '加载中…') {
+      el.innerHTML = '<p style=\"text-align:center;padding:40px\">📡 加载中…<br><small style=\"color:#999\">v0.7.2 · ' + new Date().toISOString() + '</small></p>';
+    }
+  </script>
 </body>
 </html>
