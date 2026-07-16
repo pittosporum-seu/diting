@@ -458,7 +458,7 @@ class StockService(_BaseService):
             cm.db_set("stock_analysis_cache", code, {
                 "code": code,
                 "result_json": _json.dumps(serializable, default=str, ensure_ascii=False),
-                "expires_at": (datetime.now() + timedelta(minutes=l2_ttl)).isoformat(),
+                "expires_at": datetime.now() + timedelta(minutes=l2_ttl),
             })
         except Exception:
             pass
