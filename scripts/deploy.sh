@@ -68,6 +68,7 @@ VPS_SCRIPT
 
 # ─── 4. 前端验证 ───
 say "Step 4/4: 验证前端"
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY 2>/dev/null || true
 
 # Check each JS file is reachable and non-empty
 PASS=true
