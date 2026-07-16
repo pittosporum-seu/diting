@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "diting"
-version = "0.4.0"
+version = "0.7.1"
 description = "谛听 · A股多模型AI投资分析工具"
 readme = "README.md"
 license = { text = "MIT" }

@@ -1,4 +1,4 @@
-"""谛听 · CLI 入口 — v0.2.0 命令框架重构
+"""谛听 · CLI 入口 — v0.7.1 命令框架重构
 
 diting <code>          默认快速评估
 diting <code> --more   详细技术分析
@@ -181,7 +181,7 @@ class _DitingGroup(click.Group):
         "auto_envvar_prefix": "DITING",
     },
 )
-@click.version_option(version="0.2.0", prog_name="diting")
+@click.version_option(version="0.7.1", prog_name="diting")
 @click.pass_context
 def cli(ctx):
     """谛听 · A股多模型AI投资分析工具
