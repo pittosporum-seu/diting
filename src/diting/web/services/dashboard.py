@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = _get_logger()
 
 _ALL_PROVIDER_KEYS = [
-    "provider_ashare", "provider_mxdata", "provider_akshare"]
+    "provider_eastmoney", "provider_ashare", "provider_mxdata", "provider_akshare"]
 _ALL_ENGINE_NAMES = [
     "wyckoff", "buffett", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
 
@@ -315,6 +315,7 @@ class DashboardService(_BaseService):
                     "label": {
                         "ashare": "ashare (新浪/腾讯)",
                         "mxdata": "mx-data (东方财富)",
+                        "eastmoney": "east_money (免费直连)",
                         "akshare": "akshare (免费兜底)",
                     }.get(pk.replace("provider_", ""), label),
                     "enabled": saved.get(pk, "1") == "1",

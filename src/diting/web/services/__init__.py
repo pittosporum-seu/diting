@@ -139,67 +139,13 @@ class AnalysisService(_BaseService):
     def refresh_market_scan(self) -> dict:
         return self._scan.refresh_market_scan()
 
-    # ── Settings（内置，无独立 service） ──
+    # ── Settings（委托给 DashboardService） ──
 
     def get_settings(self) -> dict:
-        """获取配置信息。"""
-        from diting.config import Config
-
-        cfg = Config()
-        saved = self._load_saved_settings()
-        mx_key = cfg.get("MX_APIKEY")
-
-        provider_toggles = []
-        for pk in (
-            "provider_ashare", "provider_mxdata", "provider_akshare",
-        ):
-            label_map = {
-                "ashare": "ashare (新浪/腾讯)",
-                "mxdata": "mx-data (东方财富)",
-                "akshare": "akshare (免费兜底)",
-            }
-            short = pk.replace("provider_", "").replace("mxdata", "mx-data").upper()
-            provider_toggles.append({
-                "key": pk,
-                "label": label_map.get(pk.replace("provider_", ""), short),
-                "enabled": saved.get(pk, "1") == "1",
-                "requires_api_key": pk == "provider_mxdata",
-                "api_key_available": bool(mx_key),
-            })
-
-        engine_names = ["wyckoff", "buffett", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
-        engine_toggles = []
-        for en in engine_names:
-            engine_toggles.append({
-                "key": f"engine_{en}",
-                "label": en.replace("_", " ").title(),
-                "enabled": saved.get(f"engine_{en}", "1") == "1",
-            })
-
-        ai_model = saved.get("ai_model", "")
-
-        return {
-            "provider_toggles": provider_toggles,
-            "engine_toggles": engine_toggles,
-            "ai_model_available": bool(ai_model) or bool(mx_key),
-            "ai_model": ai_model,
-            "mx_api_key_available": bool(mx_key),
-            "watchlist_size": len(self._watchlist.get_watchlist()),
-        }
+        return self._dashboard.get_settings()
 
     def save_settings(self, data: dict) -> dict:
-        """保存设置。"""
-        db = self._db()
-        accepted = 0
-        for key, val in (data or {}).items():
-            if key.startswith("_") or key == "status":
-                continue
-            try:
-                db.set_setting(key, str(val))
-                accepted += 1
-            except Exception:
-                pass
-        return {"status": "ok", "saved": accepted}
+        return self._dashboard.save_settings(data)
 
     # ── 系统管理 ──
 

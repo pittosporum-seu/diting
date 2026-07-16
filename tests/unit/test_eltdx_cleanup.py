@@ -9,6 +9,7 @@ from diting.web.services import AnalysisService, DashboardService
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_PROVIDER_KEYS = [
+    "provider_eastmoney",
     "provider_ashare",
     "provider_mxdata",
     "provider_akshare",
@@ -48,9 +49,10 @@ def test_legacy_analysis_settings_exclude_eltdx() -> None:
 
     assert [item["key"] for item in settings["provider_toggles"]] == EXPECTED_PROVIDER_KEYS
     assert [item["requires_api_key"] for item in settings["provider_toggles"]] == [
-        False,
-        True,
-        False,
+        False,  # eastmoney
+        False,  # ashare
+        True,   # mxdata
+        False,  # akshare
     ]
 
 
