@@ -96,32 +96,29 @@ class TestQuickScore:
         assert signals == []
 
     def test_high_volume_ratio(self):
-        """量比 >2（放量）→ 加 5 分，"放量"信号"""
-        # 量比 = turnover / volume，假设 volume=10000, turnover=30000 → 量比 3
+        """量比因子已移除 (v0.7.2)，volume/turnover 不再影响评分。"""
         q = _MockQuote(change_pct=2.0, volume=10000, turnover=30000)
         score, signals = quick_score(q)
-        # base=50 + 2*3=56 + 5(放量) = 61
-        assert score == 61, f"放量应得 61，实际 {score}"
-        assert "放量" in signals
+        assert score == 56, f"量比已移除，应仅涨跌影响，实际 {score}"
+        assert "放量" not in signals
 
     def test_medium_volume_ratio(self):
-        """量比 1.5-2 → 加 3 分"""
-        # 量比 = turnover / volume，volume=10000, turnover=18000 → 量比 1.8
+        """量比因子已移除 (v0.7.2)，volume/turnover 不再影响评分。"""
         q = _MockQuote(change_pct=1.0, volume=10000, turnover=18000)
         score, signals = quick_score(q)
-        # base=50 + 1*3=53 + 3(量比) = 56
-        assert score == 56, f"量比 1.8 应得 56，实际 {score}"
+        assert score == 53, f"量比已移除，应仅涨跌影响，实际 {score}"
+        assert "放量" not in signals
 
     def test_low_volume_ratio(self):
-        """量比 <1.5 → 不加分"""
+        """量比因子已移除 (v0.7.2)，volume/turnover 不再影响评分。"""
         q = _MockQuote(change_pct=0.0, volume=10000, turnover=12000)
         score, signals = quick_score(q)
-        assert score == 50, f"低量比不应加分，实际 {score}"
+        assert score == 50, f"量比已移除，实际 {score}"
         assert signals == []
 
     def test_zero_volume(self):
-        """成交量为 0 → 跳过量比计算"""
+        """成交量为 0 → 不影响评分"""
         q = _MockQuote(change_pct=1.0, volume=0, turnover=0)
         score, signals = quick_score(q)
-        assert score == 53  # 只有涨跌幅加分
+        assert score == 53  # base=50 + 1.0*3=53
         assert "放量" not in signals
