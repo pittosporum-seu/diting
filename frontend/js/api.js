@@ -153,3 +153,4 @@ const api = {
 };
 
 export { api };
+window.__loaded = window.__loaded || []; window.__loaded.push('api');

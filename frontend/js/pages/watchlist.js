@@ -186,3 +186,4 @@ async function _bindWatchlistAdd() {
     if (e.key === 'Enter') btn.click();
   });
 }
+window.__loaded = window.__loaded || []; window.__loaded.push('pages/watchlist');

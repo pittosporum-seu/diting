@@ -225,3 +225,4 @@ export {
   _priceStyle,
   _esc,
 };
+window.__loaded = window.__loaded || []; window.__loaded.push('ui');

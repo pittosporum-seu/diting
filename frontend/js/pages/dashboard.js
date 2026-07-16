@@ -167,3 +167,4 @@ function _renderDashboardHTML(dashboardData) {
   showStatus("");
   console.log('[谛听] 仪表盘 完成', new Date().toISOString());
 }
+window.__loaded = window.__loaded || []; window.__loaded.push('pages/dashboard');

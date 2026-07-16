@@ -214,3 +214,4 @@ export async function renderSettings() {
   await _loadWithCache('settings', skeleton, () => api.settings(), render);
   console.log('[谛听] 设置 加载完成');
 }
+window.__loaded = window.__loaded || []; window.__loaded.push('pages/settings');

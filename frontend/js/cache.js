@@ -107,3 +107,4 @@ const cacheManager = {
 };
 
 export { cacheManager };
+window.__loaded = window.__loaded || []; window.__loaded.push('cache');

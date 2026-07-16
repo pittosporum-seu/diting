@@ -79,3 +79,4 @@ function render404() {
 }
 
 export { ROUTE_MAP, resolveRoute, setActiveNav, renderPage, render404 };
+window.__loaded = window.__loaded || []; window.__loaded.push('router');
