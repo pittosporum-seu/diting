@@ -277,7 +277,12 @@ window.addEventListener('diting:watchlist_changed', () => {
 
 /* ── 启动 ── */
 window.addEventListener('hashchange', renderPage);
-window.addEventListener('DOMContentLoaded', renderPage);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', renderPage);
+} else {
+  // DOM 已就绪（模块脚本是 deferred，可能晚于 DOMContentLoaded）
+  renderPage();
+}
 
 /* ── 导出供 pages/*.js 使用 ── */
 export {
