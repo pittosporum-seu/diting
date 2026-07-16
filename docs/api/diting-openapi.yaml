@@ -1,8 +1,14 @@
 openapi: 3.0.0
 info:
   title: 谛听 API
-  version: 0.4.0
-  description: A股多模型AI投资分析工具 — 微服务 API 契约
+  version: 0.7.1
+  description: |
+    A股多模型AI投资分析工具 — 微服务 API 契约
+    
+    **响应信封** (v0.7+): 所有 JSON API 返回 `{server_time, cache_state, data}`
+    - `server_time`: ISO 8601 服务端时间
+    - `cache_state`: `fresh` | `stale` | `empty`
+    - `data`: 端点特定数据
 servers:
   - url: /api/diting
     description: Caddy 网关路由后去除前缀
