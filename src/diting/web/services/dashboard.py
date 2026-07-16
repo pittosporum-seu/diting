@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = _get_logger()
 
 _ALL_PROVIDER_KEYS = [
-    "provider_eltdx", "provider_ashare", "provider_mxdata", "provider_akshare"]
+    "provider_ashare", "provider_mxdata", "provider_akshare"]
 _ALL_ENGINE_NAMES = [
     "wyckoff", "buffett", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
 
@@ -71,23 +71,24 @@ class DashboardService(_BaseService):
                 cached["_cache_state"] = "stale"
                 return cached
 
-        # L2: SQLite dashboard_cache
+        # L2: SQLite dashboard_cache（仅非强刷时读取）
         db_hit = False
-        try:
-            cm = self._get_cache_mgr()
-            db_row = cm.db_get("dashboard_cache", "1")
-            if db_row and db_row.get("data_json"):
-                import json as _json
-                result = _json.loads(db_row["data_json"])
-                result["_cache_state"] = "stale"
-                cm.mem_set("dashboard", result)
-                db_hit = True
-                # v0.6.5: L2 命中后后台异步刷新 API（仅 TRADING 状态）
-                if state.is_trading and not force_refresh:
-                    self._async_refresh_dashboard()
-                return result
-        except Exception:
-            pass
+        if not force_refresh:
+            try:
+                cm = self._get_cache_mgr()
+                db_row = cm.db_get("dashboard_cache", "1")
+                if db_row and db_row.get("data_json"):
+                    import json as _json
+                    result = _json.loads(db_row["data_json"])
+                    result["_cache_state"] = "stale"
+                    cm.mem_set("dashboard", result)
+                    db_hit = True
+                    # v0.6.5: L2 命中后后台异步刷新 API（仅 TRADING 状态）
+                    if state.is_trading and not force_refresh:
+                        self._async_refresh_dashboard()
+                    return result
+            except Exception:
+                pass
 
         # v0.6.5: CLOSED/WEEKEND 且无 force_refresh → 返回 DB 数据或空
         empty_dashboard = {
@@ -312,13 +313,12 @@ class DashboardService(_BaseService):
                 provider_toggles.append({
                     "key": pk,
                     "label": {
-                        "eltdx": "eltdx (通达信直连)",
                         "ashare": "ashare (新浪/腾讯)",
                         "mxdata": "mx-data (东方财富)",
                         "akshare": "akshare (免费兜底)",
                     }.get(pk.replace("provider_", ""), label),
                     "enabled": saved.get(pk, "1") == "1",
-                    "requires_api_key": pk in ("provider_eltdx", "provider_mxdata"),
+                    "requires_api_key": pk == "provider_mxdata",
                     "api_key_available": bool(mx_key),
                 })
 

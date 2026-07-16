@@ -25,7 +25,7 @@ class TestCLISmoke:
         runner = CliRunner()
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "0.2.0" in result.output
+        assert "0.7.1" in result.output
 
     def test_default_code_displays_help(self):
         """diting（无参数）输出帮助信息。"""
