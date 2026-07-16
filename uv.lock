@@ -562,7 +562,7 @@ wheels = [
 
 [[package]]
 name = "diting"
-version = "0.1.0"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "akshare" },
@@ -602,7 +602,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "litellm", specifier = ">=1.50.0" },
-    { name = "mcpaisuite-sandboxmcp" },
+    { name = "mcpaisuite-sandboxmcp", specifier = ">=1.0.2" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "openpyxl", specifier = ">=3.1.0" },
     { name = "pandas", specifier = ">=2.2.0" },

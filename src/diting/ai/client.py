@@ -98,8 +98,25 @@ _llm: AIClient | None = None
 
 
 def get_llm() -> AIClient:
-    """获取默认 LLM 实例"""
+    """获取默认 LLM 实例，优先读 DB 设置，回退到环境变量。"""
     global _llm
     if _llm is None:
-        _llm = AIClient()
+        import os
+
+        api_key = os.environ.get("AI_API_KEY", "")
+        default_model = os.environ.get("AI_MODEL", "deepseek/deepseek-v4-pro")
+
+        # 尝试从 DB 读取用户保存的模型
+        model = default_model
+        try:
+            from ..storage import WatchlistDB
+
+            db = WatchlistDB()
+            saved = db.get_settings()
+            if saved.get("ai_model"):
+                model = saved["ai_model"]
+        except Exception:
+            pass
+
+        _llm = AIClient(model=model, api_key=api_key)
     return _llm

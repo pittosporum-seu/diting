@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "diting"
-version = "0.1.0"
+version = "0.4.0"
 description = "谛听 · A股多模型AI投资分析工具"
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,7 +23,7 @@ classifiers = [
 keywords = ["stock", "investment", "a-share", "china", "wyckoff", "buffett"]
 dependencies = [
     "litellm>=1.50.0",
-    "mcpaisuite-sandboxmcp",
+    "mcpaisuite-sandboxmcp>=1.0.2",
     "click>=8.1.0",
     "structlog>=24.0.0",
     "requests>=2.31.0",

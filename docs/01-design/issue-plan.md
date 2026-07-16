@@ -1,237 +1,292 @@
-# 谛听 · Issue 拆分
+# 谛听 · Issue 拆分总览
 
-> 基于架构设计 v2.0 | 日期：2026-07-05
+> 整合 v0.1.0 → v0.5.4 全部 Issue | 更新日期：2026-07-11
 > 原则：一个 Issue = 一个可独立验证的交付物，依赖最小化
-> 进度：M1 完成 ✅ | 22 tests · ruff ✅ · CLI ✅ | 下一步 M2 数据层
 
 ---
 
-## M1: 骨架跑通（5 个 Issue）✅ 已完成
+## 版本时间线
 
-### #1 项目初始化 ✅
-- [x] `pyproject.toml`：项目元数据 + 依赖声明（litellm, sandboxmcp, click, structlog, requests, openpyxl, vmdpy, PyWavelets, PyEMD, echarts）
-- [x] `.gitignore`：排除 venv/__pycache__/.env/output/
-- [x] `config/.env.example`：环境变量模板（不含真实值）
-- [x] `LICENSE`：MIT
-- [x] `README.md` ✅ 已有
-- [x] `config/watchlist.example.csv`
-**依赖：** 无 | **大小：** S
-
-### #2 数据协议层 ✅
-- [x] `src/diting/schema.py`：所有 @dataclass（RealtimeQuote, HistoricalData, VMDResult, TechnicalSignals, AnalysisContext, AnalysisResult, ConsensusScore, PipelineResult, PipelineMetrics）
-- [x] `src/diting/enums.py`：Rating, DataSource, DataType, Signal
-- [x] 单元测试：11 tests ✅
-**依赖：** 无 | **大小：** M
-
-### #3 基础设施层 ✅
-- [x] `src/diting/infra/logging_config.py`：structlog 配置
-- [x] `src/diting/infra/errors.py`：异常层次结构（DitingError, DataUnavailableError, EngineFailedError, SandboxError, PipelineError）
-- [x] `src/diting/infra/decorators.py`：@cached, @retry, @log_latency
-- [x] 单元测试：11 tests ✅
-**依赖：** 无 | **大小：** M
-
-### #4 CLI 入口 ✅
-- [x] `src/diting/__init__.py`
-- [x] `src/diting/config.py`：.env + watchlist.csv 解析
-- [x] `src/diting/main.py`：click CLI（l0/l1/l2/run 命令已实现）
-- [x] `diting --help` 可运行，显示 4 个子命令 ✅
-**依赖：** #3 | **大小：** M
-
-### #5 CI 流水线 ✅
-- [x] `.github/workflows/ci.yml`：lint（ruff）+ 骨架测试（pytest）
-- [x] `pyproject.toml` 中配置 ruff + pytest
-- [x] ruff ✅ + pytest 22/22 ✅
-**依赖：** #1-#4 | **大小：** S
+| 版本 | 状态 | 交付物 |
+|:----:|:---:|:-------|
+| v0.1.0 | ✅ **完成** | 骨架+数据+信号+引擎+共识+报告+CLI |
+| v0.2.0 | ✅ **完成** | CLI重构+结论引擎+Web版+真实报告 |
+| v0.3.1 | ✅ **完成** | 填实占位API+数据增强 |
+| v0.3.2 | ✅ **完成** | SPA部署修复+状态提示+日志 |
+| v0.4.0 | 🟡 **设计完成** | 微服务架构+Caddy网关+契约驱动 |
 
 ---
 
-## M2: 数据层（4 个 Issue）
+## v0.1.0 — 核心功能（25 Issues ✅）
 
-### #6 DataProvider ABC ✅
-- [x] `src/diting/data/providers/base.py`：DataProvider ABC
-- [x] `health_check()`, `fetch_realtime()`, `fetch_historical()` 抽象方法
-- [x] 单元测试：10 tests ✅
-**依赖：** #2 | **大小：** S
+### M1: 骨架跑通（5 Issues）✅
 
-### #7 MxDataProvider + AkShareProvider ✅
-- [x] `src/diting/data/providers/mx_data.py`：东方财富 mx-data 实现
-- [x] `src/diting/data/providers/akshare.py`：akshare 兜底实现
-- [x] `src/diting/data/cache.py`：TTL 缓存层
-- [x] 单元测试通过 ✓
-**依赖：** #6 | **大小：** L
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 1 | 项目初始化（pyproject.toml, .gitignore, LICENSE, README） | S | ✅ |
+| 2 | 数据协议层（schema.py, enums.py） | M | ✅ |
+| 3 | 基础设施层（logging, errors, decorators） | M | ✅ |
+| 4 | CLI 入口（click, config, main.py） | M | ✅ |
+| 5 | CI 流水线（ruff + pytest） | S | ✅ |
 
-### #8 MarketDataRepository ✅
-- [x] `src/diting/data/repository.py`：统一数据访问层
-- [x] 降级链：mx-data → akshare → SQLite cache
-- [x] 健康检查 + 自动降级 + 来源标注
-- [x] 单元测试：11 tests ✅
-**依赖：** #7 | **大小：** M
+### M2: 数据层（4 Issues）✅
 
-### #9 watchlist 解析 ✅
-- [x] `config/watchlist.example.csv`：标准格式定义
-- [x] Config 类支持加载 + 验证（代码格式/市场/必填列）
-- [x] 去重 + validate=False 跳过
-- [x] 单元测试：9 tests ✅
-**依赖：** #4 | **大小：** S
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 6 | DataProvider ABC | S | ✅ |
+| 7 | MxDataProvider + AkShareProvider + CacheLayer | L | ✅ |
+| 8 | MarketDataRepository（三级降级链） | M | ✅ |
+| 9 | watchlist 解析 + 验证 | S | ✅ |
 
----
+### M3: 信号层（3 Issues）✅
 
-## M3: 信号层（3 个 Issue）
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 10 | 技术指标（RSI/MACD/KDJ/布林/MA/VWAP/量比） | M | ✅ |
+| 11 | VMD 分解（vmdpy, K=5, alpha=2000） | M | ✅ |
+| 12 | 小波去噪 + CEEMDAN | S | ✅ |
 
-### #10 技术指标计算 ✅
-- [x] `src/diting/signals/technical.py`：RSI/MACD/KDJ/布林带/均线/VWAP/量比
-- [x] 输入 HistoricalData → 输出 TechnicalSignals
-- [x] 单元测试：10 tests ✅
-**依赖：** #2 | **大小：** M
+### M4: 沙箱 + AI引擎（4 Issues）✅
 
-### #11 VMD 分解 ✅
-- [x] `src/diting/signals/vmd.py`：VMD 分解（vmdpy, K=5, alpha=2000）
-- [x] 周期位置/趋势斜率/主导周期 计算
-- [x] 单元测试 + 异常处理
-**依赖：** #2 | **大小：** M
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 13 | AI 客户端（LiteLLM） | M | ✅ |
+| 14 | Python 沙箱（sandboxmcp） | L | ✅ |
+| 15 | 引擎基类 + 注册机制 | M | ✅ |
+| 16 | Wyckoff AI 引擎 | L | ✅ |
 
-### #12 小波去噪 + CEEMDAN ✅
-- [x] `src/diting/signals/wavelet.py`：sym8 去噪
-- [x] `src/diting/signals/ceemdan.py`：CEEMDAN 趋势提取（内联实现）
-- [x] 单元测试：3 tests ✅
-**依赖：** #2 | **大小：** S
+### M5: 全引擎 + 共识（4 Issues）✅
 
----
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 17 | 剩余四引擎（Buffett/CANSLIM/Volume Profile/VMD+RSI） | XL | ✅ |
+| 18 | 分析管道（AnalysisPipeline 并行执行） | L | ✅ |
+| 19 | 评分融合（加权+冲突检测+置信度） | M | ✅ |
+| 20 | 事件告警（Observer 模式） | S | ✅ |
 
-## M4: 沙箱 + 第一个 AI 引擎（4 个 Issue）
+### M6: 报告 + 推送（3 Issues）✅
 
-### #13 AI 客户端（LiteLLM） ✅
-- [x] `src/diting/ai/client.py`：统一 completion 接口
-- [x] 配置驱动：model 字符串切换 provider
-- [x] 错误处理：超时/限流/认证失败
-- [x] 单元测试：4 tests ✅
-**依赖：** #3 | **大小：** M
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 21 | 报告生成（ReportBuilder + ECharts） | L | ✅ |
+| 22 | 推送渠道（飞书/邮件/本地） | M | ✅ |
+| 23 | 发布准备（QUICKSTART, pyproject完善, CDN内嵌） | M | ✅ |
 
-### #14 Python 沙箱（sandboxmcp） ✅
-- [x] `src/diting/sandbox/executor.py`：sandboxmcp 封装
-- [x] process 后端：内存 512MB / 时间 60s / import 白名单
-- [x] 单元测试：1 test ✅
-**依赖：** #3 | **大小：** L
+### M7: 集成测试 + 发布（2 Issues）✅
 
-### #15 引擎基类 + 注册机制 ✅
-- [x] `src/diting/engines/base.py`：AnalysisEngine ABC
-- [x] `src/diting/engines/registry.py`：@register_engine + discover_engines
-- [x] 单元测试：3 tests ✅
-**依赖：** #2 | **大小：** M
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 24 | 端到端集成测试（13 tests） | L | ✅ |
+| 25 | 文档 + 发布（v0.1.0） | M | ✅ |
 
-### #16 Wyckoff 引擎 ✅
-- [x] `src/diting/engines/wyckoff.py`：威克夫 AI 分析引擎
-- [x] System prompt 设计 + AI→沙箱→结果解析
-- [x] 单元测试：6 tests ✅
-**依赖：** #13, #14, #15 | **大小：** L
+**M1-M7 合计：25/25 ✅ · 154 tests · ruff ✅ · CLI ✅**
 
 ---
 
-## M5: 全引擎 + 共识融合（4 个 Issue）
+## v0.2.0 — 交互重构（10 Issues ✅）
 
-### #17 剩余引擎 ✅
-- [x] `src/diting/engines/buffett.py`：巴菲特/芒格评分（AI + 沙箱）
-- [x] `src/diting/engines/can_slim.py`：CANSLIM（AI + 沙箱）
-- [x] `src/diting/engines/volume_profile.py`：Volume Profile（纯计算）
-- [x] `src/diting/engines/vmd_rsi.py`：VMD+RSI 择时（纯计算）
-- [x] 单元测试：5 tests ✅
-**依赖：** #10, #11, #16 | **大小：** XL
+> 基于 v0.2.0 交互重构设计 | 2026-07-06
 
-### #18 分析管道 ✅
-- [x] `src/diting/pipeline/runner.py`：AnalysisPipeline
-- [x] 并行执行引擎 + 错误不阻塞
-**依赖：** #17 | **大小：** L
+### M1: CLI 命令重构（3 Issues）✅
 
-### #19 评分融合 ✅
-- [x] `src/diting/pipeline/consensus.py`：多引擎共识
-- [x] 加权平均 + 冲突检测 + 置信度
-- [x] 单元测试：3 tests ✅
-**依赖：** #18 | **大小：** M
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 101 | CLI 框架重构（`diting <code>`, scan, compare, watchlist） | L | ✅ |
+| 102 | 输出格式化（中文结论+评分颜色+涨跌颜色+人话） | M | ✅ |
+| 103 | `diting init` 首次配置引导 | S | ✅ |
 
-### #20 事件告警 ✅
-- [x] `src/diting/pipeline/alert.py`：Observer 模式
-- [x] RSI<20 / VMD 谷底 / 大盘暴跌 3% 三种告警
-- [x] 单元测试：3 tests ✅
-**依赖：** #10, #11 | **大小：** S
+### M2: 核心体验（3 Issues）✅
 
----
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 104 | `--more` 详细模式（完整指标面板） | M | ✅ |
+| 105 | VerdictEngine 结论引擎（评分→人话理由） | M | ✅ |
+| 106 | compare + watchlist 子命令 | M | ✅ |
 
-## M6: 报告 + 推送 + 发布（3 个 Issue）
+### M3: 报告增强（1 Issue）✅
 
-### #21 报告生成 ✅
-- [x] `src/diting/report/builder.py`：ReportBuilder（468行）
-- [x] `src/diting/report/echarts.py`：ECharts 图表生成（364行）
-- [x] 单页 HTML 模板：L1 简洁版 + L2 完整版，iPad 兼容 + 浅色主题
-- [x] 单元测试：20 tests ✅
-**依赖：** #19 | **大小：** L
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 107 | 报告填真实数据（K线+RSI+引擎评分图） | L | ✅ |
 
-### #22 推送渠道 ✅
-- [x] `src/diting/notify/feishu.py`：飞书（桩实现）
-- [x] `src/diting/notify/email.py`：邮件（桩实现）
-- [x] `src/diting/notify/local.py`：本地保存
-- [x] `src/diting/notify/base.py`：Notifier ABC
-**依赖：** #21 | **大小：** M
+### M4: Web 版（3 Issues）✅
 
-### #23 发布准备 + 集成测试 ✅
-- [x] QUICKSTART.md
-- [x] pyproject.toml 完善（classifiers, keywords, version 0.1.0）
-- [x] ECharts CDN 5.5.0 + viewport meta
-- [x] 端到端集成测试：13 tests ✅
-- [x] CLI smoke test：7 tests ✅
-**依赖：** #22 | **大小：** M
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 108 | FastAPI 框架 + 搜索页 + `diting serve` | M | ✅ |
+| 109 | 分析结果页（结论卡+K线+RSI+引擎评分横条） | L | ✅ |
+| 110 | 移动端适配 + 美化 | S | ✅ |
+
+**v0.2.0 合计：10/10 ✅**
 
 ---
 
-## M7: 集成测试 + 发布 ✅ 完成
+## v0.3.1 — API 填实 + 数据增强（4 Issues ✅）
 
-### #24 端到端集成测试 ✅
-- [x] `tests/integration/test_pipeline_e2e.py`：13 tests
-- [x] 完整管道测试：数据获取 → 信号 → 引擎 → 报告
-- [x] mock 响应验证全链路
-- [x] 错误降级测试
-**依赖：** #21, #22 | **大小：** L
+> 2026-07-08
 
-### #25 文档 + 发布 ✅
-- [x] QUICKSTART.md
-- [x] pyproject.toml（scripts, classifiers, keywords, version 0.1.0）
-- [x] 版本号 0.1.0
-**依赖：** #24 | **大小：** M
+| # | Issue | 大小 | 状态 |
+|:-:|:------|:----:|:----:|
+| 1 | 选股机会 API（对自选股跑 quick_score 排序返回） | L | ✅ |
+| 2 | 市场情绪 + 仪表盘增强（涨跌比/信号计数） | M | ✅ |
+| 3 | 设置保存 + 自选股增强（POST /api/settings） | M | ✅ |
+| 4 | K 线 OHLC + 成交量（真蜡烛+成交量柱状图） | M | ✅ |
+
+**v0.3.1 合计：4/4 ✅**
 
 ---
 
-## Issue 统计
+## v0.3.2 — 部署修复（3 Issues ✅）
 
-| Milestone | Issue 数 | S | M | L | XL |
-|-----------|:------:|:-:|:-:|:-:|:-:|
-| M1 骨架 | 5 ✅ | 2 | 3 | - | - |
-| M2 数据 | 4 ✅ | 2 | 1 | 1 | - |
-| M3 信号 | 3 ✅ | 1 | 2 | - | - |
-| M4 沙箱+引擎 | 4 ✅ | - | 2 | 2 | - |
-| M5 全引擎 | 4 ✅ | 1 | 1 | 1 | 1 |
-| M6 报告+推送 | 3 ✅ | - | 1 | 1 | - |
-| M7 集成+发布 | 2 ✅ | - | 1 | 1 | - |
-| **合计** | **25 ✅** | **6** | **11** | **6** | **1** |
+> 2026-07-08
 
-**🎉 全部完成：25/25 · 154 tests · ruff ✅ · version 0.1.0**
+| # | 问题 | 根因 | 状态 |
+|:-:|:-----|:-----|:----:|
+| 1 | 点击股票没反应 | `api.js` 中 `API_BASE` 写死 `/api`，部署子路径不匹配 | ✅ |
+| 2 | 分析过程无反馈 | 缺少状态提示条和 console.log | ✅ |
+| 3 | Caddy 配置修正 | `/app/` 路由未正确指向 SPA + 旧路由兼容 | ✅ |
 
-### 依赖图（关键路径）
-
-```
-#1 ──→ #2 ──→ #6 ──→ #7 ──→ #8
-#1 ──→ #3 ──→ #13 ──→ #14
-#2 ──→ #10 ──→ #11
-#2, #3, #4 ──→ #15 ──→ #16 (M4 瓶颈)
-#10, #11, #16 ──→ #17 ──→ #18 ──→ #19 ──→ #21 ──→ #22 ──→ #23
-```
-
-**可并行组：**
-- M1：`#1 | #2, #3` 可并行
-- M2：`#6 | #9` 可并行
-- M3：`#10 | #11 | #12` 全部并行
-- M4：`#13 | #14 | #15` 全部并行
-- M5：`#17` 是瓶颈（XL），其余串行
+**验证：** 187+ tests · ruff ✅ · SPA 可访问 · 有状态提示 · 有 console.log
 
 ---
 
-*文档维护：小爪 | 谛听项目组 | 2026-07-06*
-*状态：🎉 全部完成 · 25/25 issues · 154 tests · version 0.1.0 · MIT*
+## v0.4.0 — 微服务架构（设计完成 🟡）
+
+> 2026-07-09 | **设计已完成，待实施**
+
+### 核心变化
+
+| 变更 | 说明 |
+|:-----|:-----|
+| URL 重构 | `/api/diting/*` + `/app/diting/` 统一规范 |
+| Caddy 网关 | 限流（10rps）+ 路由 + 健康检查透传 |
+| 契约驱动 | OpenAPI 3.0 → gen-caddy.py → validate-api.py |
+| 服务注册 | `config/services.yaml` 微服务注册表 |
+| 旧路径兼容 | `/stocks/diting/*` → `/api/diting/*` 301 |
+| API_BASE 硬编码 | 前端不再动态探测，直接 `/api/diting` |
+
+### 实施阶段
+
+#### Phase 1：设计（已完成 ✅）
+
+| 交付物 | 状态 |
+|:-------|:----:|
+| OpenAPI 3.0 契约 | ✅ |
+| v0.4.0 架构设计文档 | ✅ |
+| AGENTS.md §8 新增 | ✅ |
+| 部署文档更新 | ✅ |
+| 审阅意见整合 | ✅ |
+
+#### Phase 2：基础设施（待实施 🔲）
+
+| 任务 | 产出 |
+|:-----|:-----|
+| Caddy 网关配置 | 更新 Caddyfile |
+| `gen-caddy-from-openapi.py` | 从 openapi.yaml 生成 Caddy 路由段 |
+| `validate-api.py` | 校验 YAML vs 路由实现一致性 |
+| `config/services.yaml` | 服务注册表 |
+
+#### Phase 3：应用适配（待实施 🔲）
+
+| 任务 | 文件 |
+|:-----|:-----|
+| 前端 API_BASE 硬编码 | `frontend/js/api.js` |
+| 后端 GET /settings | `routes.py` + `services.py` |
+| 部署 Caddy + 全链路验证 | deploy-checklist.md |
+
+#### Phase 4：文档收尾（待实施 🔲）
+
+| 任务 | 文件 |
+|:-----|:-----|
+| api-contracts.md 加 OpenAPI 引用 | `docs/01-design/api-contracts.md` |
+| 旧路径 301 观察期后清理 | 3个月后 |
+
+---
+
+## 总体统计
+
+| 版本 | Issues | 状态 |
+|:----:|:------:|:----:|
+| v0.1.0 核心功能 | 25 | ✅ 完成 |
+| v0.2.0 交互重构 | 10 | ✅ 完成 |
+| v0.3.1 API 填实 | 4 | ✅ 完成 |
+| v0.3.2 部署修复 | 3 | ✅ 完成 |
+| v0.4.0 微服务 | 4 阶段 | 🟡 设计完成 |
+| v0.5.0 快速修复 | 6 | ✅ 完成 |
+| v0.5.1 数据补齐 | 4 | ✅ 完成 |
+| v0.5.2 体验重构 | 4 | ✅ 完成 |
+| v0.5.3 设置页可用 | 5 | ✅ 完成 |
+| v0.5.4 打磨收尾 | 4 | ✅ 完成 |
+| **合计** | **56** | **56 完成** |
+
+---
+
+## v0.5.x — 全页面可用性改造
+
+> 基于 `docs/01-design/ux-audit-design.md`（2026-07-11 CodeWhale 审视）和 `docs/01-design/v0.5-plan.md`
+> 定位：5 个前端页面从"有界面"升级到"真能用"
+
+### v0.5.0 — 快速修复（Phase 1 · 6 Issues ✅）
+
+| # | Issue | 设计参考 | 状态 |
+|:-:|:------|:---------|:----:|
+| 1 | 仪表盘大盘指数卡片（上证/深证/创业板实时行情） | ux-audit D5 | ✅ |
+| 2 | VMD 仪表盘对接后端真实数据（替换硬编码 48） | ux-audit D2 | ✅ |
+| 3 | 信号分布饼图使用真实信号计数（替换硬编码数据） | ux-audit D3 | ✅ |
+| 4 | 最近信号列表展示真实数据（替换"暂无数据"） | ux-audit D6 | ✅ |
+| 5 | 隐藏设置页不可用开关 | ux-audit Phase1 | ✅ |
+| 6 | 信号卡片点击下钻（点"买入"能看到具体股票） | ux-audit D4 | ✅ |
+
+### v0.5.1 — 数据补齐（Phase 2 · 4 Issues ✅）
+
+| # | Issue | 设计参考 | 状态 |
+|:-:|:------|:---------|:----:|
+| 1 | 自选股名称自动补全（输入代码后自动查名称） | ux-audit W1 | ✅ |
+| 2 | 选股机会页面展示具体股票列表（非仅统计数字） | ux-audit O1+O2 | ✅ |
+| 3 | 删除自选股加撤销提示（5秒可逆） | ux-audit W2 | ✅ |
+| 4 | 大盘无数据时的优雅兜底提示 | ux-audit D6 | ✅ |
+
+### v0.5.2 — 体验重构（Phase 3 · 4 Issues ✅）
+
+| # | Issue | 设计参考 | 状态 |
+|:-:|:------|:---------|:----:|
+| 1 | 选股机会页面重构：评分排序股票列表 + 信号标签 | ux-audit O3 | ✅ |
+| 2 | 仪表盘"最近信号"区域展示真实信号 | ux-audit D6 | ✅ |
+| 3 | 个股搜索支持名称模糊匹配（输入"立讯"也能搜） | ux-audit S2 | ✅ |
+| 4 | 移动端 K 线降采样（250天→120天，减少卡顿） | ux-audit S3 | ✅ |
+
+### v0.5.3 — 设置页可用（Phase 4 · 5 Issues ✅）
+
+| # | Issue | 设计参考 | 状态 |
+|:-:|:------|:---------|:----:|
+| 1 | 数据源开关切换 → 影响 MarketDataRepository providers | ux-audit | ✅ |
+| 2 | AI 模型切换 → 影响 get_llm() 的 model 参数 | ux-audit | ✅ |
+| 3 | 引擎开关 → 影响 pipeline 引擎列表 | ux-audit | ✅ |
+| 4 | 配置持久化到 SQLite（settings 表 schema + 迁移 + 时间戳） | ux-audit | ✅ |
+| 5 | 保存按钮真正保存并生效 | ux-audit | ✅ |
+
+### v0.5.4 — 打磨收尾（4 Issues ✅）
+
+| # | Issue | 验收标准 | 状态 |
+|:-:|:------|:---------|:----:|
+| 1 | 全页面端到端拨测 | `scripts/smoke_test.sh` 13/13 通过 | ✅ |
+| 2 | Ruff clean + Pytest 全量通过 | ruff check ✅ + pytest 187 passed | ✅ |
+| 3 | 移动端适配检查 | 手机全页面无溢出、表格可横向滚动 | ✅ |
+| 4 | 错误边界和加载状态全覆盖 | 所有渲染函数有骨架屏 + 错误卡片 + 空状态兜底 | ✅ |
+
+---
+
+*文档维护：小爪 | 谛听项目组 | 2026-07-11*
+*当前版本：v0.5.4（全部完成）*
+
+## v0.6.0 — 体验优化（设计完成 🟡）
+
+> 基于 `docs/01-design/v0.6.0-ux-optimization.md`
+> 定位：缓存优先、体验为先
+
+| 优先级 | 问题 | 核心思路 | 状态 |
+|:------:|:-----|:---------|:----:|
+| P0 | 首页加载慢"正在获取信号" | 两级渲染（缓存→秒开→后台刷新） | 🔲 |
+| P0 | 前端缓存机制（5min TTL） | localStorage stale-while-revalidate | 🔲 |
+| P1 | 移动端模块太宽 | 自适应 Grid（指数3列/信号2列） | 🔲 |
+| P1 | 全市场股票代码/名称搜索 | 缓存股票列表 + 模糊搜索下拉 | 🔲 |

@@ -37,17 +37,17 @@ class VMDRSIEngine(AnalysisEngine):
             if rsi < 25:
                 score += 20
                 signals.append(Signal.RSI_OVERSOLD)
-                factors.append(f"RSI={rsi:.0f} 超卖")
+                factors.append(f"RSI={rsi:.0f} 超卖，短期具备修复动力")
             elif rsi < 35:
                 score += 10
-                factors.append(f"RSI={rsi:.0f} 偏低")
+                factors.append(f"RSI={rsi:.0f} 偏低，处于相对低位")
             elif rsi > 75:
                 score -= 20
                 signals.append(Signal.RSI_OVERBOUGHT)
                 risks.append(f"RSI={rsi:.0f} 超买")
             elif rsi > 65:
                 score -= 10
-                factors.append(f"RSI={rsi:.0f} 偏高")
+                risks.append(f"RSI={rsi:.0f} 偏高，追涨空间受限")
 
         if vmd is not None:
             if vmd.cycle_position < 0.2:
@@ -70,10 +70,12 @@ class VMDRSIEngine(AnalysisEngine):
             symbol=context.symbol, score=score, rating=rating,
             signals=tuple(signals),
             narrative=narrative,
-            risks=risks,
+            risks=tuple(risks),
             metadata={
                 "rsi": rsi,
                 "vmd_position": vmd.cycle_position if vmd else None,
+                "bull_reasons": factors[:3],
+                "bear_reasons": risks[:3],
             },
         )
 

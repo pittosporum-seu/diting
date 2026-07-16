@@ -71,7 +71,7 @@ class TestMxDataProvider:
     def test_name_and_priority(self):
         p = MxDataProvider(api_key="fake")
         assert p.name == "mx_data"
-        assert p.priority == 10
+        assert p.priority == 20
 
     def test_health_check_requires_valid_key(self):
         """无有效 apikey 时 health_check 返回 False。"""

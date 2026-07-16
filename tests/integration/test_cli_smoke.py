@@ -124,11 +124,11 @@ class TestCLISmoke:
         assert result.exit_code == 0
 
     def test_watchlist_no_file(self):
-        """diting watchlist（无 watchlist.csv）退出码 1。"""
+        """diting watchlist（无 watchlist.csv）优雅降级为空列表。"""
         runner = CliRunner()
         result = runner.invoke(cli, ["watchlist"])
-        # Should fail because config/watchlist.csv doesn't exist
-        assert "加载自选股失败" in result.output or "watchlist file not found" in result.output
+        # 文件缺失时优雅降级，不报错
+        assert result.exit_code == 0
 
     def test_watchlist_with_example(self):
         """diting watchlist -f config/watchlist.example.csv 退出码 0。"""

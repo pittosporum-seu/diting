@@ -127,6 +127,7 @@ class DataProvider(ABC):
         mapping = {
             "eltdx": "diting.data.providers.eltdx.ELtdxProvider",
             "ashare": "diting.data.providers.ashare.AshareProvider",
+            "east_money": "diting.data.providers.east_money.EastMoneyProvider",
             "mx_data": "diting.data.providers.mx_data.MxDataProvider",
             "akshare": "diting.data.providers.akshare.AkShareProvider",
         }

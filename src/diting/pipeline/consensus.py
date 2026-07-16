@@ -1,6 +1,7 @@
 """谛听 · 多引擎共识融合"""
 
 
+from ..engines.rating import score_to_rating
 from ..infra.config_loader import ConfigLoader
 from ..infra.logging_config import get_logger
 from ..schema import AnalysisResult, Conflict, ConsensusScore, Rating
@@ -89,8 +90,12 @@ class ConsensusEngine:
 
     @staticmethod
     def _score_to_rating(score: float) -> Rating:
-        cfg = ConfigLoader.get_section("engines")
-        thresholds = cfg.get("scoring", {}).get("threshold", [80, 65, 50, 35, 20])
+        try:
+            cfg = ConfigLoader.get_section("engines")
+            thresholds = cfg.get("scoring", {}).get("threshold", [80, 65, 50, 35, 20])
+        except Exception:
+            # 配置不可用时回退到统一函数
+            return score_to_rating(score)
         s0, s1, s2, s3, s4 = (
             thresholds[0], thresholds[1], thresholds[2], thresholds[3], thresholds[4]
         )

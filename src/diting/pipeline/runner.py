@@ -12,7 +12,9 @@ logger = get_logger(__name__)
 
 
 class AnalysisPipeline:
-    """分析管道——并行执行引擎 + 错误不阻塞"""
+    """分析管道——并行执行引擎 + 错误不阻塞 + 单引擎超时 25s"""
+
+    _ENGINE_TIMEOUT = 25  # v0.6.6: 每个引擎超时秒数
 
     def __init__(self, engine_names: list[str] | None = None):
         self._engine_names = engine_names or discover_engines()
@@ -22,7 +24,7 @@ class AnalysisPipeline:
     def run(self, contexts: list[AnalysisContext]) -> PipelineResult:
         """对多只股票的多个引擎并行分析。
 
-        一个引擎失败不阻塞其他引擎。
+        一个引擎失败/超时不阻塞其他引擎。
         """
         start = datetime.now()
         results: dict[str, list[AnalysisResult]] = {}
@@ -38,8 +40,20 @@ class AnalysisPipeline:
                 for future in as_completed(futures):
                     ename = futures[future]
                     try:
-                        result = future.result()
+                        result = future.result(timeout=self._ENGINE_TIMEOUT)
                         engine_results.append(result)
+                    except TimeoutError:
+                        logger.warning(
+                            "pipeline.engine_timeout",
+                            engine=ename,
+                            symbol=ctx.symbol,
+                            timeout_s=self._ENGINE_TIMEOUT,
+                        )
+                        errors.append({
+                            "engine": ename,
+                            "symbol": ctx.symbol,
+                            "error": f"Engine {ename} timed out after {self._ENGINE_TIMEOUT}s",
+                        })
                     except Exception as e:
                         logger.warning("pipeline.engine_failed", engine=ename, error=str(e))
                         errors.append({"engine": ename, "symbol": ctx.symbol, "error": str(e)})

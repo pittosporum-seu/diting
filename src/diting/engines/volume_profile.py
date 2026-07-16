@@ -6,6 +6,7 @@ import numpy as np
 from ..enums import DataType, Rating
 from ..schema import AnalysisContext, AnalysisResult
 from .base import AnalysisEngine
+from .rating import score_to_rating
 from .registry import register_engine
 
 
@@ -56,23 +57,43 @@ class VolumeProfileEngine(AnalysisEngine):
                 val = bin_edges[i]
                 break
 
-        # 评分：现价在价值区内 = 好
+        # 评分及可验证的多空证据
+        bull_reasons: list[str] = []
+        bear_reasons: list[str] = []
         if val <= current <= vah:
             score = 70.0
-            rating = Rating.BUY
             narrative = f"现价 ¥{current:.1f} 在价值区 [{val:.1f}, {vah:.1f}] 内，POC=¥{poc:.1f}"
+            bull_reasons.append(
+                f"现价 ¥{current:.1f} 位于价值区 [{val:.1f}, {vah:.1f}] 内，筹码接受度较高"
+            )
         elif current > vah:
             score = 35.0
-            rating = Rating.REDUCE
             narrative = f"现价 ¥{current:.1f} 高于价值区上沿 ¥{vah:.1f}"
+            bear_reasons.append(
+                f"现价 ¥{current:.1f} 高于 VAH ¥{vah:.1f}，偏离价值区存在回归风险"
+            )
         else:
             score = 45.0
-            rating = Rating.HOLD
             narrative = f"现价 ¥{current:.1f} 低于价值区下沿 ¥{val:.1f}"
+            bull_reasons.append(
+                f"现价 ¥{current:.1f} 低于 VAL ¥{val:.1f}，回归价值区可形成修复空间"
+            )
+            bear_reasons.append(
+                f"现价 ¥{current:.1f} 跌破 VAL ¥{val:.1f}，价值区支撑尚未确认"
+            )
+
+        rating = score_to_rating(score)
 
         return AnalysisResult(
             engine_name=self.name, engine_version=self.version,
             symbol=context.symbol, score=score, rating=rating,
             narrative=narrative,
-            metadata={"poc": poc, "vah": vah, "val": val},
+            risks=tuple(bear_reasons),
+            metadata={
+                "poc": poc,
+                "vah": vah,
+                "val": val,
+                "bull_reasons": bull_reasons[:3],
+                "bear_reasons": bear_reasons[:3],
+            },
         )

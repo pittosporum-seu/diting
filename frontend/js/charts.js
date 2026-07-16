@@ -41,12 +41,71 @@ const charts = {
    * @param {string} domId
    * @param {object} raw — { dates, prices, ohlc?, ma_5, ma_20, boll_upper, boll_lower }
    */
+  /**
+   * Downsample arrays for mobile: keep ~60-80 candles preserving OHLC integrity.
+   * Uses step-based sampling: every Nth candle where N = ceil(len/maxCandles).
+   */
+  _downsample(maxCandles, dates, ohlc, prices, volumes, ma_5, ma_20, boll_upper, boll_lower) {
+    const n = dates.length;
+    if (n <= maxCandles) return { dates, ohlc, prices, volumes, ma_5, ma_20, boll_upper, boll_lower };
+
+    const step = Math.ceil(n / maxCandles);
+    const out = (arr) => {
+      if (!arr || arr.length === 0) return arr;
+      return arr.filter((_, i) => i % step === 0 || i === n - 1);
+    };
+
+    // For OHLC: take open of first in group, high=max, low=min, close of last
+    let sampledOHLC = ohlc;
+    if (ohlc && ohlc.length > 0) {
+      sampledOHLC = [];
+      for (let i = 0; i < n; i += step) {
+        const group = ohlc.slice(i, Math.min(i + step, n));
+        sampledOHLC.push([
+          group[0][0],                         // open
+          group[group.length - 1][3],          // close
+          Math.min(...group.map(c => c[2])),   // low
+          Math.max(...group.map(c => c[3])),   // high
+        ]);
+      }
+    }
+
+    return {
+      dates: out(dates),
+      ohlc: sampledOHLC,
+      prices: out(prices),
+      volumes: out(volumes),
+      ma_5: out(ma_5),
+      ma_20: out(ma_20),
+      boll_upper: out(boll_upper),
+      boll_lower: out(boll_lower),
+    };
+  },
+
   renderKline(domId, raw) {
     const instance = _getInstance(domId);
 
+    // Downsample for mobile if > 80 candles
+    const MAX_CANDLES = 80;
+    let { dates, prices, ohlc, volumes } = raw;
+    let { ma_5, ma_20, boll_upper, boll_lower } = raw;
+
+    if (dates && dates.length > MAX_CANDLES) {
+      const ds = this._downsample(MAX_CANDLES, dates, raw.ohlc, raw.prices, raw.volumes,
+        raw.ma_5, raw.ma_20, raw.boll_upper, raw.boll_lower);
+      dates = ds.dates;
+      prices = ds.prices;
+      ohlc = ds.ohlc;
+      volumes = ds.volumes;
+      ma_5 = ds.ma_5;
+      ma_20 = ds.ma_20;
+      boll_upper = ds.boll_upper;
+      boll_lower = ds.boll_lower;
+    }
+
     // 判断是否有 OHLC 数据 — 有则用真蜡烛，否则退回 prices→平线
-    const hasOHLC = raw.ohlc && raw.ohlc.length > 0;
-    const klineData = hasOHLC ? raw.ohlc : (raw.prices || []).map(c => [c, c, c, c]);
+    const hasOHLC = ohlc && ohlc.length > 0;
+    const klineData = hasOHLC ? ohlc : (prices || []).map(c => [c, c, c, c]);
 
     const option = {
       backgroundColor: 'transparent',
@@ -54,7 +113,7 @@ const charts = {
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
       xAxis: {
         type: 'category',
-        data: raw.dates,
+        data: dates,
         axisLine: { lineStyle: { color: TEXT_COLOR } },
       },
       yAxis: {
@@ -76,7 +135,7 @@ const charts = {
         {
           name: 'MA5',
           type: 'line',
-          data: raw.ma_5,
+          data: ma_5,
           smooth: true,
           lineStyle: { width: 1, color: '#f59e0b' },
           showSymbol: false,
@@ -84,7 +143,7 @@ const charts = {
         {
           name: 'MA20',
           type: 'line',
-          data: raw.ma_20,
+          data: ma_20,
           smooth: true,
           lineStyle: { width: 1, color: '#3b82f6' },
           showSymbol: false,
@@ -92,14 +151,14 @@ const charts = {
         {
           name: '布林上轨',
           type: 'line',
-          data: raw.boll_upper,
+          data: boll_upper,
           lineStyle: { width: 1, color: 'rgba(156,163,175,0.5)', type: 'dashed' },
           showSymbol: false,
         },
         {
           name: '布林下轨',
           type: 'line',
-          data: raw.boll_lower,
+          data: boll_lower,
           lineStyle: { width: 1, color: 'rgba(156,163,175,0.5)', type: 'dashed' },
           showSymbol: false,
         },
@@ -118,12 +177,26 @@ const charts = {
   renderVolume(domId, raw) {
     if (!raw.volumes || raw.volumes.length === 0) return;
 
+    // Downsample volumes to match K-line candles
+    const MAX_CANDLES = 80;
+    let dates = raw.dates, prices = raw.prices, volumes = raw.volumes;
+    if (dates && dates.length > MAX_CANDLES) {
+      const step = Math.ceil(dates.length / MAX_CANDLES);
+      const out = (arr) => {
+        if (!arr || arr.length === 0) return arr;
+        return arr.filter((_, i) => i % step === 0 || i === dates.length - 1);
+      };
+      dates = out(dates);
+      prices = out(prices);
+      volumes = out(volumes);
+    }
+
     const instance = _getInstance(domId);
 
     // 涨跌颜色：比较当日收盘 vs 前一日
-    const colors = raw.volumes.map((v, i) => {
+    const colors = volumes.map((v, i) => {
       if (i === 0) return UP_COLOR;
-      return (raw.prices[i] >= raw.prices[i - 1]) ? UP_COLOR : DOWN_COLOR;
+      return (prices[i] >= prices[i - 1]) ? UP_COLOR : DOWN_COLOR;
     });
 
     const option = {
@@ -132,7 +205,7 @@ const charts = {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       xAxis: {
         type: 'category',
-        data: raw.dates,
+        data: dates,
         axisLine: { lineStyle: { color: TEXT_COLOR } },
       },
       yAxis: {
@@ -141,7 +214,7 @@ const charts = {
       },
       series: [{
         type: 'bar',
-        data: raw.volumes.map((v, i) => ({
+        data: volumes.map((v, i) => ({
           value: v,
           itemStyle: { color: colors[i] },
         })),

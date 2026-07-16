@@ -1,4 +1,11 @@
-"""谛听 · 异常层次结构"""
+"""谛听 · 异常层次结构
+
+统一的异常体系，分为两层：
+- DitingError：所有谛听异常的根
+- AnalysisError：API 级别的分析错误，携带 error_code 和 http_status_code
+"""
+
+from __future__ import annotations
 
 
 class DitingError(Exception):
@@ -6,14 +13,112 @@ class DitingError(Exception):
     pass
 
 
-class DataUnavailableError(DitingError):
-    """数据不可用"""
-    pass
+class AnalysisError(DitingError):
+    """API 级别的分析错误基类。
+
+    所有需要通过 API 返回给客户端的错误应继承此类。
+    携带机器可读的 error_code 和 HTTP 状态码，
+    由全局异常处理器统一转换为 ApiErrorResponse。
+    """
+
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        error_code: str = "INTERNAL_ERROR",
+        http_status_code: int = 500,
+        detail: str | None = None,
+    ):
+        self.error_code = error_code
+        self.http_status_code = http_status_code
+        self.detail = detail
+        super().__init__(message)
+
+
+class DataUnavailableError(AnalysisError):
+    """数据不可用 — 上游数据源返回空或查询失败"""
+
+    def __init__(
+        self,
+        message: str = "数据不可用",
+        *,
+        error_code: str = "DATA_UNAVAILABLE",
+        http_status_code: int = 503,
+        detail: str | None = None,
+    ):
+        super().__init__(
+            message,
+            error_code=error_code,
+            http_status_code=http_status_code,
+            detail=detail,
+        )
 
 
 class AllProvidersFailedError(DataUnavailableError):
     """所有数据源均失败"""
-    pass
+
+    def __init__(self, message: str = "所有数据源均失败"):
+        super().__init__(message)
+
+
+class EngineTimeoutError(AnalysisError):
+    """分析引擎执行超时"""
+
+    def __init__(
+        self,
+        engine_name: str = "",
+        message: str = "",
+        *,
+        error_code: str = "ENGINE_TIMEOUT",
+        http_status_code: int = 504,
+        detail: str | None = None,
+    ):
+        self.engine_name = engine_name
+        msg = message or f"引擎 [{engine_name}] 执行超时"
+        super().__init__(
+            msg,
+            error_code=error_code,
+            http_status_code=http_status_code,
+            detail=detail,
+        )
+
+
+class RateLimitError(AnalysisError):
+    """请求频率限制"""
+
+    def __init__(
+        self,
+        message: str = "请求过于频繁，请稍后重试",
+        *,
+        error_code: str = "RATE_LIMIT",
+        http_status_code: int = 429,
+        detail: str | None = None,
+    ):
+        super().__init__(
+            message,
+            error_code=error_code,
+            http_status_code=http_status_code,
+            detail=detail,
+        )
+
+
+class ConfigError(AnalysisError):
+    """配置错误"""
+
+    def __init__(
+        self,
+        message: str = "配置错误",
+        *,
+        error_code: str = "CONFIG_ERROR",
+        http_status_code: int = 500,
+        detail: str | None = None,
+    ):
+        super().__init__(
+            message,
+            error_code=error_code,
+            http_status_code=http_status_code,
+            detail=detail,
+        )
 
 
 class EngineFailedError(DitingError):
@@ -42,8 +147,3 @@ class PipelineError(DitingError):
         self.step = step
         self.message = message
         super().__init__(f"[{step}] {message}")
-
-
-class ConfigError(DitingError):
-    """配置错误"""
-    pass

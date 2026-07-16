@@ -281,6 +281,33 @@ a:hover {
   .card {
     padding: 14px;
   }
+
+  /* ── P1: 仪表盘手机端紧凑布局 ── */
+  #dash-indices {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  #dash-indices .stat-card {
+    padding: 12px 8px;
+  }
+  #dash-indices .stat-value {
+    font-size: 20px;
+  }
+
+  #dash-signals {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  #dash-signals .stat-card {
+    padding: 12px 8px;
+  }
+  #dash-signals .stat-value {
+    font-size: 22px;
+  }
+
+  .stat-grid:not(#dash-indices):not(#dash-signals) {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── 指标网格 — 响应式 ── */
@@ -324,6 +351,77 @@ a:hover {
   }
 }
 
+/* ── 搜索下拉建议 ── */
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .1);
+  z-index: 200;
+  max-height: 300px;
+  overflow-y: auto;
+  display: none;
+}
+
+.search-dropdown.active {
+  display: block;
+}
+
+.search-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+  transition: background .12s;
+}
+
+.search-item:last-child {
+  border-bottom: none;
+}
+
+.search-item:hover {
+  background: rgba(108, 92, 231, .06);
+}
+
+.search-item .search-code {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.search-item .search-name {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* ── 自选股添加栏 — 响应式 ── */
+.wl-add-bar {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  max-width: 520px;
+}
+@media (max-width: 480px) {
+  .wl-add-bar {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .wl-add-bar input {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .wl-add-bar button {
+    flex: 0 0 auto;
+  }
+}
+
 /* ── 404 页面 ── */
 .page-404 { text-align: center; padding: 80px 24px; }
 .page-404 .icon { font-size: 64px; margin-bottom: 16px; }
@@ -353,4 +451,222 @@ a:hover {
   border-radius: var(--card-radius);
   color: var(--color-avoid);
   font-size: 14px;
+}
+
+/* ── 按钮 loading 态 ── */
+.btn-loading {
+  opacity: 0.7;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+/* ── 后台刷新指示器 ── */
+.refresh-badge {
+  position: fixed;
+  top: 64px;
+  right: 12px;
+  z-index: 2000;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(108, 92, 231, 0.12);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  animation: refresh-spin 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes refresh-spin {
+  0%   { opacity: 0.4; transform: rotate(0deg); }
+  50%  { opacity: 1;   transform: rotate(180deg); }
+  100% { opacity: 0.4; transform: rotate(360deg); }
+}
+
+/* ── 内容渐入动画 ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* ── 错误提示增强 ── */
+.error-card {
+  text-align: center;
+  padding: 48px 20px;
+}
+
+.error-card .icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.error-card .title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-avoid);
+  margin-bottom: 8px;
+}
+
+.error-card .desc {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── 自选股删除按钮 hover ── */
+.wl-del-btn:hover {
+  color: #d63031 !important;
+  background: rgba(225, 112, 85, 0.1) !important;
+  border-radius: 4px;
+}
+
+/* ── 设置页 Toggle 开关 ── */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row.disabled { opacity: 0.5; }
+
+.settings-label {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.toggle-btn {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border: none;
+  border-radius: 12px;
+  background: var(--color-hold);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+.toggle-btn.toggle-on {
+  background: var(--color-buy);
+}
+.toggle-btn.disabled {
+  cursor: not-allowed;
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  transition: transform 0.2s ease;
+}
+.toggle-btn.toggle-on .toggle-knob {
+  transform: translateX(20px);
+}
+
+/* ── 设置页 Select ── */
+.settings-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.settings-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* ── 表格横滚 ── */
+.table-scroll,
+.card[style*="overflow-x:auto"],
+.card[style*="overflow-x: auto"] {
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll table {
+  min-width: 600px;
+  width: 100%;
+}
+
+/* ── 手机端增强 ── */
+@media (max-width: 480px) {
+  #navbar {
+    padding: 6px 8px;
+  }
+
+  .nav-logo {
+    font-size: 15px;
+  }
+
+  .nav-links {
+    gap: 2px;
+  }
+
+  .nav-link {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  #app-root {
+    padding: 10px;
+  }
+
+  .page-title {
+    font-size: 18px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+  }
+
+  .settings-label {
+    font-size: 13px;
+  }
+
+  .toggle-btn {
+    width: 40px;
+    height: 22px;
+  }
+  .toggle-knob {
+    width: 18px;
+    height: 18px;
+  }
+  .toggle-btn.toggle-on .toggle-knob {
+    transform: translateX(18px);
+  }
+}
+
+/* ── 数据时间戳 ── */
+.data-timestamp {
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  padding: 8px 4px 2px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-color);
 }

@@ -6,7 +6,6 @@ AI 生成分析代码 → 沙箱执行 → 结构化输出。
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 
 from ..ai.client import AIClient
@@ -15,6 +14,7 @@ from ..infra.logging_config import get_logger
 from ..sandbox.executor import SandboxExecutor
 from ..schema import AnalysisContext, AnalysisResult
 from .base import AnalysisEngine
+from .rating import score_to_rating
 from .registry import register_engine
 
 logger = get_logger(__name__)
@@ -47,15 +47,15 @@ WYCKOFF_SYSTEM_PROMPT = """你是一个威克夫方法分析专家。你的任�
     "support_level": 45.0,
     "resistance_level": 52.0,
     "volume_confirmation": true/false,
-    "narrative": "简短的中文分析说明"
+    "narrative": "基于阶段、价格和成交量证据的中文分析说明",
+    "bull_reasons": ["看多理由1", "看多理由2", "看多理由3"],
+    "bear_reasons": ["看空理由1", "看空理由2", "看空理由3"]
 }
+每条理由必须具体、可验证并引用输入中的阶段、价位或成交量指标；证据不足时返回空数组，禁止编造。
 
 评分规则：Accumulation 阶段靠后的分数更高（A=20, B=40, C=60, D=80, E=90）
 Distribution 阶段分数更低（A=30, B=25, C=20, D=15, E=10）
 """
-
-FIX_PROMPT = """你是一个 Python 代码修复专家。下面的代码在沙箱中执行时出错。
-请修复代码并返回完整的修复版本。只返回代码，不要解释。"""
 
 
 @register_engine("wyckoff")
@@ -126,45 +126,18 @@ class WyckoffEngine(AnalysisEngine):
             vol_col = "volume" if "volume" in hist.df.columns else "成交量"
             data_summary += f"Avg volume: {hist.df[vol_col].mean():.0f}\n"
 
-        # Step 1: AI 生成分析代码
-        code = self._llm.complete(
-            system=WYCKOFF_SYSTEM_PROMPT,
-            user=data_summary,
-        )
+        # 统一流程：调 AI → 跑沙箱 → 解析输出
+        output = self._run_ai(WYCKOFF_SYSTEM_PROMPT, data_summary)
 
-        # 提取代码块
-        if "```python" in code:
-            code = code.split("```python")[1].split("```")[0]
-        elif "```" in code:
-            code = code.split("```")[1].split("```")[0]
+        score = output.score
+        rating = score_to_rating(score)
 
-        # Step 2: 沙箱执行
-        result = self._sandbox.run_with_retry(
-            code=code,
-            fix_prompt=FIX_PROMPT,
-            llm=self._llm,
-        )
-
-        # Step 3: 解析结果
-        output = result.get("output", "")
-        try:
-            # 从输出中提取 JSON
-            if "{" in output:
-                json_str = output[output.index("{"):output.rindex("}") + 1]
-                parsed = json.loads(json_str)
-            else:
-                parsed = {}
-        except (json.JSONDecodeError, ValueError):
-            logger.warning("wyckoff.parse_failed", symbol=context.symbol, output=output[:200])
-            parsed = {}
-
-        score = float(parsed.get("score", 50))
-        rating = self._to_rating(score)
-
+        # 从 metadata 提取引擎特有信号
+        metadata = output.metadata
         signals = []
-        if parsed.get("spring_detected"):
+        if metadata.get("spring_detected"):
             signals.append(Signal.WYCKOFF_SPRING)
-        if parsed.get("sos_detected"):
+        if metadata.get("sos_detected"):
             signals.append(Signal.WYCKOFF_SOS)
 
         duration_ms = int((datetime.now() - start).total_seconds() * 1000)
@@ -176,28 +149,15 @@ class WyckoffEngine(AnalysisEngine):
             score=score,
             rating=rating,
             signals=tuple(signals),
-            narrative=parsed.get("narrative", ""),
+            narrative=output.narrative,
             confidence=0.7 if score > 60 or score < 40 else 0.5,
             metadata={
-                "phase": parsed.get("phase", "unknown"),
-                "support": parsed.get("support_level"),
-                "resistance": parsed.get("resistance_level"),
-                "volume_confirmation": parsed.get("volume_confirmation", False),
+                "phase": metadata.get("phase", "unknown"),
+                "support": metadata.get("support_level"),
+                "resistance": metadata.get("resistance_level"),
+                "volume_confirmation": metadata.get("volume_confirmation", False),
+                "bull_reasons": output.bull_reasons[:3],
+                "bear_reasons": output.bear_reasons[:3],
             },
             duration_ms=duration_ms,
         )
-
-    @staticmethod
-    def _to_rating(score: float) -> Rating:
-        if score >= 80:
-            return Rating.STRONG_BUY
-        elif score >= 65:
-            return Rating.BUY
-        elif score >= 50:
-            return Rating.ACCUMULATE
-        elif score >= 35:
-            return Rating.HOLD
-        elif score >= 20:
-            return Rating.REDUCE
-        else:
-            return Rating.SELL

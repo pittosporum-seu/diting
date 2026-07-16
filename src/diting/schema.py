@@ -188,3 +188,74 @@ class PipelineResult:
     reports: dict = field(default_factory=dict)
     errors: tuple = ()
     metrics: dict = field(default_factory=dict)
+
+
+# ============================================================
+# Web 响应协议
+# ============================================================
+
+@dataclass
+class EngineScoreItem:
+    """单个分析引擎的评分结果。"""
+    engine_name: str
+    score: float
+    rating: str
+    rating_label: str
+    confidence: float
+    duration_ms: int = 0
+
+    @property
+    def name(self) -> str:
+        """Backward-compatible alias used by existing web clients."""
+        return self.engine_name
+
+
+@dataclass
+class EngineSkipInfo:
+    """被跳过的分析引擎信息。"""
+    engine_name: str
+    reason: str  # "no_api_key", "non_trading_hours", "timeout", "error"
+
+
+@dataclass
+class StockAnalysisResponse:
+    """analyze_stock 的返回协议 — 个股全流程分析结果。"""
+
+    def get(self, key: str, default=None):
+        """Provide mapping-compatible reads during the response migration."""
+        aliases = {"signals": self.signals_summary}
+        return aliases.get(key, getattr(self, key, default))
+
+    def __contains__(self, key: object) -> bool:
+        """Support legacy membership checks at API boundaries."""
+        return isinstance(key, str) and self.get(key) is not None
+
+    def __getitem__(self, key: str):
+        """Support legacy indexing at API boundaries."""
+        value = self.get(key)
+        if value is None and not hasattr(self, key):
+            raise KeyError(key)
+        return value
+
+    code: str
+    name: str
+    price: float
+    change_pct: float
+    pe: float | None = None
+    pb: float | None = None
+    total_mv: float | None = None
+    score: float = 50.0
+    rating: str = "hold"
+    rating_label: str = "建议观望"
+    rating_emoji: str = "⚪"
+    confidence: float = 0.5
+    engine_scores: list[EngineScoreItem] = field(default_factory=list)
+    engine_skipped: list[EngineSkipInfo] = field(default_factory=list)
+    bull_reasons: list[str] = field(default_factory=list)
+    bear_reasons: list[str] = field(default_factory=list)
+    rsi_display: str = ""
+    macd_display: str = ""
+    chart_data: dict = field(default_factory=dict)
+    signals_summary: dict | None = None
+    error: str | None = None
+    _cache_state: str = "fresh"  # 内部字段，序列化时排除

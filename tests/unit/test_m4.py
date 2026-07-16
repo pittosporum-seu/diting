@@ -96,12 +96,14 @@ class TestWyckoffEngine:
         assert DataType.HISTORICAL in engine.required_data()
 
     def test_to_rating(self):
-        assert WyckoffEngine._to_rating(85) == Rating.STRONG_BUY
-        assert WyckoffEngine._to_rating(70) == Rating.BUY
-        assert WyckoffEngine._to_rating(55) == Rating.ACCUMULATE
-        assert WyckoffEngine._to_rating(40) == Rating.HOLD
-        assert WyckoffEngine._to_rating(25) == Rating.REDUCE
-        assert WyckoffEngine._to_rating(10) == Rating.SELL
+        from src.diting.engines.rating import score_to_rating
+
+        assert score_to_rating(85) == Rating.STRONG_BUY
+        assert score_to_rating(70) == Rating.BUY
+        assert score_to_rating(55) == Rating.ACCUMULATE
+        assert score_to_rating(40) == Rating.HOLD
+        assert score_to_rating(25) == Rating.REDUCE
+        assert score_to_rating(10) == Rating.SELL
 
     def test_analyze_no_data(self):
         """无历史数据返回 HOLD"""

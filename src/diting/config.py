@@ -22,10 +22,12 @@ class Config:
     _CODE_PATTERN = re.compile(r"^\d{6}$")
     _MARKET_PATTERN = re.compile(r"^(sz|sh|bj)$")
 
-    def __init__(self, project_root: Path | None = None):
+    def __init__(self, project_root: Path | None = None, db_path: str | None = None):
         self._root = project_root or Path.cwd()
         self._data: dict[str, str] = {}
         self._load_env()
+        self._watchlist_db = None  # 懒加载
+        self._db_path = db_path    # 测试可注入临时 DB 路径
 
     def _load_env(self) -> None:
         env_file = self._root / ".env"
@@ -67,55 +69,59 @@ class Config:
 
     # ── watchlist 加载与验证 ──────────────────────
 
+    def _get_watchlist_db(self):
+        """懒加载 WatchlistDB 实例。"""
+        if self._watchlist_db is None:
+            from .storage import WatchlistDB
+            self._watchlist_db = WatchlistDB(db_path=self._db_path)
+        return self._watchlist_db
+
     def load_watchlist(
         self, path: str | None = None, validate: bool = True
     ) -> list[dict[str, Any]]:
-        """加载自选股 CSV，可选验证。
+        """加载自选股。优先读 SQLite DB，CSV 兜底。
+
+        首次启动时自动迁移 CSV → DB。
 
         Args:
-            path: CSV 文件路径，默认为 config/watchlist.csv
-            validate: 是否验证每一行的代码格式和市场字段
+            path: CSV 文件路径（仅在 CSV 兜底时使用）
+            validate: 仅对 CSV 来源数据生效（DB 数据默认信任）
 
         Returns:
             [{"code": "002475", "name": "立讯精密", "market": "sz"}, ...]
-
-        Raises:
-            ConfigError: 文件不存在或验证失败
         """
+        # 1. 尝试从 DB 读取
+        db = self._get_watchlist_db()
+        rows = db.list()
+        if rows:
+            return rows
+
+        # 2. DB 为空，尝试 CSV 兜底
         filepath = Path(path) if path else self._root / "config" / "watchlist.csv"
-        if not filepath.exists():
-            raise ConfigError(f"watchlist file not found: {filepath}")
 
-        rows: list[dict[str, Any]] = []
-        with open(filepath, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for i, row in enumerate(reader, start=1):
-                rows.append(row)
+        if filepath.exists():
+            # 先读取 CSV 内容（用于 validate）
+            csv_rows: list[dict[str, Any]] = []
+            with open(filepath, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    csv_rows.append(row)
 
-        if not rows:
+            if csv_rows:
+                if validate:
+                    self._validate_watchlist(csv_rows, str(filepath))
+
+                # 迁移到 DB
+                imported = db.migrate_from_csv(filepath)
+                if imported > 0:
+                    return db.list()
+
             logger.warning("config.watchlist.empty", path=str(filepath))
             return []
 
-        if validate:
-            self._validate_watchlist(rows, str(filepath))
-
-        # 去重
-        seen: set[str] = set()
-        unique: list[dict[str, Any]] = []
-        for row in rows:
-            code = row.get("code", "").strip()
-            if code and code not in seen:
-                seen.add(code)
-                unique.append(row)
-
-        if len(unique) < len(rows):
-            logger.info(
-                "config.watchlist.deduped",
-                original=len(rows),
-                unique=len(unique),
-            )
-
-        return unique
+        # 3. 都为空
+        logger.warning("config.watchlist.empty_all")
+        return []
 
     @classmethod
     def _validate_watchlist(cls, rows: list[dict[str, Any]], path: str) -> None:

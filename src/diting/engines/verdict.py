@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from ..enums import DataType, Rating, Signal
+from ..enums import DataType, Signal
 from ..schema import AnalysisContext, AnalysisResult
 from .base import AnalysisEngine
+from .rating import score_to_rating
 from .registry import register_engine
 
 
@@ -36,11 +37,11 @@ class VerdictEngine(AnalysisEngine):
         # ── VMD 周期信号 ──
         if vmd is not None:
             if vmd.cycle_position < 0.3:
-                score += 20
+                score += 25
                 bull_reasons.append("VMD 周期触底，反弹概率较大")
                 result_signals.append(Signal.VMD_TROUGH)
             elif vmd.cycle_position > 0.7:
-                score -= 20
+                score -= 25
                 bear_reasons.append("VMD 周期见顶，回调风险较大")
                 result_signals.append(Signal.VMD_PEAK)
             if vmd.trend_broken:
@@ -51,11 +52,11 @@ class VerdictEngine(AnalysisEngine):
         if signals is not None:
             rsi = signals.rsi_14
             if rsi < 30:
-                score += 15
+                score += 20
                 bull_reasons.append("RSI 超卖，短期有修复动力")
                 result_signals.append(Signal.RSI_OVERSOLD)
             elif rsi > 75:
-                score -= 15
+                score -= 20
                 bear_reasons.append("RSI 超买，高位追涨需谨慎")
                 result_signals.append(Signal.RSI_OVERBOUGHT)
 
@@ -94,7 +95,7 @@ class VerdictEngine(AnalysisEngine):
 
         # ── 钳制 + 评级映射 ──
         score = max(0.0, min(100.0, score))
-        rating = self._score_to_rating(score)
+        rating = score_to_rating(score)
         verdict_cn = self._verdict_cn(score)
 
         # ── 构建 narrative ──
@@ -122,24 +123,18 @@ class VerdictEngine(AnalysisEngine):
             },
         )
 
-    # ── 评分映射 ──
-
-    @staticmethod
-    def _score_to_rating(score: float) -> Rating:
-        if score >= 75:
-            return Rating.BUY
-        if score >= 55:
-            return Rating.ACCUMULATE
-        if score >= 35:
-            return Rating.HOLD
-        return Rating.REDUCE
+    # ── 中文标签 ──
 
     @staticmethod
     def _verdict_cn(score: float) -> str:
-        if score >= 75:
+        if score >= 80:
+            return "强烈买入"
+        if score >= 65:
             return "建议买入"
-        if score >= 55:
+        if score >= 50:
             return "建议关注"
         if score >= 35:
             return "建议观望"
+        if score >= 20:
+            return "建议减仓"
         return "建议回避"

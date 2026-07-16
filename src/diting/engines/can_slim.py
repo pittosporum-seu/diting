@@ -1,13 +1,15 @@
 """谛听 · CANSLIM 成长股评分引擎（AI + 沙箱）"""
 
-import json
-
 from ..ai.client import AIClient
 from ..enums import DataType, Rating
+from ..infra.logging_config import get_logger
 from ..sandbox.executor import SandboxExecutor
 from ..schema import AnalysisContext, AnalysisResult
 from .base import AnalysisEngine
+from .rating import score_to_rating
 from .registry import register_engine
+
+logger = get_logger(__name__)
 
 CANSLIM_SYSTEM = """你是 CANSLIM 成长股分析专家。7维度评分。
 
@@ -24,8 +26,11 @@ M - Market direction (大盘方向)
     "score": 60,
     "c_score": 15, "a_score": 12, "n_score": 10,
     "s_score": 8, "l_score": 14, "i_score": 6, "m_score": 5,
-    "narrative": "中文分析"
+    "narrative": "基于 CANSLIM 七维评分的中文分析，引用关键指标",
+    "bull_reasons": ["看多理由1", "看多理由2", "看多理由3"],
+    "bear_reasons": ["看空理由1", "看空理由2", "看空理由3"]
 }
+每条理由必须具体、可验证并引用输入中的成长、盈利或市场指标；证据不足时返回空数组，禁止编造。
 """
 
 
@@ -54,43 +59,17 @@ class CANSLIMEngine(AnalysisEngine):
             f = context.financials
             info += f"Profit YoY: {f.profit_yoy}%\nRevenue YoY: {f.revenue_yoy}%\nROE: {f.roe}%\n"
 
-        code = self._llm.complete(system=CANSLIM_SYSTEM, user=info)
-        if "```" in code:
-            if "```python" in code:
-                code = code.split("```python")[1].split("```")[0]
-            else:
-                code = code.split("```")[1].split("```")[0]
+        output = self._run_ai(CANSLIM_SYSTEM, info)
 
-        result = self._sandbox.run(code)
-        output = result.get("output", "")
-        try:
-            if "{" in output:
-                parsed = json.loads(output[output.index("{"):output.rindex("}") + 1])
-            else:
-                parsed = {}
-        except (json.JSONDecodeError, ValueError):
-            parsed = {}
-
-        score = float(parsed.get("score", 50))
         return AnalysisResult(
             engine_name=self.name, engine_version=self.version,
-            symbol=context.symbol, score=score,
-            rating=self._to_rating(score),
-            narrative=parsed.get("narrative", ""),
+            symbol=context.symbol, score=output.score,
+            rating=score_to_rating(output.score),
+            narrative=output.narrative,
             confidence=0.6,
-            metadata=parsed,
+            metadata={
+                **output.metadata,
+                "bull_reasons": output.bull_reasons[:3],
+                "bear_reasons": output.bear_reasons[:3],
+            },
         )
-
-    @staticmethod
-    def _to_rating(s: float) -> Rating:
-        if s >= 80:
-            return Rating.STRONG_BUY
-        if s >= 65:
-            return Rating.BUY
-        if s >= 50:
-            return Rating.ACCUMULATE
-        if s >= 35:
-            return Rating.HOLD
-        if s >= 20:
-            return Rating.REDUCE
-        return Rating.SELL

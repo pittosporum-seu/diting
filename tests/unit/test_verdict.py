@@ -98,32 +98,31 @@ def _make_realtime(pe: float | None = None) -> RealtimeQuote:
 
 
 def test_score_buy_threshold():
-    """评分 ≥ 75 → BUY + '建议买入'"""
+    """评分 ≥ 80 → STRONG_BUY + '强烈买入'"""
     engine = VerdictEngine()
     ctx = AnalysisContext(
         symbol="000001",
-        signals=_make_signals(rsi=25.0),  # RSI<30 → +15
-        vmd=_make_vmd(cycle_position=0.1),  # VMD<0.3 → +20
+        signals=_make_signals(rsi=25.0),  # RSI<30 → +20
+        vmd=_make_vmd(cycle_position=0.1),  # VMD<0.3 → +25
         fund_flow=_make_fund_flow(main_net_inflow=2e8, ddx=0.5),  # +10 +10
-        # total: 50 + 15 + 20 + 10 + 10 + 5(macd默认=0, 平) = 105 → clamp 100
+        # total: 50 + 20 + 25 + 10 + 10 + 5(macd默认=0, 平) = 115 → clamp 100
     )
     result = engine.analyze(ctx)
-    assert result.rating == Rating.BUY
-    assert result.score >= 75
-    assert "建议买入" in result.narrative
+    assert result.rating == Rating.STRONG_BUY
+    assert result.score >= 80
+    assert "强烈买入" in result.narrative
 
 
 def test_score_accumulate_threshold():
-    """评分 55-74 → ACCUMULATE + '建议关注'"""
+    """评分 50-64 → ACCUMULATE + '建议关注'"""
     engine = VerdictEngine()
     ctx = AnalysisContext(
         symbol="000001",
-        signals=_make_signals(rsi=28.0),  # RSI<30 → +15, MACD平 → +0
-        # total: 50 + 15 = 65
+        # 无信号，基线 50 → ACCUMULATE
     )
     result = engine.analyze(ctx)
     assert result.rating == Rating.ACCUMULATE
-    assert 55 <= result.score < 75
+    assert 50 <= result.score < 65
     assert "建议关注" in result.narrative
 
 
@@ -137,24 +136,24 @@ def test_score_hold_threshold():
     )
     result = engine.analyze(ctx)
     assert result.rating == Rating.HOLD
-    assert 35 <= result.score < 55
+    assert 35 <= result.score < 50
     assert "建议观望" in result.narrative
 
 
 def test_score_reduce_threshold():
-    """评分 < 35 → REDUCE + '建议回避'"""
+    """评分 < 20 → SELL + '建议回避'"""
     engine = VerdictEngine()
     ctx = AnalysisContext(
         symbol="000001",
-        signals=_make_signals(rsi=80.0),  # RSI>75 → -15
-        vmd=_make_vmd(cycle_position=0.9),  # VMD>0.7 → -20
+        signals=_make_signals(rsi=80.0),  # RSI>75 → -20
+        vmd=_make_vmd(cycle_position=0.9),  # VMD>0.7 → -25
         fund_flow=_make_fund_flow(main_net_inflow=-3e8),  # -10
         realtime=_make_realtime(pe=150.0),  # -10
-        # total: 50 - 15 - 20 - 10 - 10 - 5(macd死叉) = 10
+        # total: 50 - 20 - 25 - 10 - 10 - 5(macd死叉) = -20 → clamp 0
     )
     result = engine.analyze(ctx)
-    assert result.rating == Rating.REDUCE
-    assert result.score < 35
+    assert result.rating == Rating.SELL
+    assert result.score < 20
     assert "建议回避" in result.narrative
 
 
@@ -275,8 +274,8 @@ def test_empty_context_returns_default():
     ctx = AnalysisContext(symbol="000001")
     result = engine.analyze(ctx)
     assert result.score == 50.0
-    assert result.rating == Rating.HOLD
-    assert "建议观望" in result.narrative
+    assert result.rating == Rating.ACCUMULATE
+    assert "建议关注" in result.narrative
 
 
 def test_mixed_signals_produces_both_reasons():

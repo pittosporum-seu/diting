@@ -47,7 +47,7 @@ class MxDataProvider(DataProvider):
 
     @property
     def priority(self) -> int:
-        return 10  # 最高优先级
+        return 20  # 第三优先级（需 API Key，在 ashare/east_money 之后）
 
     def __init__(self, api_key: str | None = None):
         self._client: MXData | None = None

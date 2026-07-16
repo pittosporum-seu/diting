@@ -101,7 +101,11 @@ def _fetch_tencent_daily(code: str, count: int = 500) -> list[dict] | None:
                     "high": float(row[3]) if not isinstance(row[3], dict) else 0,
                     "low": float(row[4]) if not isinstance(row[4], dict) else 0,
                     "volume": int(float(row[5]) if not isinstance(row[5], dict) else 0),
-                    "amount": float(row[6]) if len(row) > 6 and not isinstance(row[6], dict) else 0.0,
+                    "amount": (
+                        float(row[6])
+                        if len(row) > 6 and not isinstance(row[6], dict)
+                        else 0.0
+                    ),
                 })
         return result if result else None
     except Exception as e:
@@ -122,7 +126,7 @@ class AshareProvider(DataProvider):
 
     @property
     def priority(self) -> int:
-        return 5  # 最高优先级（免费可用，速度快）
+        return 6  # 免费可用，速度快，次于 east_money（不提供 PE/PB）
 
     def __init__(self):
         self._available: bool | None = None
@@ -143,65 +147,74 @@ class AshareProvider(DataProvider):
         return self._available
 
     def fetch_realtime(self, symbols: list[str]) -> dict[str, RealtimeQuote]:
+        """获取实时行情，每批最多 50 只，分批请求合并结果。"""
         if not symbols:
             return {}
 
-        sina_codes = [_to_sina_code(s) for s in symbols]
-        query = ",".join(sina_codes)
-        url = f"{_SINA_API}{query}"
-
-        try:
-            resp = requests.get(url, headers=_HEADERS, timeout=10)
-            resp.raise_for_status()
-        except Exception as e:
-            logger.error("ashare.realtime.failed", error=str(e))
-            raise DataUnavailableError(f"ashare realtime: {e}") from e
-
+        batch_size = 50
         results: dict[str, RealtimeQuote] = {}
         now = datetime.now()
 
-        for line in resp.text.strip().split("\n"):
-            if not line.strip():
-                continue
-            parsed = _parse_realtime_line(line)
-            if parsed is None:
-                continue
-
-            # 从 URL 匹配代码映射回来
-            code = None
-            for sym in symbols:
-                sina = _to_sina_code(sym)
-                if sina in line:
-                    code = sym
-                    break
-
-            if not code or code in results:
-                continue
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i:i + batch_size]
+            sina_codes = [_to_sina_code(s) for s in batch]
+            query = ",".join(sina_codes)
+            url = f"{_SINA_API}{query}"
 
             try:
-                price = float(parsed["price"])
-                pre_close = float(parsed["close"])
-                change_pct = (
-                    ((price - pre_close) / pre_close * 100) if pre_close else 0.0
-                )
-
-                quote = RealtimeQuote(
-                    symbol=code,
-                    name=parsed["name"],
-                    price=price,
-                    change_pct=change_pct,
-                    open=float(parsed["open"] or 0),
-                    high=float(parsed["high"] or 0),
-                    low=float(parsed["low"] or 0),
-                    volume=int(float(parsed["volume"] or 0)),
-                    turnover=float(parsed["amount"] or 0),
-                    timestamp=now,
-                )
-                results[code] = quote
-            except (ValueError, TypeError) as e:
+                resp = requests.get(url, headers=_HEADERS, timeout=10)
+                resp.raise_for_status()
+            except Exception as e:
                 logger.warning(
-                    "ashare.realtime.row_failed", symbol=code, error=str(e)
+                    "ashare.batch_failed",
+                    batch_start=i,
+                    batch_size=len(batch),
+                    error=str(e),
                 )
+                continue  # 一批失败不影响其他批次
+
+            for line in resp.text.strip().split("\n"):
+                if not line.strip():
+                    continue
+                parsed = _parse_realtime_line(line)
+                if parsed is None:
+                    continue
+
+                # 从 URL 匹配代码映射回来
+                code = None
+                for sym in batch:
+                    sina = _to_sina_code(sym)
+                    if sina in line:
+                        code = sym
+                        break
+
+                if not code or code in results:
+                    continue
+
+                try:
+                    price = float(parsed["price"])
+                    pre_close = float(parsed["close"])
+                    change_pct = (
+                        ((price - pre_close) / pre_close * 100) if pre_close else 0.0
+                    )
+
+                    quote = RealtimeQuote(
+                        symbol=code,
+                        name=parsed["name"],
+                        price=price,
+                        change_pct=change_pct,
+                        open=float(parsed["open"] or 0),
+                        high=float(parsed["high"] or 0),
+                        low=float(parsed["low"] or 0),
+                        volume=int(float(parsed["volume"] or 0)),
+                        turnover=float(parsed["amount"] or 0),
+                        timestamp=now,
+                    )
+                    results[code] = quote
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        "ashare.realtime.row_failed", symbol=code, error=str(e)
+                    )
 
         return results
 

@@ -1,10 +1,14 @@
 """谛听 · Python 沙箱执行器
 
-基于 sandboxmcp 封装，提供安全隔离的计算环境。
+基于 sandboxmcp v1.0.2+ 封装，提供安全隔离的计算环境。
 AI 生成的计算代码在沙箱中执行，避免幻觉输出。
+
+API: SandboxFactory.create() → SandboxPipeline.execute() (async) → SandboxResult
 """
 
 from __future__ import annotations
+
+import asyncio
 
 from ..infra.errors import SandboxError
 from ..infra.logging_config import get_logger
@@ -13,7 +17,7 @@ logger = get_logger(__name__)
 
 
 class SandboxExecutor:
-    """Python 沙箱执行器 — sandboxmcp 封装。
+    """Python 沙箱执行器 — sandboxmcp v1.0.2+ 封装。
 
     process 后端：seccomp + namespace 隔离，零额外依赖。
     """
@@ -27,45 +31,49 @@ class SandboxExecutor:
         self._backend = backend
         self._memory_limit_mb = memory_limit_mb
         self._timeout_seconds = timeout_seconds
-        self._sandbox = None
+        self._sandbox_pipeline = None
 
-    def _get_sandbox(self):
-        if self._sandbox is None:
-            from sandboxmcp import Sandbox
+    def _get_pipeline(self):
+        """获取或创建 SandboxPipeline 实例。"""
+        if self._sandbox_pipeline is None:
+            from sandboxmcp import SandboxFactory
 
-            self._sandbox = Sandbox(
+            factory = SandboxFactory()
+            self._sandbox_pipeline = factory.create(
                 backend=self._backend,
-                memory_limit_mb=self._memory_limit_mb,
+                max_ram_mb=self._memory_limit_mb,
                 timeout_seconds=self._timeout_seconds,
-                network_enabled=False,
+                enable_network=False,
             )
-        return self._sandbox
+        return self._sandbox_pipeline
 
     def run(self, code: str) -> dict:
-        """在沙箱中执行 Python 代码。
+        """在沙箱中执行 Python 代码，返回执行结果。
 
         Args:
             code: AI 生成的 Python 代码
 
         Returns:
-            {"output": str, "errors": list, "execution_time_ms": int}
+            {"output": str, "errors": list, "execution_time_ms": int, "audit_id": str}
 
         Raises:
             SandboxError: 沙箱不可用或执行失败
         """
         try:
-            sandbox = self._get_sandbox()
-            result = sandbox.run(code)
+            from sandboxmcp import ExecutionRequest, Language, SandboxResult
+
+            pipeline = self._get_pipeline()
+            request = ExecutionRequest(code=code, language=Language.python)
+            result: SandboxResult = asyncio.run(pipeline.execute(request))
+            return {
+                "output": result.stdout,
+                "errors": [result.stderr] if result.stderr else [],
+                "execution_time_ms": int(result.duration_ms),
+                "audit_id": result.request_id,
+            }
         except Exception as e:
             logger.error("sandbox.failed", error=str(e))
             raise SandboxError(code[:200], str(e)) from e
-
-        logger.info(
-            "sandbox.executed",
-            code_len=len(code),
-            has_errors=bool(result.get("errors")),
-        )
-        return result
 
     def run_with_retry(
         self, code: str, fix_prompt: str, llm, max_retries: int = 1
