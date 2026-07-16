@@ -63,22 +63,25 @@ const ui = {
 /* ── 辅助函数 ── */
 
 function _scoreGradient(score) {
-  if (score >= 75) return 'linear-gradient(135deg, #00b894, #00cec9)';
-  if (score >= 55) return '#fdcb6e';
-  if (score >= 35) return '#b2bec3';
+  if (score >= 80) return 'linear-gradient(135deg, #00b894, #00cec9)';
+  if (score >= 65) return '#fdcb6e';
+  if (score >= 50) return '#dfe6e9';
+  if (score >= 35) return '#ffeaa7';
   return 'linear-gradient(135deg, #e17055, #d63031)';
 }
 
 function _scoreTextColor(score) {
-  if (score >= 75) return '#fff';
-  if (score >= 55) return '#1a1a2e';
-  if (score >= 35) return '#fff';
+  if (score >= 80) return '#fff';
+  if (score >= 65) return '#1a1a2e';
+  if (score >= 50) return '#2d3436';
+  if (score >= 35) return '#2d3436';
   return '#fff';
 }
 
 function _ratingTag(score) {
-  if (score >= 75) return '<span class="tag tag-buy">🟢 建议买入</span>';
-  if (score >= 55) return '<span class="tag tag-watch">🟡 建议关注</span>';
+  if (score >= 80) return '<span class="tag tag-buy">🟢 强烈买入</span>';
+  if (score >= 65) return '<span class="tag tag-buy">🟢 建议买入</span>';
+  if (score >= 50) return '<span class="tag tag-watch">🟡 建议关注</span>';
   if (score >= 35) return '<span class="tag tag-hold">⚪ 建议观望</span>';
   return '<span class="tag tag-avoid">🔴 建议回避</span>';
 }
