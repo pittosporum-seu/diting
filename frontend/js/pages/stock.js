@@ -83,7 +83,7 @@ export async function renderStock(code) {
     const {
       name = code, price, change_pct: changePct,
       score, rating_label: ratingLabel, rating_emoji: ratingEmoji,
-      confidence, engine_scores: engineScores, chart_data: chartData,
+      confidence, engine_scores: engineScores = [], engine_skipped: engineSkipped = [], chart_data: chartData,
       rsi_display: rsiDisplay, macd_display: macdDisplay,
       signals_summary: sig, bull_reasons: bullReasons, bear_reasons: bearReasons,
     } = data;
@@ -91,6 +91,24 @@ export async function renderStock(code) {
     const gradient = _scoreGradient(score);
     const txtColor = _scoreTextColor(score);
     const isGradient = score >= 75 || score < 35;
+    const participatingCount = engineScores.length;
+    const skippedCount = engineSkipped.length;
+    const totalEngineCount = participatingCount + skippedCount;
+    const skipReasonLabels = {
+      no_api_key: '未配置 API Key',
+      non_trading_hours: '非交易时段',
+      timeout: '执行超时',
+      error: '执行异常',
+    };
+    const skippedDetails = engineSkipped
+      .map(item => `${item.engine_name}: ${skipReasonLabels[item.reason] || '执行异常'}`)
+      .join('\n');
+    const skippedTooltip = _esc(skippedDetails)
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+    const engineParticipation = skippedCount > 0
+      ? `${participatingCount}/${totalEngineCount} 个引擎参与评估（${skippedCount} 个暂不可用）`
+      : `由 ${participatingCount} 个引擎综合评估`;
 
     // ── 渲染页面 ──
     root.innerHTML = `
@@ -116,7 +134,7 @@ export async function renderStock(code) {
             ${ratingLabel}${_ratingTag(score)}
           </div>
           <div style="margin-top:6px;font-size:13px;opacity:0.7">
-            置信度 ${_confidenceLabel(confidence)} · 由 ${engineScores?.length || 0} 个引擎综合评估
+            置信度 ${_confidenceLabel(confidence)} · <span${skippedCount > 0 ? ` title="${skippedTooltip}" style="cursor:help;text-decoration:underline dotted"` : ''}>${engineParticipation}</span>
           </div>
         </div>
       </div>
@@ -194,7 +212,7 @@ export async function renderStock(code) {
       if (engineScores && engineScores.length > 0) {
         try {
           charts.renderEngineBars('engine-bars', engineScores.map(es => ({
-            name: es.name,
+            name: es.engine_name,
             score: es.score,
           })));
         } catch (_) { /* chart render failed */ }

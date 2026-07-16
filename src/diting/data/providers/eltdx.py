@@ -1,7 +1,7 @@
-"""谛听 · 通达信行情数据提供者
+"""谛听 · 通达信行情数据提供者（deprecated 参考实现）。
 
 基于 eltdx 包，直连通达信行情服务器获取实时行情和历史日线。
-无需 API Key，速度快。
+当前数据仓库未集成此 provider；文件仅保留供未来参考。
 """
 
 from __future__ import annotations

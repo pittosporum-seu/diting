@@ -118,8 +118,8 @@ class TestStockAnalysisFlow:
         assert result.code == "002475"
         assert result.score is not None
         ai_engines = [
-            e.name for e in result.engine_scores
-            if e.name in ("wyckoff", "buffett", "can_slim")
+            e.engine_name for e in result.engine_scores
+            if e.engine_name in ("wyckoff", "buffett", "can_slim")
         ]
         assert len(ai_engines) == 0, f"周末不应运行 AI 引擎: {ai_engines}"
 

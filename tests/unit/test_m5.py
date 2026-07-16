@@ -1,6 +1,7 @@
 """M5 测试: 引擎 + 管道 + 共识 + 告警"""
 
 from datetime import date
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -134,9 +135,16 @@ class TestConsensus:
 
     def test_empty_results(self):
         engine = ConsensusEngine()
-        cs = engine.fuse("test", [])
+        with patch("src.diting.pipeline.consensus.logger.warning") as warning:
+            cs = engine.fuse("test", [])
         assert cs.rating == Rating.HOLD
         assert cs.weighted_score == 50
+        warning.assert_called_once_with(
+            "consensus.default_fallback",
+            symbol="test",
+            reason="no_results",
+            default_score=50,
+        )
 
     def test_engine_failure_tracked(self):
         engine = ConsensusEngine()

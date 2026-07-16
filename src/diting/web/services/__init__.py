@@ -151,11 +151,9 @@ class AnalysisService(_BaseService):
 
         provider_toggles = []
         for pk in (
-            "provider_eltdx", "provider_ashare",
-            "provider_mxdata", "provider_akshare",
+            "provider_ashare", "provider_mxdata", "provider_akshare",
         ):
             label_map = {
-                "eltdx": "eltdx (通达信直连)",
                 "ashare": "ashare (新浪/腾讯)",
                 "mxdata": "mx-data (东方财富)",
                 "akshare": "akshare (免费兜底)",
@@ -165,7 +163,7 @@ class AnalysisService(_BaseService):
                 "key": pk,
                 "label": label_map.get(pk.replace("provider_", ""), short),
                 "enabled": saved.get(pk, "1") == "1",
-                "requires_api_key": pk in ("provider_eltdx", "provider_mxdata"),
+                "requires_api_key": pk == "provider_mxdata",
                 "api_key_available": bool(mx_key),
             })
 

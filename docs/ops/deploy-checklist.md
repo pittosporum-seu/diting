@@ -77,6 +77,19 @@ ss -tlnp | grep ':9443'           # trojan
 - [ ] `curl https://pittosporum.cloud/app/diting/` → SPA 首页 200
 - [ ] `curl https://pittosporum.cloud/api/diting/stock/002475` → 有名称有价格
 
+### 6. 保活脚本
+```bash
+# 手动测试
+bash /root/diting/scripts/keepalive.sh
+
+# 设置 cron（每5分钟检查一次）
+crontab -l 2>/dev/null | { cat; echo "*/5 * * * * /root/diting/scripts/keepalive.sh"; } | crontab -
+```
+
+- [ ] `scripts/keepalive.sh` 已部署到服务器
+- [ ] cron job 已配置（每5分钟）
+- [ ] 日志路径 `/var/log/diting-keepalive.log` 可写
+
 ## 四、API 端点一览（v0.4.0）
 
 | 端点 | 方法 | 说明 |

@@ -16,6 +16,53 @@ from .providers.base import DataProvider
 
 logger = get_logger(__name__)
 
+_COLUMN_MAP = {
+    "收盘": "close",
+    "收盘价": "close",
+    "开盘": "open",
+    "开盘价": "open",
+    "最高": "high",
+    "最高价": "high",
+    "最低": "low",
+    "最低价": "low",
+    "成交量": "volume",
+    "成交额": "turnover",
+    "日期": "date",
+    "交易日期": "date",
+    "时间": "time",
+    "涨跌幅": "change_pct",
+}
+
+
+def _normalize_columns(df):
+    """Return a copy with Chinese market-data columns normalized to English."""
+    if df is None or not hasattr(df, "columns"):
+        return df
+
+    existing = set(df.columns)
+    rename_map = {
+        column: normalized
+        for column, normalized in _COLUMN_MAP.items()
+        if column in existing and normalized not in existing
+    }
+    return df.rename(columns=rename_map).copy()
+
+
+def _normalize_historical(data: HistoricalData) -> HistoricalData:
+    """Normalize one historical payload without mutating provider-owned data."""
+    normalized_df = _normalize_columns(data.df)
+    columns = list(normalized_df.columns) if hasattr(normalized_df, "columns") else [
+        _COLUMN_MAP.get(column, column) for column in data.columns
+    ]
+    return HistoricalData(
+        symbol=data.symbol,
+        df=normalized_df,
+        columns=columns,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        source=data.source,
+    )
+
 
 class MarketDataRepository:
     """统一数据访问层。
@@ -165,7 +212,7 @@ class MarketDataRepository:
         cached = self._cache.get(cache_key)
         if cached is not None:
             logger.debug("repository.historical.cache_hit", symbol=symbol)
-            return cached
+            return _normalize_historical(cached)
 
         errors: list[str] = []
         for provider in self._providers:
@@ -178,7 +225,7 @@ class MarketDataRepository:
                     provider=provider.name,
                     symbol=symbol,
                 )
-                data = provider.fetch_historical(symbol, start, end)
+                data = _normalize_historical(provider.fetch_historical(symbol, start, end))
                 self._cache.set(cache_key, data)
                 return data
             except DataUnavailableError as e:

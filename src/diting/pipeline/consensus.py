@@ -27,6 +27,12 @@ class ConsensusEngine:
             共识评分
         """
         if not results:
+            logger.warning(
+                "consensus.default_fallback",
+                symbol=symbol,
+                reason="no_results",
+                default_score=50,
+            )
             return ConsensusScore(symbol=symbol, weighted_score=50, rating=Rating.HOLD)
 
         engine_names = []
@@ -44,6 +50,13 @@ class ConsensusEngine:
             engine_names.append(r.engine_name)
 
         if total_weight == 0:
+            logger.warning(
+                "consensus.default_fallback",
+                symbol=symbol,
+                reason="no_successful_results",
+                failed_engines=failed_names,
+                default_score=50,
+            )
             return ConsensusScore(
                 symbol=symbol, weighted_score=50, rating=Rating.HOLD,
                 engines_used=tuple(engine_names), engines_failed=tuple(failed_names),

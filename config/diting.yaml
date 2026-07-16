@@ -4,9 +4,6 @@
 # ── 数据源降级链 ──────────────────────────────────
 
 providers:
-  - name: eltdx          # 通达信直连（最快）
-    priority: 10
-    auto_detect: true    # 启动时检测可用性
   - name: ashare         # 新浪/腾讯免费数据
     priority: 20
     auto_detect: false

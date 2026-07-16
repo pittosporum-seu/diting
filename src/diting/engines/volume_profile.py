@@ -30,6 +30,18 @@ class VolumeProfileEngine(AnalysisEngine):
             )
 
         df = hist.df
+        if df.empty:
+            return AnalysisResult(
+                engine_name=self.name, engine_version=self.version,
+                symbol=context.symbol, score=50, rating=Rating.HOLD,
+                error="No historical data",
+            )
+        if "close" not in df.columns and "收盘价" not in df.columns:
+            return AnalysisResult(
+                engine_name=self.name, engine_version=self.version,
+                symbol=context.symbol, score=50, rating=Rating.HOLD,
+                error="No close price data",
+            )
         close_col = "close" if "close" in df.columns else "收盘价"
         close = df[close_col].values
         current = close[-1]

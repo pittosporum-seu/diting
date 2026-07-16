@@ -204,11 +204,6 @@ class EngineScoreItem:
     confidence: float
     duration_ms: int = 0
 
-    @property
-    def name(self) -> str:
-        """Backward-compatible alias used by existing web clients."""
-        return self.engine_name
-
 
 @dataclass
 class EngineSkipInfo:

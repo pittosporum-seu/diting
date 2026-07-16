@@ -220,6 +220,7 @@ class StockService(_BaseService):
             "rating_emoji": "⚪",
             "confidence": 0.5,
             "engine_scores": [],
+            "engine_skipped": [],
             "bull_reasons": [],
             "bear_reasons": [],
             "rsi_display": "-",
@@ -283,10 +284,28 @@ class StockService(_BaseService):
 
         saved = self._load_saved_settings()
         all_engines = ["wyckoff", "buffett", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
+        discovered = discover_engines()
+        available_engines = set(discovered or all_engines)
         engine_names = [
-            en for en in (discover_engines() or all_engines)
-            if saved.get(f"engine_{en}", "1") == "1"
+            en for en in all_engines
+            if en in available_engines and saved.get(f"engine_{en}", "1") == "1"
         ]
+        enabled_engine_names = list(engine_names)
+        engine_skipped: list[dict[str, str]] = []
+
+        def record_skipped(names: list[str], reason: str) -> None:
+            """按启用顺序记录一次跳过原因，避免同一引擎重复归类。"""
+            existing = {item["engine_name"]: item for item in engine_skipped}
+            for engine_name in enabled_engine_names:
+                if engine_name not in names:
+                    continue
+                if engine_name in existing:
+                    if reason == "timeout":
+                        existing[engine_name]["reason"] = reason
+                    continue
+                item = {"engine_name": engine_name, "reason": reason}
+                engine_skipped.append(item)
+                existing[engine_name] = item
 
         # AI 引擎降级：无 API key 时跳过 AI 引擎
         _ai_engines = {"wyckoff", "buffett", "can_slim"}
@@ -294,6 +313,7 @@ class StockService(_BaseService):
         if not api_key:
             skipped = [en for en in engine_names if en in _ai_engines]
             engine_names = [en for en in engine_names if en not in _ai_engines]
+            record_skipped(skipped, "no_api_key")
             if skipped:
                 logger.info(
                     "services.ai_fallback",
@@ -307,6 +327,7 @@ class StockService(_BaseService):
         if not state.should_call_api:
             _skipped_ai = [en for en in engine_names if en in _ai_engines]
             engine_names = [en for en in engine_names if en not in _ai_engines]
+            record_skipped(_skipped_ai, "non_trading_hours")
             if _skipped_ai:
                 logger.info(
                     "services.ai_market_skip",
@@ -355,6 +376,7 @@ class StockService(_BaseService):
 
             for r in pipe_result.results.get(code, []):
                 if r.error:
+                    record_skipped([r.engine_name], "error")
                     continue
                 engine_scores.append({
                     "name": r.engine_name,
@@ -372,8 +394,14 @@ class StockService(_BaseService):
                     text = str(reason).strip()
                     if text and text not in bear_reasons:
                         bear_reasons.append(text)
-        except Exception:
-            logger.warning("services.pipeline.failed", code=code)
+            for error in pipe_result.errors:
+                engine_name = str(error.get("engine", ""))
+                error_text = str(error.get("error", "")).lower()
+                reason = "timeout" if "timeout" in error_text or "timed out" in error_text else "error"
+                record_skipped([engine_name], reason)
+        except Exception as exc:
+            record_skipped(engine_names, "error")
+            logger.warning("services.pipeline.failed", code=code, error=str(exc))
             consensus = None
 
         if consensus is None:
@@ -394,7 +422,18 @@ class StockService(_BaseService):
 
         final_score = consensus.weighted_score if engine_scores else quick_score_val
 
+        successful_engines = {item["name"] for item in engine_scores}
+        engine_skipped = [
+            item for item in engine_skipped
+            if item["engine_name"] not in successful_engines
+        ]
+        engine_order = {name: index for index, name in enumerate(enabled_engine_names)}
+        engine_scores.sort(key=lambda item: engine_order.get(item["name"], len(engine_order)))
+        engine_skipped.sort(
+            key=lambda item: engine_order.get(item["engine_name"], len(engine_order))
+        )
         result["engine_scores"] = engine_scores
+        result["engine_skipped"] = engine_skipped
         result["bull_reasons"] = bull_reasons
         result["bear_reasons"] = bear_reasons
         result["score"] = final_score
@@ -426,22 +465,78 @@ class StockService(_BaseService):
         return response
 
 
+    # ── Search & List ───────────────────────────────
+
+    def search_stock(self, keyword: str) -> list[dict]:
+        """搜索全市场股票，支持代码、名称、拼音和首字母匹配。"""
+        keyword = keyword.strip().lower()
+        if not keyword:
+            return []
+
+        matches: list[tuple[int, int, dict]] = []
+        for stock in self.get_stock_list():
+            code = str(stock.get("code", ""))
+            name = str(stock.get("name", ""))
+            pinyin = str(stock.get("pinyin", "")).lower()
+            initial = str(stock.get("initial", "")).lower()
+
+            if keyword == code:
+                rank = 0
+            elif code.startswith(keyword):
+                rank = 1
+            elif keyword == name.lower():
+                rank = 2
+            elif keyword in name.lower():
+                rank = 3
+            elif pinyin.startswith(keyword):
+                rank = 4
+            elif initial.startswith(keyword):
+                rank = 5
+            else:
+                continue
+
+            result = dict(stock)
+            result.setdefault("market", self._market_for_code(code))
+            matches.append((rank, len(name), result))
+
+        matches.sort(key=lambda item: (item[0], item[1], item[2]["code"]))
+        return [item[2] for item in matches[:10]]
+
+    @staticmethod
+    def _market_for_code(code: str) -> str:
+        """Infer the exchange used by existing API search results."""
+        return "sh" if code.startswith(("5", "6", "9")) else "sz"
+
+    def get_stock_list(self) -> list[dict]:
+        """返回全市场 A 股股票列表 [{code, name, pinyin, initial}]。"""
+        from ._utils import load_stock_list
+
+        return load_stock_list()
+
+
 # ── Module-level helper ──────────────────────────
 
 def _dict_to_response(d: dict) -> StockAnalysisResponse:
     """将内部 dict 转换为 StockAnalysisResponse dataclass。"""
-    from ...schema import EngineScoreItem, StockAnalysisResponse
+    from ...schema import EngineScoreItem, EngineSkipInfo, StockAnalysisResponse
 
     # 处理 engine_scores：dict 键名 → EngineScoreItem
     engine_scores = [
         EngineScoreItem(
-            engine_name=es.get("name", ""),
+            engine_name=es.get("engine_name", es.get("name", "")),
             score=es.get("score", 50.0),
             rating=es.get("rating", "hold"),
             rating_label=es.get("rating_cn", es.get("rating", "hold")),
             confidence=es.get("confidence", 0.5),
         )
         for es in d.get("engine_scores", []) or []
+    ]
+    engine_skipped = [
+        EngineSkipInfo(
+            engine_name=item.get("engine_name", ""),
+            reason=item.get("reason", "error"),
+        )
+        for item in d.get("engine_skipped", []) or []
     ]
 
     # 处理 signals → signals_summary
@@ -484,6 +579,7 @@ def _dict_to_response(d: dict) -> StockAnalysisResponse:
         rating_emoji=d.get("rating_emoji", "⚪"),
         confidence=d.get("confidence", 0.5),
         engine_scores=engine_scores,
+        engine_skipped=engine_skipped,
         bull_reasons=d.get("bull_reasons", []) or [],
         bear_reasons=d.get("bear_reasons", []) or [],
         rsi_display=d.get("rsi_display", ""),
@@ -493,47 +589,3 @@ def _dict_to_response(d: dict) -> StockAnalysisResponse:
         error=d.get("error"),
         _cache_state=d.get("_cache_state", "fresh"),
     )
-
-    # ── Search & List ───────────────────────────────
-
-    def search_stock(self, keyword: str) -> list[dict]:
-        """搜索股票：6位数字→精确匹配；中文→自选股DB模糊匹配名称。
-
-        Returns:
-            [{"code":"002475","name":"立讯精密","market":"sz"}, ...]
-        """
-        keyword = keyword.strip()
-        if not keyword:
-            return []
-
-        db = self._db()
-
-        # 6位数字 → 精确匹配
-        if keyword.isdigit() and len(keyword) == 6:
-            row = db.list()
-            for r in row:
-                if r["code"] == keyword:
-                    return [{
-                        "code": r["code"],
-                        "name": r["name"] or keyword,
-                        "market": r["market"],
-                    }]
-            return [{"code": keyword, "name": keyword, "market": "sz"}]
-
-        # 中文 → 模糊匹配名称
-        rows = db.list()
-        results = [
-            {"code": r["code"], "name": r["name"], "market": r["market"]}
-            for r in rows
-            if keyword in (r["name"] or "")
-        ]
-        results.sort(key=lambda x: len(x["name"]))
-        return results[:10]
-
-    def get_stock_list(self) -> list[dict]:
-        """返回全市场 A 股股票列表 [{code, name}]。
-
-        委托给 _utils.load_stock_list() 的模块级缓存。
-        """
-        from ._utils import load_stock_list as _load
-        return _load()

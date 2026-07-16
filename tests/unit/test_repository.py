@@ -2,11 +2,15 @@
 
 from datetime import date
 
+import pandas as pd
 import pytest
 
 from src.diting.data.cache import CacheLayer
 from src.diting.data.providers.base import DataProvider
-from src.diting.data.repository import MarketDataRepository
+from src.diting.data.repository import (
+    MarketDataRepository,
+    _normalize_columns,
+)
 from src.diting.infra.errors import AllProvidersFailedError, DataUnavailableError
 from src.diting.schema import HistoricalData, RealtimeQuote
 
@@ -213,3 +217,68 @@ class TestSourceAnnotation:
         assert results["002475"].price == 100.0
         # source 字段标注了数据来自哪个 provider
         # (RealtimeQuote 的 source 字段接收字符串形式的 provider name)
+
+
+class ChineseColumnsProvider(HealthyProvider):
+    """Return provider data using Chinese market column names."""
+
+    def fetch_historical(
+        self, symbol: str, start: date, end: date
+    ) -> HistoricalData:
+        frame = pd.DataFrame({
+            "日期": ["2026-01-02"],
+            "开盘": [10.0],
+            "最高": [11.0],
+            "最低": [9.5],
+            "收盘": [10.5],
+            "成交量": [1000],
+            "成交额": [10500.0],
+            "时间": ["15:00:00"],
+            "涨跌幅": [5.0],
+        })
+        return HistoricalData(
+            symbol=symbol,
+            df=frame,
+            columns=list(frame.columns),
+            start_date=start,
+            end_date=end,
+        )
+
+
+class TestColumnNormalization:
+    def test_normalizes_chinese_columns_without_mutating_input(self):
+        frame = pd.DataFrame({"日期": ["2026-01-02"], "收盘价": [10.5]})
+
+        normalized = _normalize_columns(frame)
+
+        assert list(normalized.columns) == ["date", "close"]
+        assert list(frame.columns) == ["日期", "收盘价"]
+        assert normalized is not frame
+
+    def test_preserves_english_columns(self):
+        frame = pd.DataFrame({"date": ["2026-01-02"], "close": [10.5]})
+
+        normalized = _normalize_columns(frame)
+
+        assert list(normalized.columns) == ["date", "close"]
+        assert normalized.equals(frame)
+        assert normalized is not frame
+
+    def test_english_column_wins_on_mixed_name_conflict(self):
+        frame = pd.DataFrame({"close": [10.5], "收盘": [99.0], "成交量": [1000]})
+
+        normalized = _normalize_columns(frame)
+
+        assert list(normalized.columns) == ["close", "收盘", "volume"]
+        assert normalized["close"].tolist() == [10.5]
+
+    def test_repository_normalizes_historical_payload(self):
+        repo = MarketDataRepository([ChineseColumnsProvider()])
+
+        result = repo.get_historical("002475", date(2026, 1, 1), date(2026, 1, 31))
+
+        assert result.columns == [
+            "date", "open", "high", "low", "close",
+            "volume", "turnover", "time", "change_pct",
+        ]
+        assert list(result.df.columns) == result.columns

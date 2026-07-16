@@ -82,6 +82,15 @@ class TestAnalyzeStockGuards:
         _ai_set = {"wyckoff", "buffett", "can_slim"}
         ai_engines = [e.engine_name for e in engine_scores if e.engine_name in _ai_set]
         assert len(ai_engines) == 0, f"WEEKEND 不应调 AI 引擎，但调用了: {ai_engines}"
+        skipped = {item.engine_name: item.reason for item in result.engine_skipped}
+        assert {
+            name: skipped[name]
+            for name in ("wyckoff", "buffett", "can_slim")
+        } == {
+            "wyckoff": "no_api_key",
+            "buffett": "no_api_key",
+            "can_slim": "no_api_key",
+        }
 
     @patch("src.diting.cache.get_market_state")
     def test_closed_skips_ai_engines(self, mock_state):
@@ -378,6 +387,15 @@ class TestBugfixEngineCountAndSignals:
 
         assert result is not None
         assert len(captured_engine_names) >= 1
+        skipped = {item.engine_name: item.reason for item in result.engine_skipped}
+        assert {
+            name: skipped[name]
+            for name in ("wyckoff", "buffett", "can_slim")
+        } == {
+            "wyckoff": "no_api_key",
+            "buffett": "no_api_key",
+            "can_slim": "no_api_key",
+        }
         # TRADING + no API key → AI engines skipped → only 3 non-AI remain
         # But that's a different filter, not [:3] — verify the count is based on
         # non-AI filter, not truncation

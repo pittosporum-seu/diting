@@ -289,8 +289,8 @@ result = sandbox.run(code)
 **优先级顺序：**
 
 1. 本文档（AGENTS.md）
-2. `docs/01-design/architecture.md` — 完整架构
-3. `docs/01-design/data-models.md` — 所有 @dataclass 定义
+2. `docs/01-design/architecture-overview.md` — 完整架构
+3. `src/diting/schema.py` — 所有 @dataclass 定义
 4. `docs/01-design/api-contracts.md` — CLI + Python API + 配置
 5. `docs/01-design/development-workflow.md` — 开发流程
 6. `docs/01-design/issue-plan.md` — Issue 拆分（当前任务清单）
