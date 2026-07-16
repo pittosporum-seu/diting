@@ -28,5 +28,15 @@ window.addEventListener('hashchange', renderPage);
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', renderPage);
 } else {
-  renderPage();
+  try {
+    renderPage();
+    document.getElementById('app-root').insertAdjacentHTML('beforeend', 
+      '<p style="color:green;text-align:center">✓ renderPage called</p>');
+  } catch(e) {
+    document.getElementById('app-root').innerHTML = 
+      '<p style="color:red;text-align:center;padding:40px">✗ 启动失败: ' + e.message + 
+      '<br><small>' + e.stack + '</small></p>';
+  }
 }
+window.__loaded = window.__loaded || [];
+window.__loaded.push('app');

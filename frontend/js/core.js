@@ -185,3 +185,7 @@ export function _initSearchSuggestions(inputEl, opts = {}) {
   document.addEventListener('click', (e) => { if (!e.target.closest(parentSelector)) dropdown.classList.remove('active'); });
   inputEl.addEventListener('keydown', (e) => { if (e.key === 'Escape') dropdown.classList.remove('active'); });
 }
+
+// v0.7.2 诊断标记
+window.__loaded = window.__loaded || [];
+window.__loaded.push('core');
