@@ -226,66 +226,8 @@ const charts = {
     return instance;
   },
 
-  /**
-   * RSI 折线图 + 超买超卖参考线
-   * @param {string} domId
-   * @param {object} raw — { dates, rsi_values }
-   */
-  renderRSI(domId, raw) {
-    const instance = _getInstance(domId);
-
-    const option = {
-      backgroundColor: 'transparent',
-      grid: GRID,
-      tooltip: { trigger: 'axis' },
-      xAxis: {
-        type: 'category',
-        data: raw.dates,
-        axisLine: { lineStyle: { color: TEXT_COLOR } },
-      },
-      yAxis: {
-        min: 0,
-        max: 100,
-        splitLine: { lineStyle: { color: 'rgba(107,114,128,0.15)' } },
-      },
-      series: [
-        {
-          name: 'RSI',
-          type: 'line',
-          data: raw.rsi_values,
-          smooth: true,
-          lineStyle: { width: 2, color: '#8b5cf6' },
-          areaStyle: { color: 'rgba(139,92,246,0.08)' },
-          showSymbol: false,
-        },
-        {
-          name: '超买 (70)',
-          type: 'line',
-          data: [],
-          markLine: {
-            silent: true,
-            symbol: 'none',
-            lineStyle: { color: '#ef4444', type: 'dashed' },
-            data: [{ yAxis: 70, label: { formatter: '70' } }],
-          },
-        },
-        {
-          name: '超卖 (30)',
-          type: 'line',
-          data: [],
-          markLine: {
-            silent: true,
-            symbol: 'none',
-            lineStyle: { color: '#22c55e', type: 'dashed' },
-            data: [{ yAxis: 30, label: { formatter: '30' } }],
-          },
-        },
-      ],
-    };
-
-    instance.setOption(option, true);
-    return instance;
-  },
+  /* renderRSI removed (v0.7.2) — unused; RSI displayed in indicator grid instead.
+     Restore from git history if needed. */
 
   /**
    * 水平柱状图 — 各引擎评分
