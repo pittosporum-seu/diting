@@ -33,6 +33,15 @@
     </div>
   </nav>
   <main id="app-root"><p style="color:var(--text-secondary);text-align:center;padding:40px">加载中…</p></main>
+  <!-- 铁证诊断：内联脚本，不依赖任何模块 -->
+  <script>
+    var _diag = document.getElementById('app-root');
+    var _start = Date.now();
+    _diag.innerHTML = '<p style="text-align:center;padding:40px">🐾 谛听 v0.7.2 · 启动中…<br><small id="_diag_time"></small></p>';
+    setInterval(function(){ document.getElementById('_diag_time').textContent = '已等待 ' + Math.floor((Date.now()-_start)/1000) + ' 秒'; }, 1000);
+    // 如果 renderPage 被调用了，它会清空 app-root 并写入页面内容
+    // 如果这里一直在，说明模块从未执行
+  </script>
   <noscript><div style="text-align:center;padding:40px;color:red">需要启用 JavaScript</div></noscript>
 </body>
 </html>
