@@ -93,19 +93,19 @@ class _BaseService:
         if self._repo_factory is not None:
             return self._repo_factory()
 
-        from ...config import Config
         from ...data.providers.akshare import AkShareProvider
         from ...data.providers.ashare import AshareProvider
         from ...data.providers.east_money import EastMoneyProvider
-        from ...data.providers.mx_data import MxDataProvider
+
+        # MxDataProvider — 已全局关闭 (v0.7.2)，需要时取消注释
+        # from ...data.providers.mx_data import MxDataProvider
         from ...data.repository import MarketDataRepository
 
-        cfg = Config()
         saved = self._load_saved_settings()
         log = _get_logger()
 
         providers: list = []
-        mx_key = cfg.get("MX_APIKEY")
+        # mx_key = cfg.get("MX_APIKEY")  # mx-data 已全局关闭 (v0.7.2)
 
         # ashare（默认启用，新浪/腾讯免费接口）
         if saved.get("provider_ashare", "1") == "1":
@@ -121,12 +121,14 @@ class _BaseService:
             except Exception:
                 log.warning("services.build_repo.east_money_failed")
 
-        # mx-data（默认启用，需要 API key）
-        if saved.get("provider_mxdata", "1") == "1" and mx_key:
-            try:
-                providers.append(MxDataProvider(api_key=mx_key))
-            except Exception:
-                log.warning("services.build_repo.mx_data_failed")
+        # mx-data — 已全局关闭 (v0.7.2, 2026-07-16)
+        # 东方财富 mx-data 免费版每日仅 150 次配额，极易在 cron job 的
+        # 批量查询中耗尽。需要时手动取消注释下面这段：
+        # if saved.get("provider_mxdata", "1") == "1" and mx_key:
+        #     try:
+        #         providers.append(MxDataProvider(api_key=mx_key))
+        #     except Exception:
+        #         log.warning("services.build_repo.mx_data_failed")
 
         # akshare（默认启用，免费兜底）
         if saved.get("provider_akshare", "1") == "1":
@@ -316,7 +318,7 @@ def load_stock_list() -> list[dict]:
         import json as _json
         from pathlib import Path as _Path
         path = (
-            _Path(__file__).parent.parent.parent.parent
+            _Path(__file__).resolve().parents[4]
             / "frontend" / "data" / "stock-list.json"
         )
         if path.exists():

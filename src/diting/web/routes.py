@@ -12,14 +12,16 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
 
+from ..cache import CacheManager
 from ..infra.errors import AnalysisError, DataUnavailableError
 from .services import DashboardService, ScanService, StockService, WatchlistService
 
 router = APIRouter()
-stock_service = StockService()
-scan_service = ScanService()
-dashboard_service = DashboardService(scan_service=scan_service)
-watchlist_service = WatchlistService()
+_cache_mgr = CacheManager()
+stock_service = StockService(cache_mgr=_cache_mgr)
+scan_service = ScanService(cache_mgr=_cache_mgr)
+dashboard_service = DashboardService(cache_mgr=_cache_mgr, scan_service=scan_service)
+watchlist_service = WatchlistService(cache_mgr=_cache_mgr)
 # ── API response wrapper ────────────────────────
 
 def _api_response(data: dict, cache_state: str | None = None) -> dict:

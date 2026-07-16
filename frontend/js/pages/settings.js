@@ -72,7 +72,7 @@ export async function renderSettings() {
       <div class="card">
         <div class="card-title">📡 数据源</div>
         <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">
-          降级链顺序：eltdx → ashare → mx-data → akshare。关掉的源会被跳过。
+          降级链顺序：east_money → ashare → akshare。关掉的源会被跳过。
         </p>
         ${providersHtml || '<p style="color:var(--text-secondary);font-size:14px">暂无可用数据源</p>'}
       </div>

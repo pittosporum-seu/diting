@@ -55,7 +55,7 @@ async def start_prefetch_worker():
     global _prefetch_worker
     try:
         from ..cache.prefetch import PrefetchWorker
-        from .routes import service
+        from .routes import stock_service as service
         _prefetch_worker = PrefetchWorker(service)
         _prefetch_worker.start()
     except Exception:
