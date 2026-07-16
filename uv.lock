@@ -620,6 +620,9 @@ requires-dist = [
 ]
 provides-extras = ["dev"]
 
+[package.metadata.requires-dev]
+dev = []
+
 [[package]]
 name = "eltdx"
 version = "1.0.2"
