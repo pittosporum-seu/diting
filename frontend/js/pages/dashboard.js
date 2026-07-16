@@ -11,7 +11,7 @@ import {
 } from '../ui.js';
 import {
   showStatus, _renderSkeleton, _loadWithCache,
-} from '../app.js';
+} from '../core.js';
 
 export async function renderDashboard() {
   const skeleton = () => {

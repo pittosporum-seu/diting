@@ -15,8 +15,8 @@ import {
 import {
   state, updateState,
   showStatus, _renderSkeleton, _loadWithCache,
-  _getStockList, _initSearchSuggestions,
-} from '../app.js';
+} from '../core.js';
+import { _getStockList, _initSearchSuggestions } from '../app.js';
 
 /* ── 个股搜索落地页（含下拉建议） ── */
 export function renderStockSearch() {

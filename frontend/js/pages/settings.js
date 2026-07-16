@@ -11,7 +11,7 @@ import {
 import {
   updateState,
   showStatus, _renderSkeleton, _loadWithCache,
-} from '../app.js';
+} from '../core.js';
 
 export async function renderSettings() {
   const skeleton = () => {

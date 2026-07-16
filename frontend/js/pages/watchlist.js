@@ -10,8 +10,8 @@ import {
 } from '../ui.js';
 import {
   showStatus, _renderSkeleton, _loadWithCache,
-  _getStockList, _initSearchSuggestions,
-} from '../app.js';
+} from '../core.js';
+import { _getStockList, _initSearchSuggestions } from '../app.js';
 
 export async function renderWatchlist() {
   const skeleton = () => {
