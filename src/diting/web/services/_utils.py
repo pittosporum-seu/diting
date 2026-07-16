@@ -275,7 +275,7 @@ def clean_numpy(obj):
 
 
 def quick_score(q: RealtimeQuote) -> tuple[int, list[str]]:
-    """快速评分：涨跌幅连续映射 + 量比因子。"""
+    """快速评分：涨跌幅连续映射。"""
     signals: list[str] = []
     score = 50.0
 
@@ -290,15 +290,8 @@ def quick_score(q: RealtimeQuote) -> tuple[int, list[str]]:
         elif q.change_pct < -2:
             signals.append("小幅下跌")
 
-    # 量比因子
-    if (hasattr(q, 'turnover') and q.turnover is not None
-            and q.volume is not None and q.volume > 0):
-        volume_ratio = q.turnover / q.volume
-        if volume_ratio > 2:
-            score += 5
-            signals.append("放量")
-        elif volume_ratio > 1.5:
-            score += 3
+    # TODO: 量比需要历史日均成交量，RealtimeQuote 没有此字段
+    # 原 turnover/volume 算的是成交均价而非量比，已移除
 
     score = max(0, min(100, round(score)))
     return score, signals
