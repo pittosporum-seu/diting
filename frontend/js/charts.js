@@ -376,4 +376,3 @@ window.addEventListener('resize', () => {
 });
 
 export { charts };
-window.__loaded = window.__loaded || []; window.__loaded.push('charts');

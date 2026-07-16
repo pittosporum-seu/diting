@@ -117,4 +117,3 @@ export async function renderOpportunities() {
   await _loadWithCache('opportunities', skeleton, () => api.opportunities(), render);
   console.log('[谛听] 选股机会 加载完成');
 }
-window.__loaded = window.__loaded || []; window.__loaded.push('pages/opportunities');

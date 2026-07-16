@@ -35,5 +35,3 @@ if (document.readyState === 'loading') {
       '<br><small>' + e.stack + '</small></p>';
   }
 }
-window.__loaded = window.__loaded || [];
-window.__loaded.push('app');

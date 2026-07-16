@@ -187,8 +187,6 @@ export function _initSearchSuggestions(inputEl, opts = {}) {
 }
 
 // v0.7.2 诊断标记
-window.__loaded = window.__loaded || [];
-window.__loaded.push('core');
 
 /* ── 图表清理 ── */
 export function disposePage() {
