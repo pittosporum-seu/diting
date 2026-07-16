@@ -36,12 +36,24 @@
   <!-- 如果完全空白（连"加载中"都看不到），说明浏览器缓存了旧页面 -->
   <noscript><div style="text-align:center;padding:40px;color:red">需要启用 JavaScript</div></noscript>
   <script>
-    // v0.7.2 诊断：确认 JS 可执行
-    console.log('[谛听] HTML loaded, v=0.7.2');
-    var el = document.getElementById('app-root');
-    if (el && el.textContent.trim() === '加载中…') {
-      el.innerHTML = '<p style=\"text-align:center;padding:40px\">📡 加载中…<br><small style=\"color:#999\">v0.7.2 · ' + new Date().toISOString() + '</small></p>';
+    // v0.7.2 诊断：捕获模块加载错误
+    var diag = document.getElementById('app-root');
+    function diagMsg(msg) {
+      if (diag) diag.innerHTML = '<div style=\"padding:20px;color:#e17055\">🐾 谛听 · ' + msg + '<br><small style=\"color:#999\">' + new Date().toISOString() + '</small></div>';
     }
+    diagMsg('加载中…');
+    window.addEventListener('error', function(e) {
+      if (e.target && e.target.tagName === 'SCRIPT') {
+        diagMsg('模块加载失败: ' + (e.target.src || 'inline'));
+      }
+    }, true);
+    // 5秒后还在加载中 = 模块没执行完
+    setTimeout(function() {
+      var el = document.getElementById('app-root');
+      if (el && el.textContent.indexOf('加载中') >= 0) {
+        el.innerHTML = '<div style=\"padding:20px;color:#e17055\">⚠️ 模块加载超时<br><small style=\"color:#999\">请检查浏览器控制台错误</small></div>';
+      }
+    }, 8000);
   </script>
 </body>
 </html>
