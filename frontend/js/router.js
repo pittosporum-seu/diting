@@ -7,8 +7,7 @@ import { renderStockSearch, renderStock } from './pages/stock.js';
 import { renderOpportunities } from './pages/opportunities.js';
 import { renderWatchlist } from './pages/watchlist.js';
 import { renderSettings } from './pages/settings.js';
-import { state, updateState, showStatus } from './core.js';
-import { disposePage } from './app.js';
+import { state, updateState, showStatus, disposePage } from './core.js';
 
 /* ── 路由表 ── */
 const ROUTE_MAP = {

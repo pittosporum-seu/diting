@@ -189,3 +189,11 @@ export function _initSearchSuggestions(inputEl, opts = {}) {
 // v0.7.2 诊断标记
 window.__loaded = window.__loaded || [];
 window.__loaded.push('core');
+
+/* ── 图表清理 ── */
+export function disposePage() {
+  // charts 在运行时才需要，不在 import 时求值
+  import('./charts.js').then(m => {
+    ['kline-chart', 'volume-chart', 'engine-bars', 'vmd-gauge', 'portfolio-pie'].forEach(m.charts.dispose);
+  });
+}

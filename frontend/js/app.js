@@ -2,15 +2,12 @@
  * 谛听 · v0.7.2 — SPA 入口
  * 启动逻辑 + 事件处理。共享代码在 core.js。
  */
-import { state, showStatus, _loadWithCache } from './core.js';
+import { state, showStatus, _loadWithCache, disposePage } from './core.js';
 import { cacheManager } from './cache.js';
-import { charts } from './charts.js';
 import { renderPage } from './router.js';
 
-/* ── 图表清理 ── */
-export function disposePage() {
-  ['kline-chart', 'volume-chart', 'engine-bars', 'vmd-gauge', 'portfolio-pie'].forEach(charts.dispose);
-}
+// 注意: disposePage 已迁至 core.js，app.js 不再被 router.js 引用
+// → app.js → router.js → pages → core.js ✓ (无循环)
 
 /* ── watchlist 变更事件 ── */
 window.addEventListener('diting:watchlist_changed', () => {
