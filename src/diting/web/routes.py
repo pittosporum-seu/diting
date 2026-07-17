@@ -122,10 +122,8 @@ async def api_stock_list():
 
 @router.get("/api/dashboard")
 async def api_dashboard():
-    data = dashboard_service.get_dashboard_data()
-    if isinstance(data, dict):
-        data.pop("_cache_state", None)
-    return _api_response(data)
+    data, freshness = dashboard_service.get_dashboard_data()
+    return _api_response(data, freshness=freshness)
 
 
 @router.get("/api/watchlist")
@@ -171,9 +169,20 @@ async def api_opportunities():
 @router.get("/api/market-sentiment")
 async def api_market_sentiment():
     data = dashboard_service.get_market_sentiment()
-    if isinstance(data, dict):
-        data.pop("_cache_state", None)
-    return _api_response(data)
+    # 从 service 返回的 dict 中提取 _cached_at，构造 FreshnessInfo
+    cached_at = data.pop("_cached_at", None) if isinstance(data, dict) else None
+    if isinstance(cached_at, str):
+        cached_at = datetime.fromisoformat(cached_at)
+    freshness = None
+    if cached_at and isinstance(cached_at, datetime):
+        freshness = FreshnessInfo(
+            data_time=cached_at,
+            source=data.get("source", "unknown"),
+            is_fresh=data.get("source") == "realtime",
+            age_seconds=(datetime.now(UTC) - cached_at).total_seconds(),
+            ttl_seconds=300,
+        )
+    return _api_response(data, freshness=freshness)
 
 
 @router.get("/api/settings")

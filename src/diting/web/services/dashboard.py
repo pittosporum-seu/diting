@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import threading
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from ...cache.market_state import get_market_state
+from ...schema import FreshnessInfo
 from ._utils import _BaseService, _get_logger
 
 if TYPE_CHECKING:
@@ -55,21 +56,33 @@ class DashboardService(_BaseService):
         t = threading.Thread(target=_refresh, daemon=True, name="async-dashboard")
         t.start()
 
-    def get_dashboard_data(self, force_refresh: bool = False) -> dict:
+    def get_dashboard_data(self, force_refresh: bool = False) -> tuple[dict, FreshnessInfo]:
         """大盘/仪表盘概览数据（L1 内存 → L2 SQLite → API）。
 
         v0.6.5: 整合 MarketState，盘后/周末不调 API；支持 force_refresh。
+        v0.7.3: 返回 (data, FreshnessInfo) 元组，每层记录数据来源和时间。
         L1 miss + L2 有 → 立即返回 DB 数据 + 后台异步刷新 API。
         """
         state = get_market_state()
+        now = datetime.now(UTC)
 
         # L1: 内存缓存命中 → 直接返回
         if not force_refresh:
             cm = self._get_cache_mgr()
             cached = cm.mem_get_adaptive("dashboard", trading_ttl=60)
             if cached is not None:
-                cached["_cache_state"] = "stale"
-                return cached
+                cached_at = cached.get("_cached_at", now)
+                if isinstance(cached_at, str):
+                    cached_at = datetime.fromisoformat(cached_at)
+                freshness = FreshnessInfo(
+                    data_time=cached_at,
+                    source="memory_cache",
+                    is_fresh=False,
+                    age_seconds=(now - cached_at).total_seconds(),
+                    ttl_seconds=60,
+                )
+                cached.pop("_cached_at", None)
+                return cached, freshness
 
         # L2: SQLite dashboard_cache（仅非强刷时读取）
         db_hit = False
@@ -80,13 +93,27 @@ class DashboardService(_BaseService):
                 if db_row and db_row.get("data_json"):
                     import json as _json
                     result = _json.loads(db_row["data_json"])
-                    result["_cache_state"] = "stale"
+                    cached_at_str = result.pop("_cached_at", None)
+                    if cached_at_str:
+                        try:
+                            cached_at = datetime.fromisoformat(cached_at_str)
+                        except (ValueError, TypeError):
+                            cached_at = now
+                    else:
+                        cached_at = now
+                    freshness = FreshnessInfo(
+                        data_time=cached_at,
+                        source="sqlite_cache",
+                        is_fresh=False,
+                        age_seconds=(now - cached_at).total_seconds(),
+                        ttl_seconds=300,
+                    )
                     cm.mem_set("dashboard", result)
                     db_hit = True
                     # v0.6.5: L2 命中后后台异步刷新 API（仅 TRADING 状态）
                     if state.is_trading and not force_refresh:
                         self._async_refresh_dashboard()
-                    return result
+                    return result, freshness
             except Exception:
                 pass
 
@@ -102,22 +129,42 @@ class DashboardService(_BaseService):
             "vmd_cycle": None,
             "top_opportunities": [],
         }
+
+        def _fallback_freshness(source: str = "unavailable") -> FreshnessInfo:
+            return FreshnessInfo(
+                data_time=now,
+                source=source,
+                is_fresh=False,
+                age_seconds=0,
+                ttl_seconds=60,
+            )
+
         if not state.should_call_api and not force_refresh:
             logger.debug(
                 "services.dashboard.api_skipped",
                 phase=state.phase,
                 db_hit=db_hit,
             )
-            if db_hit:
-                return empty_dashboard
-            return empty_dashboard
+            return empty_dashboard, _fallback_freshness()
 
         try:
             from ...config import Config
+            from ...data.repository import MarketDataRepository
+
+            # 获取活跃的 provider 列表以确定 source
+            repo = self._build_repo()
+            provider_source = "api"
+            if isinstance(repo, MarketDataRepository) and repo.available_providers:
+                provider_names = [p.lower() for p in repo.available_providers]
+                primary = [n for n in provider_names if n not in ("akshare",)]
+                provider_source = primary[0] if primary else provider_names[0]
+            else:
+                provider_source = "east_money"
 
             cfg = Config()
             stocks = cfg.load_watchlist(validate=False)
-            repo = self._build_repo()
+            # Re-use repo built above — do not rebuild
+            # (repo is already built at the top of the try block)
 
             scan_svc = self._get_scan_service()
             sentiment = self.get_market_sentiment(force_refresh=force_refresh)
@@ -195,21 +242,29 @@ class DashboardService(_BaseService):
                 "vmd_cycle": vmd_cycle,
                 "top_opportunities": top_opportunities,
             }
-            self._get_cache_mgr().mem_set("dashboard", result)
+            self._get_cache_mgr().mem_set("dashboard", {**result, "_cached_at": now})
             # 写入 SQLite
             try:
                 cm = self._get_cache_mgr()
                 import json as _json
+                result_for_db = {**result, "_cached_at": now.isoformat()}
                 cm.db_set("dashboard_cache", "1", {
                     "id": 1,
-                    "data_json": _json.dumps(result, default=str, ensure_ascii=False),
+                    "data_json": _json.dumps(result_for_db, default=str, ensure_ascii=False),
                 })
             except Exception:
                 pass
-            return result
+            freshness = FreshnessInfo(
+                data_time=now,
+                source=provider_source,
+                is_fresh=True,
+                age_seconds=0,
+                ttl_seconds=60,
+            )
+            return result, freshness
         except Exception:
             logger.warning("services.dashboard.failed")
-            return {
+            error_result = {
                 "status": "error",
                 "watchlist_count": 0,
                 "buy_signals": 0,
@@ -220,6 +275,7 @@ class DashboardService(_BaseService):
                 "vmd_cycle": None,
                 "top_opportunities": [],
             }
+            return error_result, _fallback_freshness(source="error")
 
     # ── Market Sentiment ────────────────────────────
 
@@ -228,12 +284,15 @@ class DashboardService(_BaseService):
 
         v0.6.5: 支持 force_refresh 绕过 L1 缓存。
         v0.6.5-bugfix: 非交易时段返回空，不调 API。
+        v0.7.3: 返回 dict 中增加 _cached_at 时间戳，供 routes 层提取 FreshnessInfo。
         """
+        now = datetime.now(UTC)
+
         if not force_refresh:
             cm = self._get_cache_mgr()
             cached = cm.mem_get_adaptive("market_sentiment", trading_ttl=300)
             if cached is not None:
-                cached["_cache_state"] = "stale"
+                cached.setdefault("_cached_at", now)
                 return cached
 
         # v0.6.5-bugfix: 非交易时段不调 API
@@ -249,9 +308,10 @@ class DashboardService(_BaseService):
                 "sh_change": None,
                 "score": 50,
                 "source": "unavailable",
+                "_cached_at": now,
             }
-            self._get_cache_mgr().mem_set("market_sentiment", empty)
-            return empty
+            self._get_cache_mgr().mem_set("market_sentiment", {**empty, "_cached_at": now})
+            return {**empty, "_cached_at": now}
 
         try:
             repo = self._build_repo()
@@ -266,10 +326,10 @@ class DashboardService(_BaseService):
                     "sh_change": sh.change_pct,
                     "score": round(score, 1),
                     "source": "realtime",
-                    "timestamp": str(datetime.now()),
+                    "_cached_at": now,
                 }
-                self._get_cache_mgr().mem_set("market_sentiment", result)
-                return result
+                self._get_cache_mgr().mem_set("market_sentiment", {**result, "_cached_at": now})
+                return {**result, "_cached_at": now}
         except Exception:
             logger.warning("market_sentiment.failed")
         return {
@@ -278,6 +338,7 @@ class DashboardService(_BaseService):
             "sh_change": None,
             "score": 50,
             "source": "unavailable",
+            "_cached_at": now,
         }
 
     # ── Settings ────────────────────────────────────

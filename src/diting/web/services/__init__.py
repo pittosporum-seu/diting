@@ -13,7 +13,7 @@ from datetime import datetime
 
 from ...cache import CacheManager
 from ...data.repository import MarketDataRepository
-from ...schema import StockAnalysisResponse
+from ...schema import FreshnessInfo, StockAnalysisResponse
 from ...storage import WatchlistDB
 from ._utils import _BaseService
 from .dashboard import DashboardService
@@ -111,7 +111,7 @@ class AnalysisService(_BaseService):
 
     # ── DashboardService 代理 ──
 
-    def get_dashboard_data(self) -> dict:
+    def get_dashboard_data(self) -> tuple[dict, FreshnessInfo]:
         return self._dashboard.get_dashboard_data()
 
     def get_market_sentiment(self) -> dict:

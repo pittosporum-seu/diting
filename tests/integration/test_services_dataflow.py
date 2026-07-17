@@ -45,7 +45,7 @@ class TestForceRefreshDashboard:
             mock_cm.return_value.db_get.return_value = None
             with patch.object(self.service, "_build_repo") as mock_repo:
                 mock_repo.return_value.get_realtime.return_value = {}
-                self.service.get_dashboard_data(force_refresh=True)
+                result, freshness = self.service.get_dashboard_data(force_refresh=True)
 
         mock_cm.return_value.mem_get_adaptive.assert_not_called()
 
@@ -158,12 +158,15 @@ class TestMarketStateDashboard:
             mock_cm.return_value.db_get.return_value = {
                 "data_json": db_data,
             }
-            result = self.service.get_dashboard_data()
+            result, freshness = self.service.get_dashboard_data()
 
         assert result is not None
         assert result["status"] == "ok"
         assert result["watchlist_count"] == 5
         assert result["buy_signals"] == 2
+        assert freshness is not None
+        assert freshness.source == "sqlite_cache"
+        assert freshness.is_fresh is False
 
     @patch("src.diting.web.services.dashboard.get_market_state")
     def test_dashboard_returns_empty_when_weekend_no_db(self, mock_state):
@@ -178,11 +181,14 @@ class TestMarketStateDashboard:
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
             mock_cm.return_value.mem_get_adaptive.return_value = None
             mock_cm.return_value.db_get.return_value = None
-            result = self.service.get_dashboard_data()
+            result, freshness = self.service.get_dashboard_data()
 
         assert result is not None
         assert result["watchlist_count"] == 0
         assert result["buy_signals"] == 0
+        assert freshness is not None
+        assert freshness.source == "unavailable"
+        assert freshness.is_fresh is False
 
 
 class TestL2FallbackWithAsyncRefresh:
@@ -276,9 +282,11 @@ class TestL2DashboardAsyncRefresh:
             mock_cm.return_value.mem_get_adaptive.return_value = None
             mock_cm.return_value.db_get.return_value = {"data_json": db_data}
             with patch.object(self.service, "_async_refresh_dashboard") as mock_async:
-                result = self.service.get_dashboard_data()
+                result, freshness = self.service.get_dashboard_data()
 
         assert result["watchlist_count"] == 3
+        assert freshness is not None
+        assert freshness.source == "sqlite_cache"
         mock_async.assert_called_once()
 
 
