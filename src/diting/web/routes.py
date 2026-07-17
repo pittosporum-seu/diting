@@ -14,6 +14,7 @@ from fastapi import APIRouter, Request
 
 from ..cache import CacheManager
 from ..infra.errors import AnalysisError, DataUnavailableError
+from ..schema import FreshnessInfo
 from .services import DashboardService, ScanService, StockService, WatchlistService
 
 router = APIRouter()
@@ -24,8 +25,13 @@ dashboard_service = DashboardService(cache_mgr=_cache_mgr, scan_service=scan_ser
 watchlist_service = WatchlistService(cache_mgr=_cache_mgr)
 # ── API response wrapper ────────────────────────
 
-def _api_response(data: dict, cache_state: str | None = None) -> dict:
-    """Wrap API data with server_time and cache_state.
+def _api_response(
+    data: dict,
+    *,
+    freshness: FreshnessInfo | None = None,
+    error: str | None = None,
+) -> dict:
+    """Wrap API data with server_time and optional freshness.
 
     All JSON API endpoints MUST use this wrapper so the frontend
     has an authoritative timestamp and freshness indicator.
@@ -34,13 +40,16 @@ def _api_response(data: dict, cache_state: str | None = None) -> dict:
         "server_time": datetime.now(UTC).isoformat(),
         "data": data,
     }
-    # Derive cache_state from data if not explicitly provided
-    if cache_state:
-        resp["cache_state"] = cache_state
-    elif "_cache_state" in data:
-        resp["cache_state"] = data.pop("_cache_state")
-    else:
-        resp["cache_state"] = "fresh"
+    if freshness:
+        resp["freshness"] = {
+            "data_time": freshness.data_time.isoformat() if freshness.data_time else None,
+            "source": freshness.source,
+            "is_fresh": freshness.is_fresh,
+            "age_seconds": freshness.age_seconds,
+            "ttl_seconds": freshness.ttl_seconds,
+        }
+    if error:
+        resp["error"] = error
     return resp
 
 # ── Page routes (Jinja2) ────────────────────────────
@@ -93,8 +102,8 @@ async def api_stock(code: str):
     if resp.error:
         raise DataUnavailableError(message=resp.error)
     data = asdict(resp)
-    cs = data.pop("_cache_state", "fresh")
-    return _api_response(data, cache_state=cs)
+    data.pop("_cache_state", None)
+    return _api_response(data)
 
 
 @router.get("/api/stock-search")
@@ -114,8 +123,9 @@ async def api_stock_list():
 @router.get("/api/dashboard")
 async def api_dashboard():
     data = dashboard_service.get_dashboard_data()
-    cs = data.get("_cache_state", "fresh") if isinstance(data, dict) else "fresh"
-    return _api_response(data, cache_state=cs)
+    if isinstance(data, dict):
+        data.pop("_cache_state", None)
+    return _api_response(data)
 
 
 @router.get("/api/watchlist")
@@ -153,15 +163,17 @@ async def api_watchlist_remove(code: str):
 @router.get("/api/opportunities")
 async def api_opportunities():
     data = scan_service.get_opportunities()
-    cs = data.get("_cache_state", "fresh") if isinstance(data, dict) else "fresh"
-    return _api_response(data, cache_state=cs)
+    if isinstance(data, dict):
+        data.pop("_cache_state", None)
+    return _api_response(data)
 
 
 @router.get("/api/market-sentiment")
 async def api_market_sentiment():
     data = dashboard_service.get_market_sentiment()
-    cs = data.get("_cache_state", "fresh") if isinstance(data, dict) else "fresh"
-    return _api_response(data, cache_state=cs)
+    if isinstance(data, dict):
+        data.pop("_cache_state", None)
+    return _api_response(data)
 
 
 @router.get("/api/settings")

@@ -254,3 +254,17 @@ class StockAnalysisResponse:
     signals_summary: dict | None = None
     error: str | None = None
     _cache_state: str = "fresh"  # 内部字段，序列化时排除
+
+
+# ============================================================
+# 基础设施协议
+# ============================================================
+
+@dataclass
+class FreshnessInfo:
+    """数据新鲜度信息，在所有 API 响应中透传。"""
+    data_time: datetime | None    # 数据产生时间（provider 返回的时间戳）
+    source: str                   # 来源标识（mx-data / eastmoney / cache）
+    is_fresh: bool                # 是否在有效期内
+    age_seconds: float            # 数据年龄（秒）
+    ttl_seconds: int              # 有效期（秒）

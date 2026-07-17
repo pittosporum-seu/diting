@@ -194,6 +194,25 @@ CodeWhale → 小爪:
 
 **原因：** 小爪和 CodeWhale 是不同 session，没有共同记忆。文档是唯一的通信介质。
 
+**CodeWhale → 小爪 唤醒机制：**
+
+CodeWhale 完成后，必须在状态文件中追加一行标记：
+
+```bash
+# CodeWhale 在完成所有工作后执行
+echo '{"step":"step1","status":"done","time":"'$(date -Iseconds)'","commit":"'$(git rev-parse --short HEAD)'"}' >> docs/01-design/test-results/codewhale-status.jsonl
+
+# 通知海桐
+bash scripts/notify-diting.sh "✅ Step N 完成" "改动: N 文件\npytest: X passed\nruff: clean"
+```
+
+小爪在每次 heartbeat 时检查 `codewhale-status.jsonl`，发现新完成的 Step 后自动审查代码。
+
+**CodeWhale 必须执行（不可跳过）：**
+1. 写完成报告到 `docs/01-design/test-results/stepN-report.md`
+2. 追加状态行到 `docs/01-design/test-results/codewhale-status.jsonl`
+3. 运行 `scripts/notify-diting.sh` 通知海桐
+
 **每次派活的 prompt 规范：**
 1. 引用设计文档路径
 2. 列出要修改/新建的文件

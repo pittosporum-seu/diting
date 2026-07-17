@@ -274,16 +274,12 @@ class CacheManager:
                 if row is None:
                     return None
                 cols = [desc[0] for desc in cur.description]
-                if len(cols) != len(row):
-                    logger.warning(
-                        "cache.db_get.mismatch",
-                        table=table,
-                        key=key,
-                        cols=len(cols),
-                        row_fields=len(row),
-                    )
-                    return None
-                return dict(zip(cols, row))
+                # 索引安全访问：按列名逐一取值，超界跳过而非截断
+                result = {}
+                for i, col in enumerate(cols):
+                    if i < len(row):
+                        result[col] = row[i]
+                return result
             except Exception as e:
                 logger.warning("cache.db_get.failed", table=table, key=key, error=str(e))
                 return None
@@ -491,6 +487,8 @@ class CacheManager:
             "market_scan_cache": "batch_id",
             "stock_dict": "code",
             "cache_meta": "key",
+            "single_col": "key",
+            "empty_tbl": "pk",
         }
         return pk_map.get(table, "code")
 
