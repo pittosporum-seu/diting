@@ -5,9 +5,9 @@
 
 import { cacheManager } from './cache.js';
 
-// API 路径硬编码 (v0.4.0)
-// Caddy 网关将 /api/diting/* 路由到后端，strip /diting 前缀
-const API_BASE = '/api/diting';
+// API 路径 — 本地开发用 /api，Caddy 网关用 /api/diting
+// 由 index.html 注入 window.DITING_API_BASE，缺省时自动检测
+const API_BASE = window.DITING_API_BASE || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? '/api' : '/api/diting');
 
 async function _request(method, path, body) {
   try {
