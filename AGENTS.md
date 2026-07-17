@@ -172,6 +172,28 @@ codewhale exec --auto "根据 Issue #N 的描述，实现 xxx 功能"
 codewhale review  # 审查 git diff
 ```
 
+**信息传递铁律：小爪 ↔ CodeWhale 必须通过文档沟通。**
+
+禁止口头/隐式传递。所有信息必须落盘到文件：
+
+```
+小爪 → CodeWhale:
+  └─ Issue 文档（docs/01-design/issues/step1-xxx.md）
+       ├── 引用设计文档路径
+       ├── 列出要修改的文件
+       ├── 验收标准
+       └── 约束条件
+
+CodeWhale → 小爪:
+  └─ 完成报告（docs/01-design/test-results/step1-report.md）
+       ├── 改动文件清单
+       ├── pytest 结果
+       ├── ruff 结果
+       └── 手动验证记录
+```
+
+**原因：** 小爪和 CodeWhale 是不同 session，没有共同记忆。文档是唯一的通信介质。
+
 **每次派活的 prompt 规范：**
 1. 引用设计文档路径
 2. 列出要修改/新建的文件
