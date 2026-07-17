@@ -155,7 +155,39 @@ output/                  ← 报告输出（.gitignore）
 
 **所有编码工作必须通过 CodeWhale 执行**。小爪只做规划和审核，不直接写代码。
 
-### 3.1 完整测试流程（开发→测试→部署）
+### 3.1 CodeWhale CLI 集成
+
+CodeWhale 是本地 CLI 编码代理（`codewhale`，v0.8.66），配置：
+- 默认模型: `deepseek-v4-pro`（provider: deepseek）
+- API key: 已配置（`~/.codewhale/config.toml`）
+- 工作目录: `~/workspace/diting`
+
+**小爪 → CodeWhale 派活方式：**
+
+```bash
+# 非交互式执行（推荐，工具自动审批）
+codewhale exec --auto "根据 Issue #N 的描述，实现 xxx 功能"
+
+# 代码审查
+codewhale review  # 审查 git diff
+```
+
+**每次派活的 prompt 规范：**
+1. 引用设计文档路径
+2. 列出要修改/新建的文件
+3. 列出验收标准（pytest + ruff + 手动验证）
+4. 明确约束（不改设计、不改 AGENTS.md）
+
+```
+示例 prompt:
+根据 docs/01-design/v0.1.0-backend-design.md Step 1，
+新增 FreshnessInfo dataclass 到 src/diting/schema.py，
+修复 CacheManager.db_get 的列数安全问题。
+完成后运行 pytest 和 ruff check。
+不要修改 AGENTS.md 或设计文档。
+```
+
+### 3.2 完整测试流程（开发→测试→部署）
 
 ```
 ┌─ 开发 ──────────────────────────────────────────────────┐
