@@ -277,9 +277,9 @@ def _do_analyze(
         except Exception:
             pass
 
-    # ── compute VMD for --more ──
+    # ── compute VMD（引擎依赖，始终计算） ──
     vmd = None
-    if more and historical and historical.df is not None:
+    if historical and historical.df is not None:
         try:
             from .signals.vmd import VMDDecomposer
 
@@ -305,10 +305,12 @@ def _do_analyze(
     if engine:
         engine_names = [e.strip() for e in engine.split(",")]
     else:
-        engine_names = discover_engines()[:3]
+        engines_cfg = ConfigLoader.get_section("engines")
+        engine_names = engines_cfg.get("default", discover_engines()[:3])
 
     ctx_obj = AnalysisContext(
         symbol=code, realtime=quote, historical=historical,
+        signals=sig, vmd=vmd,
     )
 
     try:
@@ -536,14 +538,43 @@ def _show_report(code: str, quote, repo, engine: str | None = None) -> None:
         except Exception:
             pass
 
+    # ── compute signals + VMD for engines ──
+    sig = None
+    if historical and historical.df is not None:
+        try:
+            from .signals.technical import TechnicalCalculator
+            sig = TechnicalCalculator.calculate(historical)
+        except Exception:
+            pass
+
+    vmd = None
+    if historical and historical.df is not None:
+        try:
+            from .signals.vmd import VMDDecomposer
+            df = historical.df
+            close_col = None
+            for c in ["close", "收盘", "收盘价"]:
+                if c in df.columns:
+                    close_col = c
+                    break
+            if close_col is not None:
+                close_arr = df[close_col].values
+                if close_arr.dtype == object:
+                    close_arr = close_arr.astype(float)
+                vmd = VMDDecomposer.decompose(close_arr, symbol=code)
+        except Exception:
+            pass
+
     # Determine engines
     if engine:
         engine_names = [e.strip() for e in engine.split(",")]
     else:
-        engine_names = discover_engines()[:3]
+        engines_cfg = ConfigLoader.get_section("engines")
+        engine_names = engines_cfg.get("default", discover_engines()[:3])
 
     ctx_obj = AnalysisContext(
         symbol=code, realtime=quote, historical=historical,
+        signals=sig, vmd=vmd,
     )
 
     try:
