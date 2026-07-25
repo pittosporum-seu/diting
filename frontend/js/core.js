@@ -89,6 +89,7 @@ export async function _loadWithCache(key, skeletonFn, apiFn, renderFn, onErrorFn
         const enriched = { ...res.data };
         if (res.server_time) enriched._server_time = res.server_time;
         if (res.cache_state) enriched._cache_state = res.cache_state;
+        if (res.freshness) enriched._freshness = res.freshness;
         cacheManager.set(key, enriched);
         renderFn(enriched, false);
         if (refreshBadge) refreshBadge.remove();

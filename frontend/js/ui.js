@@ -158,13 +158,32 @@ function _fmtTime(ts) {
 
 /**
  * Build a data-timestamp footer bar with freshness indicator.
+ * Prefers freshness.data_time (real data time) over server_time.
  */
-function _dataTimeBar(cacheKey, serverTime, cacheState) {
+function _dataTimeBar(cacheKey, serverTime, cacheState, freshness) {
   let ts = null;
   let freshnessClass = 'freshness-cached';
   let freshnessLabel = '';
 
-  if (serverTime) {
+  // Priority: freshness.data_time > server_time > localStorage
+  const dataTime = freshness && freshness.data_time ? freshness.data_time : null;
+
+  if (dataTime) {
+    ts = new Date(dataTime).getTime();
+    if (freshness.is_fresh) {
+      freshnessClass = 'freshness-fresh';
+      freshnessLabel = '';
+    } else if (freshness.source === 'cache') {
+      freshnessClass = 'freshness-stale';
+      freshnessLabel = ' · 缓存数据';
+    } else if (freshness.source === 'static') {
+      freshnessClass = 'freshness-cached';
+      freshnessLabel = '';
+    } else {
+      freshnessClass = 'freshness-stale';
+      freshnessLabel = ' · 可能滞后';
+    }
+  } else if (serverTime) {
     ts = new Date(serverTime).getTime();
     if (cacheState === 'fresh') {
       freshnessClass = 'freshness-fresh';

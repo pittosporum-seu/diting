@@ -93,7 +93,7 @@ export async function renderOpportunities() {
       ${watchlistSection}
       ${marketSection}
 
-      ${_dataTimeBar('opportunities', oppData?._server_time, oppData?._cache_state)}
+      ${_dataTimeBar('opportunities', oppData?._server_time, oppData?._cache_state, oppData?._freshness)}
     `;
 
     // Bind click handlers

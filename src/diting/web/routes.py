@@ -25,6 +25,45 @@ dashboard_service = DashboardService(cache_mgr=_cache_mgr, scan_service=scan_ser
 watchlist_service = WatchlistService(cache_mgr=_cache_mgr)
 # ── API response wrapper ────────────────────────
 
+def _build_freshness(
+    data_time: datetime | None = None,
+    source: str = "unknown",
+    ttl_seconds: int = 60,
+) -> FreshnessInfo:
+    """Build a FreshnessInfo from available metadata."""
+    now = datetime.now(UTC)
+    if data_time is None:
+        data_time = now
+    if data_time.tzinfo is None:
+        data_time = data_time.replace(tzinfo=UTC)
+    age = (now - data_time).total_seconds()
+    return FreshnessInfo(
+        data_time=data_time,
+        source=source,
+        is_fresh=age <= ttl_seconds,
+        age_seconds=round(age, 1),
+        ttl_seconds=ttl_seconds,
+    )
+
+
+def _extract_freshness(data: dict, default_ttl: int = 60) -> FreshnessInfo | None:
+    """Extract freshness from _cached_at / _cache_state fields in service data."""
+    if not isinstance(data, dict):
+        return None
+    cached_at = data.pop("_cached_at", None)
+    cache_state = data.pop("_cache_state", None)
+    if isinstance(cached_at, str):
+        try:
+            cached_at = datetime.fromisoformat(cached_at)
+        except (ValueError, TypeError):
+            cached_at = None
+    if isinstance(cached_at, datetime):
+        return _build_freshness(cached_at, source="cache", ttl_seconds=default_ttl)
+    if cache_state:
+        source = "realtime" if cache_state == "fresh" else "cache"
+        return _build_freshness(source=source, ttl_seconds=default_ttl)
+    return None
+
 def _api_response(
     data: dict,
     *,
@@ -102,22 +141,24 @@ async def api_stock(code: str):
     if resp.error:
         raise DataUnavailableError(message=resp.error)
     data = asdict(resp)
-    data.pop("_cache_state", None)
-    return _api_response(data)
+    freshness = _extract_freshness(data, default_ttl=60)
+    return _api_response(data, freshness=freshness)
 
 
 @router.get("/api/stock-search")
 async def api_stock_search(q: str = ""):
     """股票搜索：支持6位代码或中文名称模糊匹配。"""
     results = stock_service.search_stock(q)
-    return _api_response({"results": results})
+    freshness = _build_freshness(source="static", ttl_seconds=86400)
+    return _api_response({"results": results}, freshness=freshness)
 
 
 @router.get("/api/stock-list")
 async def api_stock_list():
     """返回全市场 A 股股票列表 [{code, name}]。"""
     data = stock_service.get_stock_list()
-    return _api_response(data if isinstance(data, dict) else {"items": data})
+    freshness = _build_freshness(source="static", ttl_seconds=86400)
+    return _api_response(data if isinstance(data, dict) else {"items": data}, freshness=freshness)
 
 
 @router.get("/api/dashboard")
@@ -129,7 +170,8 @@ async def api_dashboard():
 @router.get("/api/watchlist")
 async def api_watchlist():
     data = watchlist_service.get_watchlist()
-    return _api_response({"items": data})
+    freshness = _build_freshness(source="cache", ttl_seconds=300)
+    return _api_response({"items": data}, freshness=freshness)
 
 
 @router.post("/api/watchlist")
@@ -161,9 +203,10 @@ async def api_watchlist_remove(code: str):
 @router.get("/api/opportunities")
 async def api_opportunities():
     data = scan_service.get_opportunities()
-    if isinstance(data, dict):
-        data.pop("_cache_state", None)
-    return _api_response(data)
+    freshness = _extract_freshness(data, default_ttl=120) if isinstance(data, dict) else None
+    if freshness is None:
+        freshness = _build_freshness(source="cache", ttl_seconds=120)
+    return _api_response(data, freshness=freshness)
 
 
 @router.get("/api/market-sentiment")

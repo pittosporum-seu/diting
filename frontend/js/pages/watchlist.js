@@ -79,7 +79,7 @@ export async function renderWatchlist() {
       <p class="page-desc" style="font-size:12px;color:var(--text-secondary)">持仓评分变化一览</p>
       ${addBar}
       ${ui.table(headers, rows)}
-      ${_dataTimeBar('watchlist', list?._server_time, list?._cache_state)}
+      ${_dataTimeBar('watchlist', list?._server_time, list?._cache_state, list?._freshness)}
     `;
 
     // ── 事件绑定 ──

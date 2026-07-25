@@ -100,7 +100,7 @@ function _renderDashboardHTML(dashboardData) {
     <h1 class="page-title">仪表盘</h1>
     <p class="page-desc">大盘状态概览与最近信号</p>
 
-    ${_dataTimeBar('dashboard', dashboardData?._server_time, dashboardData?._cache_state)}
+    ${_dataTimeBar('dashboard', dashboardData?._server_time, dashboardData?._cache_state, dashboardData?._freshness)}
 
     ${indicesHtml}
 
