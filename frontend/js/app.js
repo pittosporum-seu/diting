@@ -14,9 +14,9 @@ window.addEventListener('diting:watchlist_changed', () => {
   cacheManager.remove('dashboard');
   cacheManager.remove('opportunities');
   if (state.currentPage === 'dashboard') {
-    import('./pages/dashboard.js').then(m => m.renderDashboard());
+    import('./pages/dashboard.js?v=0.7.6').then(m => m.renderDashboard());
   } else if (state.currentPage === 'opportunities') {
-    import('./pages/opportunities.js').then(m => m.renderOpportunities());
+    import('./pages/opportunities.js?v=0.7.6').then(m => m.renderOpportunities());
   }
 });
 

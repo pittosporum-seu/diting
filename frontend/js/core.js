@@ -192,7 +192,7 @@ export function _initSearchSuggestions(inputEl, opts = {}) {
 /* ── 图表清理 ── */
 export function disposePage() {
   // charts 在运行时才需要，不在 import 时求值
-  import('./charts.js').then(m => {
+  import('./charts.js?v=0.7.6').then(m => {
     ['kline-chart', 'volume-chart', 'engine-bars', 'vmd-gauge', 'portfolio-pie'].forEach(m.charts.dispose);
   });
 }
