@@ -2,14 +2,14 @@
  * 选股机会页面 — 谛听 v0.7.1
  * 自选股机会 + 全市场热点扫描 /w 统计卡片
  */
-import { api } from '../api.js';
+import { api } from '../api.js?v=0.7.6';
 import {
   ui,
   _ratingTag, _fmt, _pctSigned, _dataTimeBar, _esc,
-} from '../ui.js';
+} from '../ui.js?v=0.7.6';
 import {
   showStatus, _renderSkeleton, _loadWithCache,
-} from '../core.js';
+} from '../core.js?v=0.7.6';
 
 export async function renderOpportunities() {
   const skeleton = () => {

@@ -2,12 +2,12 @@
  * 路由 — 谛听 v0.7.1
  * URL hash → page handler 映射 + 页面切换逻辑
  */
-import { renderDashboard } from './pages/dashboard.js';
-import { renderStockSearch, renderStock } from './pages/stock.js';
-import { renderOpportunities } from './pages/opportunities.js';
-import { renderWatchlist } from './pages/watchlist.js';
-import { renderSettings } from './pages/settings.js';
-import { state, updateState, showStatus, disposePage } from './core.js';
+import { renderDashboard } from './pages/dashboard.js?v=0.7.6';
+import { renderStockSearch, renderStock } from './pages/stock.js?v=0.7.6';
+import { renderOpportunities } from './pages/opportunities.js?v=0.7.6';
+import { renderWatchlist } from './pages/watchlist.js?v=0.7.6';
+import { renderSettings } from './pages/settings.js?v=0.7.6';
+import { state, updateState, showStatus, disposePage } from './core.js?v=0.7.6';
 
 /* ── 路由表 ── */
 const ROUTE_MAP = {

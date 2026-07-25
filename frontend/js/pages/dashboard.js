@@ -2,16 +2,16 @@
  * 仪表盘页面 — 谛听 v0.7.1
  * 大盘指数、信号统计、VMD 周期仪表盘、信号分布饼图、Top 机会列表
  */
-import { api } from '../api.js';
-import { cacheManager } from '../cache.js';
-import { charts } from '../charts.js';
+import { api } from '../api.js?v=0.7.6';
+import { cacheManager } from '../cache.js?v=0.7.6';
+import { charts } from '../charts.js?v=0.7.6';
 import {
   ui,
   _fmt, _pctSigned, _dataTimeBar, _esc,
-} from '../ui.js';
+} from '../ui.js?v=0.7.6';
 import {
   showStatus, _renderSkeleton, _loadWithCache,
-} from '../core.js';
+} from '../core.js?v=0.7.6';
 
 export async function renderDashboard() {
   const skeleton = () => {

@@ -3,7 +3,7 @@
  * 谛听 · v0.7.1 — 统一使用 cacheManager (fetchWithCache)
  */
 
-import { cacheManager } from './cache.js';
+import { cacheManager } from './cache.js?v=0.7.6';
 
 // API 路径 — 本地开发用 /api，Caddy 网关用 /api/diting
 // 由 index.html 注入 window.DITING_API_BASE，缺省时自动检测

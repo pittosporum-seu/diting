@@ -2,9 +2,9 @@
  * 谛听 · v0.7.2 — 共享核心（无循环依赖）
  * 被 app.js、router.js、pages/*.js 共同引用
  */
-import { cacheManager } from './cache.js';
-import { api } from './api.js';
-import { ui } from './ui.js';
+import { cacheManager } from './cache.js?v=0.7.6';
+import { api } from './api.js?v=0.7.6';
+import { ui } from './ui.js?v=0.7.6';
 
 /* ── 全局状态 ── */
 export const state = {

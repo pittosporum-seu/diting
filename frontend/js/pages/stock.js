@@ -1,13 +1,13 @@
 /** 个股分析页面 — 谛听 v0.7.6 */
-import { api } from '../api.js';
-import { cacheManager } from '../cache.js';
-import { charts } from '../charts.js';
+import { api } from '../api.js?v=0.7.6';
+import { cacheManager } from '../cache.js?v=0.7.6';
+import { charts } from '../charts.js?v=0.7.6';
 import {
   ui, _fmt, _pctSigned, _priceStyle, _dataTimeBar, _esc,
   _scoreGradient, _scoreTextColor, _ratingTag, _confidenceLabel,
   _rsrStatus, _macdStatus, _kdjStatus, _bollStatus, _maStatus, _vwapStatus, _volRatioStatus,
-} from '../ui.js';
-import { state, updateState, showStatus, _renderSkeleton, _loadWithCache, _getStockList, _initSearchSuggestions } from '../core.js';
+} from '../ui.js?v=0.7.6';
+import { state, updateState, showStatus, _renderSkeleton, _loadWithCache, _getStockList, _initSearchSuggestions } from '../core.js?v=0.7.6';
 window.__loaded = window.__loaded || []; window.__loaded.push('pages/stock');
 
 export function renderStockSearch() {

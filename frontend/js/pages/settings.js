@@ -2,16 +2,16 @@
  * 设置页面 — 谛听 v0.7.1
  * 数据源开关、AI 模型选择、分析引擎开关、缓存管理
  */
-import { api } from '../api.js';
-import { cacheManager } from '../cache.js';
+import { api } from '../api.js?v=0.7.6';
+import { cacheManager } from '../cache.js?v=0.7.6';
 import {
   ui,
   _esc,
-} from '../ui.js';
+} from '../ui.js?v=0.7.6';
 import {
   updateState,
   showStatus, _renderSkeleton, _loadWithCache,
-} from '../core.js';
+} from '../core.js?v=0.7.6';
 
 export async function renderSettings() {
   const skeleton = () => {
