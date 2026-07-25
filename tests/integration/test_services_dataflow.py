@@ -166,7 +166,8 @@ class TestMarketStateDashboard:
         assert result["buy_signals"] == 2
         assert freshness is not None
         assert freshness.source == "sqlite_cache"
-        assert freshness.is_fresh is False
+        # 刚写入的缓存 age≈0 <= ttl=300，应为 fresh
+        assert freshness.is_fresh is True
 
     @patch("src.diting.web.services.dashboard.get_market_state")
     def test_dashboard_returns_empty_when_weekend_no_db(self, mock_state):

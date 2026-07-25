@@ -77,8 +77,8 @@ class DashboardService(_BaseService):
                 freshness = FreshnessInfo(
                     data_time=cached_at,
                     source="memory_cache",
-                    is_fresh=False,
-                    age_seconds=(now - cached_at).total_seconds(),
+                    is_fresh=(now - cached_at).total_seconds() <= 60,
+                    age_seconds=round((now - cached_at).total_seconds(), 1),
                     ttl_seconds=60,
                 )
                 cached.pop("_cached_at", None)
@@ -104,8 +104,8 @@ class DashboardService(_BaseService):
                     freshness = FreshnessInfo(
                         data_time=cached_at,
                         source="sqlite_cache",
-                        is_fresh=False,
-                        age_seconds=(now - cached_at).total_seconds(),
+                        is_fresh=(now - cached_at).total_seconds() <= 300,
+                        age_seconds=round((now - cached_at).total_seconds(), 1),
                         ttl_seconds=300,
                     )
                     cm.mem_set("dashboard", result)
@@ -135,7 +135,7 @@ class DashboardService(_BaseService):
                 data_time=now,
                 source=source,
                 is_fresh=False,
-                age_seconds=0,
+                age_seconds=0.0,
                 ttl_seconds=60,
             )
 
