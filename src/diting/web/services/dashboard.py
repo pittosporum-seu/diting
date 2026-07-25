@@ -66,6 +66,35 @@ class DashboardService(_BaseService):
         state = get_market_state()
         now = datetime.now(UTC)
 
+        def _extract_data_time(result: dict) -> datetime:
+            """从 dashboard 数据中提取真实数据时间。
+
+            优先级：_data_time（缓存透传）> market_sentiment.timestamp > now。
+            确保前端展示的是市场数据的真实时间，而非缓存写入时间。
+            """
+            # 缓存中透传的真实数据时间
+            dt = result.get("_data_time")
+            if dt:
+                if isinstance(dt, str):
+                    try:
+                        return datetime.fromisoformat(dt)
+                    except (ValueError, TypeError):
+                        pass
+                elif isinstance(dt, datetime):
+                    return dt
+            # 从 market_sentiment 提取原始时间戳
+            ms = result.get("market_sentiment") or {}
+            ts = ms.get("timestamp")
+            if ts:
+                if isinstance(ts, str):
+                    try:
+                        return datetime.fromisoformat(ts)
+                    except (ValueError, TypeError):
+                        pass
+                elif isinstance(ts, datetime):
+                    return ts
+            return now
+
         # L1: 内存缓存命中 → 直接返回
         if not force_refresh:
             cm = self._get_cache_mgr()
@@ -74,14 +103,16 @@ class DashboardService(_BaseService):
                 cached_at = cached.get("_cached_at", now)
                 if isinstance(cached_at, str):
                     cached_at = datetime.fromisoformat(cached_at)
+                data_time = _extract_data_time(cached)
                 freshness = FreshnessInfo(
-                    data_time=cached_at,
+                    data_time=data_time,
                     source="memory_cache",
-                    is_fresh=(now - cached_at).total_seconds() <= 60,
-                    age_seconds=round((now - cached_at).total_seconds(), 1),
+                    is_fresh=(now - data_time).total_seconds() <= 60,
+                    age_seconds=round((now - data_time).total_seconds(), 1),
                     ttl_seconds=60,
                 )
                 cached.pop("_cached_at", None)
+                cached.pop("_data_time", None)
                 return cached, freshness
 
         # L2: SQLite dashboard_cache（仅非强刷时读取）
@@ -101,13 +132,15 @@ class DashboardService(_BaseService):
                             cached_at = now
                     else:
                         cached_at = now
+                    data_time = _extract_data_time(result)
                     freshness = FreshnessInfo(
-                        data_time=cached_at,
+                        data_time=data_time,
                         source="sqlite_cache",
-                        is_fresh=(now - cached_at).total_seconds() <= 300,
-                        age_seconds=round((now - cached_at).total_seconds(), 1),
+                        is_fresh=(now - data_time).total_seconds() <= 300,
+                        age_seconds=round((now - data_time).total_seconds(), 1),
                         ttl_seconds=300,
                     )
+                    result.pop("_data_time", None)
                     cm.mem_set("dashboard", result)
                     db_hit = True
                     # v0.6.5: L2 命中后后台异步刷新 API（仅 TRADING 状态）
@@ -242,12 +275,14 @@ class DashboardService(_BaseService):
                 "vmd_cycle": vmd_cycle,
                 "top_opportunities": top_opportunities,
             }
-            self._get_cache_mgr().mem_set("dashboard", {**result, "_cached_at": now})
+            # 提取真实数据时间（用于 freshness 和缓存透传）
+            data_time = _extract_data_time(result)
+            self._get_cache_mgr().mem_set("dashboard", {**result, "_cached_at": now, "_data_time": data_time.isoformat()})
             # 写入 SQLite
             try:
                 cm = self._get_cache_mgr()
                 import json as _json
-                result_for_db = {**result, "_cached_at": now.isoformat()}
+                result_for_db = {**result, "_cached_at": now.isoformat(), "_data_time": data_time.isoformat()}
                 cm.db_set("dashboard_cache", "1", {
                     "id": 1,
                     "data_json": _json.dumps(result_for_db, default=str, ensure_ascii=False),
@@ -255,10 +290,10 @@ class DashboardService(_BaseService):
             except Exception:
                 pass
             freshness = FreshnessInfo(
-                data_time=now,
+                data_time=data_time,
                 source=provider_source,
                 is_fresh=True,
-                age_seconds=0,
+                age_seconds=round((now - data_time).total_seconds(), 1),
                 ttl_seconds=60,
             )
             return result, freshness
