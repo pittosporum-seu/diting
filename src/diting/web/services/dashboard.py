@@ -176,13 +176,14 @@ class DashboardService(_BaseService):
                 ttl_seconds=60,
             )
 
+        # v0.7.7: 周末/盘后不再直接返回空——ashare 免费源周末也能返回最近交易日数据，
+        # 指数/情绪/VMD 都是轻量查询。仅记录日志，继续往下抓取。
         if not state.should_call_api and not force_refresh:
             logger.debug(
-                "services.dashboard.api_skipped",
+                "services.dashboard.offhours_fetch",
                 phase=state.phase,
                 db_hit=db_hit,
             )
-            return empty_dashboard, _fallback_freshness()
 
         try:
             from ...config import Config
@@ -334,24 +335,8 @@ class DashboardService(_BaseService):
                 cached.setdefault("_cached_at", now)
                 return cached
 
-        # v0.6.5-bugfix: 非交易时段不调 API
-        state = get_market_state()
-        if not state.should_call_api and not force_refresh:
-            logger.debug(
-                "services.market_sentiment.api_skipped",
-                phase=state.phase,
-            )
-            empty = {
-                "sentiment": "neutral",
-                "sh_index": None,
-                "sh_change": None,
-                "score": 50,
-                "source": "unavailable",
-                "_cached_at": now,
-            }
-            self._get_cache_mgr().mem_set("market_sentiment", {**empty, "_cached_at": now})
-            return {**empty, "_cached_at": now}
-
+        # v0.7.7: 周末/盘后也抓取——ashare 免费源周末返回最近交易日数据，
+        # 上证指数查询是轻量请求，不再返回 unavailable。
         try:
             repo = self._build_repo()
             quotes = repo.get_realtime(["000001.SH"])

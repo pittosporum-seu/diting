@@ -66,7 +66,11 @@ class TestDataTimeBar:
         assert dt <= datetime.now(UTC) + timedelta(seconds=5)
 
     def test_age_seconds_consistent_with_data_time(self, dashboard: dict):
-        """age_seconds 应与 data_time 和 server_time 的差值一致。"""
+        """age_seconds 非负，且不大于 server_time - data_time。
+
+        age_seconds 在抓取开始时计算，server_time 在响应时生成（更晚），
+        故 age_seconds <= server_time - data_time（后者含抓取耗时）。
+        """
         f = dashboard["freshness"]
         if not f["data_time"]:
             pytest.skip("data_time 为空")
@@ -77,9 +81,10 @@ class TestDataTimeBar:
         if st.tzinfo is None:
             st = st.replace(tzinfo=UTC)
         expected_age = (st - dt).total_seconds()
-        # 允许 2s 误差
-        assert abs(f["age_seconds"] - expected_age) < 2, (
-            f"age_seconds={f['age_seconds']} 与计算值 {expected_age:.1f} 不一致"
+        assert f["age_seconds"] >= 0
+        # age_seconds 不大于响应时算的年龄（含抓取耗时，留 2s 余量）
+        assert f["age_seconds"] <= expected_age + 2, (
+            f"age_seconds={f['age_seconds']} 不应大于 {expected_age:.1f}"
         )
 
     def test_is_fresh_matches_age_and_ttl(self, dashboard: dict):

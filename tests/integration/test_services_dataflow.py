@@ -170,8 +170,8 @@ class TestMarketStateDashboard:
         assert freshness.is_fresh is True
 
     @patch("src.diting.web.services.dashboard.get_market_state")
-    def test_dashboard_returns_empty_when_weekend_no_db(self, mock_state):
-        """周末无 DB 数据返回空结果，不调 API。"""
+    def test_dashboard_fetches_fresh_on_weekend_no_db(self, mock_state):
+        """周末无缓存时抓取最近交易日数据（ashare 周末可用），不返回空。"""
         mock_state.return_value = MarketState(
             phase="weekend",
             last_trade_date=datetime(2026, 7, 10).date(),
@@ -179,17 +179,33 @@ class TestMarketStateDashboard:
             today_is_trade_day=False,
         )
 
+        # mock 指数行情（ashare 周末返回最近交易日数据）
+        sh_quote = MagicMock()
+        sh_quote.price = 3814.0
+        sh_quote.change_pct = -1.6
+        mock_repo = MagicMock()
+        mock_repo.get_realtime.return_value = {"000001.SH": sh_quote}
+        mock_repo.get_historical.return_value = None
+        mock_repo.available_providers = ["ashare"]
+
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
             mock_cm.return_value.mem_get_adaptive.return_value = None
             mock_cm.return_value.db_get.return_value = None
-            result, freshness = self.service.get_dashboard_data()
+            mock_cm.return_value.db_get_latest.return_value = None
+            mock_cm.return_value.mem_get.return_value = None
+            with patch.object(self.service, "_build_repo", return_value=mock_repo):
+                with patch.object(self.scan_service, "get_opportunities", return_value={
+                    "total": 0, "strong_buy": 0, "watch": 0, "avoid": 0,
+                    "items": [], "from_watchlist": [], "from_market": [],
+                }):
+                    result, freshness = self.service.get_dashboard_data()
 
         assert result is not None
-        assert result["watchlist_count"] == 0
-        assert result["buy_signals"] == 0
+        # 周末抓取到指数数据，不再返回空
+        assert len(result["market_indices"]) >= 1
+        assert result["market_indices"][0]["price"] == 3814.0
         assert freshness is not None
-        assert freshness.source == "unavailable"
-        assert freshness.is_fresh is False
+        assert freshness.source != "unavailable"
 
 
 class TestL2FallbackWithAsyncRefresh:
