@@ -23,8 +23,11 @@ export async function renderWatchlist() {
     `);
   };
 
-  const render = (list, fromCache) => {
+  const render = (data, fromCache) => {
     if (fromCache) console.log('[谛听] 自选股 缓存命中');
+
+    // API 返回 {items:[...]}，_loadWithCache 透传为对象；兼容数组形式
+    const list = Array.isArray(data) ? data : (data?.items || []);
 
     const root = document.getElementById('app-root');
     const addBar = `
@@ -79,7 +82,7 @@ export async function renderWatchlist() {
       <p class="page-desc" style="font-size:12px;color:var(--text-secondary)">持仓评分变化一览</p>
       ${addBar}
       ${ui.table(headers, rows)}
-      ${_dataTimeBar('watchlist', list?._server_time, list?._cache_state, list?._freshness)}
+      ${_dataTimeBar('watchlist', data?._server_time, data?._cache_state, data?._freshness)}
     `;
 
     // ── 事件绑定 ──

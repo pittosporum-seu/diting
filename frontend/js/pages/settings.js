@@ -81,7 +81,7 @@ export async function renderSettings() {
         <div class="card-title">🤖 AI 模型</div>
         <p style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">选择分析引擎使用的 LLM</p>
         ${modelHtml}
-        <p style="font-size:12px;color:var(--text-secondary);margin-top:6px">当前：${_esc(settings.ai_model_label || currentModel)}</p>
+        <p id="settings-model-current" style="font-size:12px;color:var(--text-secondary);margin-top:6px">当前：${_esc(settings.ai_model_label || currentModel)}</p>
       </div>
 
       <div class="card">
@@ -140,6 +140,12 @@ export async function renderSettings() {
         const res = await api.saveSettings({ ai_model: newModel });
         if (res.ok) {
           cacheManager.clear();
+          // 同步更新“当前”标签（用选中项的显示文本）
+          const labelEl = document.getElementById('settings-model-current');
+          if (labelEl) {
+            const selOpt = modelSelect.options[modelSelect.selectedIndex];
+            labelEl.textContent = '当前：' + (selOpt ? selOpt.textContent : newModel);
+          }
           showStatus("✅ 模型已切换");
         } else {
           showStatus("❌ 保存失败");
