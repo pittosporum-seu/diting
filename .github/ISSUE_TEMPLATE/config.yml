@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 项目文档
+    url: https://github.com/pittosporum-seu/diting/tree/main/docs
+    about: 查看架构设计、API 契约等文档
+  - name: 路线图
+    url: https://github.com/pittosporum-seu/diting/blob/main/ROADMAP.md
+    about: 了解当前开发阶段和待办事项

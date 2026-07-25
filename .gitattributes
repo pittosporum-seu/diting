@@ -1,0 +1,9 @@
+# Lock files — 标记为自动生成，不纳入语言统计
+uv.lock linguist-generated
+package-lock.json linguist-generated
+
+# Shell 脚本强制 LF 行尾
+*.sh text eol=lf
+
+# Python 源码强制 LF 行尾
+*.py text eol=lf

@@ -1,0 +1,17 @@
+# Dependabot 配置
+# 仅对 GitHub Actions 启用，不自动升级 pip/npm 依赖
+# （Python 依赖通过 uv.lock 精确锁定，手动管理升级）
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "chore"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
