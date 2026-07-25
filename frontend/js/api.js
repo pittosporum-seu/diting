@@ -23,12 +23,13 @@ async function _request(method, path, body) {
       return { ok: false, error: `HTTP ${res.status}: ${text || res.statusText}` };
     }
     const data = await res.json();
-    // v0.7.0: response envelope { server_time, cache_state, data }
+    // v0.7.0: response envelope { server_time, cache_state, data, freshness }
     return {
       ok: true,
       data: data.data !== undefined ? data.data : data,
       server_time: data.server_time || null,
       cache_state: data.cache_state || 'fresh',
+      freshness: data.freshness || null,
     };
   } catch (e) {
     return { ok: false, error: e.message || 'Network error' };
@@ -60,6 +61,7 @@ function fetchWithCache(url, options = {}) {
             const enriched = { ...data.data };
             if (data.server_time) enriched._server_time = data.server_time;
             if (data.cache_state) enriched._cache_state = data.cache_state;
+            if (data.freshness) enriched._freshness = data.freshness;
             cacheManager.set(cacheKey, enriched, ttl * 1000);
             return enriched;
         }
