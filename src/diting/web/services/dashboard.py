@@ -71,28 +71,32 @@ class DashboardService(_BaseService):
 
             优先级：_data_time（缓存透传）> market_sentiment.timestamp > now。
             确保前端展示的是市场数据的真实时间，而非缓存写入时间。
+            始终返回 timezone-aware (UTC) datetime。
             """
+            def _to_aware(dt: datetime) -> datetime:
+                return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
             # 缓存中透传的真实数据时间
             dt = result.get("_data_time")
             if dt:
                 if isinstance(dt, str):
                     try:
-                        return datetime.fromisoformat(dt)
+                        return _to_aware(datetime.fromisoformat(dt))
                     except (ValueError, TypeError):
                         pass
                 elif isinstance(dt, datetime):
-                    return dt
+                    return _to_aware(dt)
             # 从 market_sentiment 提取原始时间戳
             ms = result.get("market_sentiment") or {}
             ts = ms.get("timestamp")
             if ts:
                 if isinstance(ts, str):
                     try:
-                        return datetime.fromisoformat(ts)
+                        return _to_aware(datetime.fromisoformat(ts))
                     except (ValueError, TypeError):
                         pass
                 elif isinstance(ts, datetime):
-                    return ts
+                    return _to_aware(ts)
             return now
 
         # L1: 内存缓存命中 → 直接返回
