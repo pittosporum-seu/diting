@@ -25,10 +25,21 @@ _HEADERS = {"Referer": "https://finance.sina.com.cn"}
 
 
 def _to_sina_code(code: str) -> str:
-    """将纯数字代码转为新浪格式。
+    """将代码转为新浪格式。
 
-    sz: 0/2/3 开头，sh: 6 开头，bj: 4/8 开头。
+    支持带交易所后缀的代码（如上证指数 000001.SH → sh000001）。
+    纯数字代码按首位推断：sz: 0/2/3 开头，sh: 6 开头，bj: 4/8 开头。
+    指数代码（如上证指数 000001）需显式带 .SH 后缀以区别于同名股票（平安银行）。
     """
+    # 优先处理交易所后缀
+    upper = code.upper()
+    if upper.endswith(".SH"):
+        return f"sh{code[:-3]}"
+    if upper.endswith(".SZ"):
+        return f"sz{code[:-3]}"
+    if upper.endswith(".BJ"):
+        return f"bj{code[:-3]}"
+    # 纯数字代码按首位推断
     if code.startswith(("0", "2", "3")):
         return f"sz{code}"
     if code.startswith(("4", "8")):

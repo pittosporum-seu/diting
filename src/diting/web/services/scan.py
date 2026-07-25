@@ -145,6 +145,13 @@ class ScanService(_BaseService):
                 if not any(kw in c for kw in _st_patterns)
             ]
 
+            # 仅保留沪深 A 股（免费源可抓），排除北交所（4/8/9 开头）
+            # 否则抓不到北交所股票会触发 AllProvidersFailedError 导致整个扫描失败
+            filtered_codes = [
+                c for c in filtered_codes
+                if c and c[0] in "0236"
+            ]
+
             if not filtered_codes:
                 return []
 
