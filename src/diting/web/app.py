@@ -65,8 +65,10 @@ async def start_prefetch_worker():
     # v0.7.5: 后台优先级个股抓取
     try:
         from ..cache.analysis_prefetch import AnalysisPrefetchWorker
-        from .routes import scan_service, stock_service
-        _analysis_prefetch_worker = AnalysisPrefetchWorker(stock_service, scan_service)
+        from .routes import dashboard_service, scan_service, stock_service
+        _analysis_prefetch_worker = AnalysisPrefetchWorker(
+            stock_service, scan_service, dashboard_service=dashboard_service
+        )
         _analysis_prefetch_worker.start()
     except Exception:
         import logging

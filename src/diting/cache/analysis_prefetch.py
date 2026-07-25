@@ -19,7 +19,7 @@ from ..infra.logging_config import get_logger
 from .cache_manager import CacheManager
 
 if TYPE_CHECKING:
-    from ..web.services import ScanService, StockService
+    from ..web.services import DashboardService, ScanService, StockService
 
 logger = get_logger(__name__)
 
@@ -41,11 +41,13 @@ class AnalysisPrefetchWorker:
         scan_service: ScanService | None = None,
         cache_mgr: CacheManager | None = None,
         cfg: dict | None = None,
+        dashboard_service: DashboardService | None = None,
     ) -> None:
         from ..infra.config_loader import ConfigLoader
 
         self._stock_service = stock_service
         self._scan_service = scan_service
+        self._dashboard_service = dashboard_service
         self._cache_mgr = cache_mgr or CacheManager()
 
         # 读取 prefetch.analysis 配置段
@@ -208,8 +210,32 @@ class AnalysisPrefetchWorker:
 
     # ── 执行抓取 ──────────────────────────────────
 
+    def _refresh_aggregates(self) -> None:
+        """强制刷新仪表盘聚合数据（大盘指数/市场情绪/全市场扫描）。
+
+        使用 force_refresh 绕过“非交易时段不调 API”的限制，
+        让周末/盘后也能拿到最近交易日的最新数据（每日仅一次，API 开销可控）。
+        """
+        # 1. 先刷新全市场扫描（信号股来源）
+        if self._scan_service is not None:
+            try:
+                self._scan_service.get_opportunities(force_refresh=True)
+                logger.debug("analysis_prefetch.scan_refreshed")
+            except Exception:
+                logger.warning("analysis_prefetch.scan_refresh_failed")
+        # 2. 刷新仪表盘（内部会带动 market_sentiment 一起刷新）
+        if self._dashboard_service is not None:
+            try:
+                self._dashboard_service.get_dashboard_data(force_refresh=True)
+                logger.debug("analysis_prefetch.dashboard_refreshed")
+            except Exception:
+                logger.warning("analysis_prefetch.dashboard_refresh_failed")
+
     def _run_once(self) -> None:
         """执行一次完整的优先级抓取。"""
+        # 先刷新聚合数据，保证后续信号股列表和仪表盘都是最新的
+        self._refresh_aggregates()
+
         queue = self._build_priority_queue()
         if not queue:
             logger.info("analysis_prefetch.empty_queue")

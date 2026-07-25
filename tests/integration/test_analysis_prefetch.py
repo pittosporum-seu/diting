@@ -163,3 +163,46 @@ class TestBatchExecution:
         w = _make_worker(cache_mgr, enabled=False)
         w.start()
         assert w.is_running is False
+
+
+# ═══════════════════════════════════════════
+# 聚合数据刷新
+# ═══════════════════════════════════════════
+
+
+class TestRefreshAggregates:
+    def test_refresh_calls_services_with_force(self, cache_mgr):
+        """_refresh_aggregates 强制刷新扫描和仪表盘。"""
+        w = _make_worker(cache_mgr)
+        dashboard_service = MagicMock()
+        w._dashboard_service = dashboard_service
+        w._refresh_aggregates()
+        w._scan_service.get_opportunities.assert_called_once_with(force_refresh=True)
+        dashboard_service.get_dashboard_data.assert_called_once_with(force_refresh=True)
+
+    def test_refresh_handles_missing_dashboard_service(self, cache_mgr):
+        """无 dashboard_service 时不报错。"""
+        w = _make_worker(cache_mgr)
+        w._dashboard_service = None
+        w._refresh_aggregates()  # 不应抛异常
+        w._scan_service.get_opportunities.assert_called_once_with(force_refresh=True)
+
+    def test_refresh_failure_does_not_stop_run(self, cache_mgr):
+        """聚合刷新失败不中断后续个股抓取。"""
+        w = _make_worker(cache_mgr)
+        w._scan_service.get_opportunities.side_effect = Exception("scan down")
+        w._dashboard_service = MagicMock()
+        w._dashboard_service.get_dashboard_data.side_effect = Exception("dash down")
+        with patch.object(w, "_build_priority_queue", return_value=["000001"]):
+            w._run_once()  # 不应抛异常
+        w._stock_service.analyze_stock.assert_called_once_with("000001")
+
+    def test_run_once_refreshes_before_stocks(self, cache_mgr):
+        """_run_once 先刷新聚合再抓个股。"""
+        w = _make_worker(cache_mgr)
+        call_order = []
+        w._scan_service.get_opportunities.side_effect = lambda **kw: call_order.append("scan")
+        with patch.object(w, "_build_priority_queue", return_value=["000001"]):
+            w._stock_service.analyze_stock.side_effect = lambda c: call_order.append("stock")
+            w._run_once()
+        assert call_order[0] == "scan"  # 扫描刷新在最前
