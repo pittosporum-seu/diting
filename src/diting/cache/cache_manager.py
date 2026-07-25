@@ -286,6 +286,33 @@ class CacheManager:
             finally:
                 conn.close()
 
+    def db_get_latest(self, table: str) -> dict | None:
+        """读取 SQLite 表中主键最大（最新批次）的一行。
+
+        适用于 batch_id 这类“时间戳格式主键”的表（如 market_scan_cache），
+        字典序最大即时间上最新。
+
+        Returns:
+            行数据 dict 或 None。
+        """
+        with self._lock:
+            conn = self._connect()
+            try:
+                pk_col = self._pk_column(table)
+                cur = conn.execute(
+                    f"SELECT * FROM {table} ORDER BY {pk_col} DESC LIMIT 1"
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return None
+                cols = [desc[0] for desc in cur.description]
+                return {cols[i]: row[i] for i in range(len(cols))}
+            except Exception as e:
+                logger.warning("cache.db_get_latest.failed", table=table, error=str(e))
+                return None
+            finally:
+                conn.close()
+
     def db_set(self, table: str, key: str, data: dict) -> None:
         """写入或替换 SQLite 表一行。
 

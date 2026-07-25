@@ -29,19 +29,15 @@ class ScanService(_BaseService):
                 cached["_cache_state"] = "stale"
                 return cached
 
-        # v0.6.5-bugfix: 非交易时段不扫描，避免阻塞事件循环
+        # v0.6.5-bugfix: 非交易时段不做全市场重扫描（避免阻塞事件循环）
+        # v0.7.6: 但不再返回空，而是用“自选股扫描 + 缓存的市场 Top20”组装最近机会
         state = get_market_state()
         if not state.should_call_api and not force_refresh:
             logger.debug(
-                "services.opportunities.api_skipped",
+                "services.opportunities.offhours",
                 phase=state.phase,
             )
-            empty = {
-                "total": 0, "strong_buy": 0, "watch": 0, "avoid": 0,
-                "items": [], "from_watchlist": [], "from_market": [],
-            }
-            self._get_cache_mgr().mem_set("opportunities", empty)
-            return empty
+            return self._build_offhours_opportunities()
 
         try:
             # Layer 1: 自选股扫描
@@ -119,16 +115,107 @@ class ScanService(_BaseService):
             logger.warning("services.scan_watchlist.failed")
             return []
 
-    def _scan_market_top20(self) -> list[dict]:
+    def _build_offhours_opportunities(self) -> dict:
+        """非交易时段组装机会：自选股（实时抓）+ 市场 Top20。
+
+        市场 Top20 策略：若已有扫描结果且之后没有再开盘（扫描日 >= 最近交易日），
+        直接复用缓存（如周五收盘后的扫描）；否则做一次全量扫描。保证任何时刻都有结果。
+        """
+        from ...cache import get_market_state
+
+        state = get_market_state()
+
+        try:
+            watchlist_items = self._scan_watchlist()
+        except Exception:
+            logger.warning("services.offhours.watchlist_failed")
+            watchlist_items = []
+
+        market_items = self._get_valid_market_top20(state.last_trade_date)
+
+        all_items = watchlist_items + market_items
+        all_items.sort(key=lambda x: x["score"], reverse=True)
+
+        result = {
+            "total": len(all_items),
+            "strong_buy": sum(1 for r in all_items if r["score"] >= 80),
+            "watch": sum(1 for r in all_items if 65 <= r["score"] < 80),
+            "avoid": sum(1 for r in all_items if r["score"] < 20),
+            "items": all_items,
+            "from_watchlist": watchlist_items,
+            "from_market": market_items,
+        }
+        self._get_cache_mgr().mem_set("opportunities", result)
+        return result
+
+    def _get_valid_market_top20(self, last_trade_date) -> list[dict]:
+        """获取有效的市场 Top20。
+
+        缓存扫描结果不早于最近交易日（即之后没有新开盘）→ 复用；
+        否则（缺失或过期）→ 全量重扫。
+        """
+        items, scan_date = self._read_latest_scan()
+
+        # 缓存有效：扫描日 >= 最近交易日（没有更新的交易发生）
+        if items and scan_date is not None and last_trade_date is not None \
+                and scan_date >= last_trade_date:
+            logger.debug(
+                "services.offhours.scan_reused",
+                scan_date=str(scan_date),
+                last_trade=str(last_trade_date),
+            )
+            return items
+
+        # 缓存缺失或过期 → 全量重扫
+        logger.info(
+            "services.offhours.rescan",
+            scan_date=str(scan_date),
+            last_trade=str(last_trade_date),
+        )
+        return self._scan_market_top20(force=True)
+
+    def _read_latest_scan(self) -> tuple[list[dict], "date | None"]:
+        """读最近一次扫描结果及其扫描日期（SQLite 优先，内存兑底）。"""
+        import json as _json
+        from datetime import date as _date
+
+        cm = self._get_cache_mgr()
+        # 1. SQLite 持久化（带 scan_date）
+        try:
+            row = cm.db_get_latest("market_scan_cache")
+            if row and row.get("top20_json"):
+                items = _json.loads(row["top20_json"])
+                scan_date = None
+                if row.get("scan_date"):
+                    try:
+                        scan_date = _date.fromisoformat(str(row["scan_date"])[:10])
+                    except (ValueError, TypeError):
+                        pass
+                if isinstance(items, list):
+                    return items, scan_date
+        except Exception:
+            logger.warning("services.offhours.scan_db_failed")
+        # 2. 内存缓存（无日期，视为未知）
+        try:
+            cached = cm.mem_get("market_scan")
+            if cached and isinstance(cached, list):
+                return cached, None
+        except Exception:
+            pass
+        return [], None
+
+    def _scan_market_top20(self, force: bool = False) -> list[dict]:
         """全市场扫描 Top 20：ashare 分批获取行情 → 过滤 → 评分 → 写入 SQLite + 内存。
 
         每 1h 重新扫描，使用 CacheManager 持久化 market_snapshot + market_scan_cache。
+        force=True 时跳过内存缓存检查，强制重扫。
         """
         from ...engines.rating import score_to_rating
 
-        cached = self._get_cache_mgr().mem_get_adaptive("market_scan", trading_ttl=3600)
-        if cached is not None:
-            return cached
+        if not force:
+            cached = self._get_cache_mgr().mem_get_adaptive("market_scan", trading_ttl=3600)
+            if cached is not None:
+                return cached
 
         try:
             stock_list = _utils.load_stock_list()
