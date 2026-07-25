@@ -47,12 +47,13 @@ templates = Jinja2Templates(directory=str(TEMPLATES))
 
 # ── v0.6.5: 启动后台预刷新 Worker ──
 _prefetch_worker = None
+_analysis_prefetch_worker = None
 
 
 @app.on_event("startup")
 async def start_prefetch_worker():
     """启动后台预刷新线程。"""
-    global _prefetch_worker
+    global _prefetch_worker, _analysis_prefetch_worker
     try:
         from ..cache.prefetch import PrefetchWorker
         from .routes import stock_service as service
@@ -61,14 +62,25 @@ async def start_prefetch_worker():
     except Exception:
         import logging
         logging.getLogger(__name__).warning("prefetch.startup_failed")
+    # v0.7.5: 后台优先级个股抓取
+    try:
+        from ..cache.analysis_prefetch import AnalysisPrefetchWorker
+        from .routes import scan_service, stock_service
+        _analysis_prefetch_worker = AnalysisPrefetchWorker(stock_service, scan_service)
+        _analysis_prefetch_worker.start()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("analysis_prefetch.startup_failed")
 
 
 @app.on_event("shutdown")
 async def stop_prefetch_worker():
     """停止后台预刷新线程。"""
-    global _prefetch_worker
+    global _prefetch_worker, _analysis_prefetch_worker
     if _prefetch_worker is not None:
         _prefetch_worker.stop()
+    if _analysis_prefetch_worker is not None:
+        _analysis_prefetch_worker.stop()
 
 
 # ── 全局异常处理器 ──────────────────────────────────────────

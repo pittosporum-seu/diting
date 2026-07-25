@@ -81,3 +81,16 @@ notify:
     email:
       enabled: false
       settings: {}
+
+# ── 后台优先级抓取 ──────────────────────────────
+# 收盘后闲时按“自选股优先、信号股次之”分批预取个股分析
+
+prefetch:
+  analysis:
+    enabled: true
+    idle_hour: 18        # 收盘后闲时（24h制），到点才跑
+    batch_size: 3        # 每批分析几只
+    stock_delay: 3       # 单只之间间隔（秒）
+    batch_delay: 20      # 批次之间间隔（秒，限流关键）
+    max_stocks: 30       # 单次最多分析多少只
+    signal_threshold: 65 # 信号股评分阈值
