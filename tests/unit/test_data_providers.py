@@ -1,11 +1,11 @@
-"""#7 数据提供者测试：mx-data + akshare + cache"""
+"""#7 数据提供者测试：ashare + akshare + cache"""
 
 from unittest.mock import patch
 
 from src.diting.data.cache import CacheLayer
 from src.diting.data.providers.akshare import AkShareProvider
+from src.diting.data.providers.ashare import AshareProvider
 from src.diting.data.providers.base import DataProvider
-from src.diting.data.providers.mx_data import MxDataProvider
 
 # ═══════════════════════════════════════════
 # CacheLayer
@@ -61,70 +61,52 @@ class TestCacheLayer:
 
 
 # ═══════════════════════════════════════════
-# MxDataProvider (mock API)
+# AshareProvider (免费通用数据源)
 # ═══════════════════════════════════════════
 
 
-class TestMxDataProvider:
-    """mx-data 提供者单元测试（mock API，不需要真实 apikey）"""
+class TestAshareProvider:
+    """Ashare 提供者单元测试（新浪/腾讯免费接口）"""
 
     def test_name_and_priority(self):
-        p = MxDataProvider(api_key="fake")
-        assert p.name == "mx_data"
-        assert p.priority == 20
+        p = AshareProvider()
+        assert p.name == "ashare"
+        assert isinstance(p.priority, int)
 
-    def test_health_check_requires_valid_key(self):
-        """无有效 apikey 时 health_check 返回 False。"""
-        import os
-        if os.getenv("MX_APIKEY"):
-            p = MxDataProvider()
-            assert p.health_check() is True
-        else:
-            with patch("src.diting.data.providers.mx_data.MXData") as mock_mx:
-                mock_mx.side_effect = ValueError("invalid api key")
-                p = MxDataProvider(api_key="invalid_key")
-                assert p.health_check() is False
-
-    def test_fetch_realtime_with_mock(self):
-        # 直接构建 parse 后的 mock_tables，测试 _row_to_quote
-        mock_tables = [{
-            "sheet_name": "002475",
-            "rows": [{
-                "最新价": "70.40",
-                "涨跌幅": "2.10",
-                "今开": "69.00",
-                "最高": "71.00",
-                "最低": "68.50",
-                "成交量": "10000000",
-                "成交额": "700000000",
-                "市盈率": "25.5",
-                "市净率": "3.2",
-                "总市值": "150000000000",
-            }],
-            "fieldnames": [
-                "最新价", "涨跌幅", "今开", "最高", "最低",
-                "成交量", "成交额", "市盈率", "市净率", "总市值",
-            ],
-        }]
-
-        # 直接测试 _row_to_quote
-        from datetime import datetime
-
-        row = mock_tables[0]["rows"][0]
-        fieldnames = mock_tables[0]["fieldnames"]
-        quote = MxDataProvider._row_to_quote(
-            row, fieldnames, "002475", datetime.now()
-        )
-        assert quote.symbol == "002475"
-        assert quote.price == 70.40
-        assert quote.change_pct == 2.10
-        assert quote.pe == 25.5
-        assert quote.pb == 3.2
+    def test_health_check(self):
+        """Ashare 无需 API Key，health_check 应返回 True"""
+        p = AshareProvider()
+        assert p.health_check() is True
 
     def test_fetch_realtime_empty_symbols(self):
-        p = MxDataProvider(api_key="fake")
+        p = AshareProvider()
         results = p.fetch_realtime([])
         assert results == {}
+
+    def test_provider_is_instance(self):
+        p = AshareProvider()
+        assert isinstance(p, DataProvider)
+
+    @patch("src.diting.data.providers.ashare.requests.get")
+    def test_fetch_realtime_mocked(self, mock_get):
+        """用 mock 新浪接口测试数据解析"""
+        mock_resp = mock_get.return_value
+        mock_resp.status_code = 200
+        mock_resp.text = (
+            'var hq_str_sz002475="立讯精密,60.00,60.59,62.49,59.60,'
+            '75736872,4614732730.86,100,200,300,400,500,600,700,800,'
+            '900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,'
+            '2000,2100,2200,2300,2400,2500,2026-07-25,15:00:00,00";\n'
+        )
+        mock_resp.encoding = "gbk"
+
+        p = AshareProvider()
+        results = p.fetch_realtime(["002475"])
+
+        assert "002475" in results
+        q = results["002475"]
+        assert q.symbol == "002475"
+        assert q.name == "立讯精密"
 
 
 # ═══════════════════════════════════════════

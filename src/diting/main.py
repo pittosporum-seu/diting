@@ -78,7 +78,11 @@ def _build_repo(cfg: Config) -> MarketDataRepository:
             except Exception:
                 continue
         else:
-            provider = DataProvider.from_config(name, pc.get("settings"))
+            try:
+                provider = DataProvider.from_config(name, pc.get("settings"))
+            except Exception:
+                logger.warning("provider.import_failed", provider=name)
+                continue
         providers.append(provider)
 
     if not providers:

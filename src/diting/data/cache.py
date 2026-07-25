@@ -41,7 +41,7 @@ class CacheLayer:
             return None
 
         ts, ttl, value = entry
-        if time.time() - ts > ttl:
+        if time.time() - ts >= ttl:
             del self._store[key]
             logger.debug("cache.expired", key=key[:80])
             return None

@@ -33,7 +33,7 @@ class Config:
         env_file = self._root / ".env"
         if not env_file.exists():
             return
-        with open(env_file) as f:
+        with open(env_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:

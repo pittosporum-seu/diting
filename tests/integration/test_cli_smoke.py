@@ -71,15 +71,9 @@ class TestCLISmoke:
 
     def test_l1_alias(self):
         """diting l1 002475 被接受（旧别名兼容）。"""
-        import signal
         runner = CliRunner()
-        try:
-            signal.alarm(15)
-            result = runner.invoke(cli, ["l1", "002475"])
-            signal.alarm(0)
-            assert "002475" in result.output or not result.output
-        except TimeoutError:
-            pass  # 超时也算解析成功
+        result = runner.invoke(cli, ["l1", "002475"])
+        assert "002475" in result.output or not result.output
 
     def test_l1_alias_with_more(self):
         """diting l1 002475 --more 显示技术分析。"""

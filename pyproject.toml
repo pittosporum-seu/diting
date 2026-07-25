@@ -33,7 +33,6 @@ dependencies = [
     "scipy==1.18.0",
     "vmdpy==0.2",
     "PyWavelets==1.9.0",
-    "pyemd==2.0.0",
     "pyyaml==6.0.3",
     "akshare==1.18.64",
     "emd-signal==1.9.0",

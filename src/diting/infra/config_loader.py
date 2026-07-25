@@ -38,7 +38,7 @@ class ConfigLoader:
         if not path.exists():
             cls._config = {}
             return cls._config
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             cls._config = yaml.safe_load(f) or {}
         return cls._config
 
