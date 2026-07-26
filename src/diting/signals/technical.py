@@ -116,11 +116,11 @@ class TechnicalCalculator:
             fast = ind.get("macd", {}).get("fast", 12)
             slow = ind.get("macd", {}).get("slow", 26)
             signal = ind.get("macd", {}).get("signal", 9)
-        ema12 = TechnicalCalculator._ema(close, fast)
-        ema26 = TechnicalCalculator._ema(close, slow)
-        macd_line = ema12 - ema26
-        sig_line = TechnicalCalculator._ema(np.array([macd_line]), signal)
-        return float(macd_line), float(sig_line), float(macd_line - sig_line)
+        ema_fast = TechnicalCalculator._ema_series(close, fast)
+        ema_slow = TechnicalCalculator._ema_series(close, slow)
+        macd_series = ema_fast - ema_slow
+        sig_series = TechnicalCalculator._ema_series(macd_series, signal)
+        return float(macd_series[-1]), float(sig_series[-1]), float(macd_series[-1] - sig_series[-1])
 
     @staticmethod
     def _kdj(
@@ -196,7 +196,7 @@ class TechnicalCalculator:
 
     @staticmethod
     def _ema(data: ndarray, period: int) -> float:
-        """指数移动平均"""
+        """指数移动平均（返回最终值）"""
         if len(data) < period:
             return float(np.mean(data))
         alpha = 2 / (period + 1)
@@ -204,6 +204,23 @@ class TechnicalCalculator:
         for val in data[period:]:
             ema = alpha * val + (1 - alpha) * ema
         return float(ema)
+
+    @staticmethod
+    def _ema_series(data: ndarray, period: int) -> ndarray:
+        """指数移动平均（返回完整序列）"""
+        n = len(data)
+        if n == 0:
+            return np.array([])
+        if n < period:
+            return np.full(n, float(np.mean(data)))
+        alpha = 2 / (period + 1)
+        out = np.zeros(n)
+        out[period - 1] = np.mean(data[:period])
+        for i in range(period, n):
+            out[i] = alpha * data[i] + (1 - alpha) * out[i - 1]
+        # 前 period-1 个点用初始值填充
+        out[:period - 1] = out[period - 1]
+        return out
 
     # ── 辅助 ──────────────────────────────────────
 

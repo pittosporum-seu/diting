@@ -105,15 +105,23 @@ def select_samples(stock_service: StockService, limit: int) -> list[str]:
 
 
 def compute_fast_indicators(quote, sig: dict | None) -> dict:
-    """从实时行情 + 技术信号计算所有快速指标（无需 AI）。"""
+    """从实时行情/market_snapshot + 技术信号计算所有快速指标（无需 AI）。"""
     ind: dict = {}
-    # 来自实时行情
-    price = getattr(quote, "price", None) or 0.0
-    open_p = getattr(quote, "open", None) or 0.0
-    high = getattr(quote, "high", None) or 0.0
-    low = getattr(quote, "low", None) or 0.0
-
-    ind["change_pct"] = getattr(quote, "change_pct", None)
+    # 兼容对象属性访问和 dict 访问
+    if isinstance(quote, dict):
+        price = quote.get("price") or 0.0
+        open_p = quote.get("open") or 0.0
+        high = quote.get("high") or 0.0
+        low = quote.get("low") or 0.0
+        ind["change_pct"] = quote.get("change_pct")
+        ind["pe"] = quote.get("pe")
+    else:
+        price = getattr(quote, "price", None) or 0.0
+        open_p = getattr(quote, "open", None) or 0.0
+        high = getattr(quote, "high", None) or 0.0
+        low = getattr(quote, "low", None) or 0.0
+        ind["change_pct"] = getattr(quote, "change_pct", None)
+        ind["pe"] = getattr(quote, "pe", None)
     # 日内位置 0~1
     if high and low and high > low and price:
         ind["intraday_pos"] = round((price - low) / (high - low), 4)
@@ -129,7 +137,6 @@ def compute_fast_indicators(quote, sig: dict | None) -> dict:
         ind["open_strength"] = round((price - open_p) / open_p * 100, 3)
     else:
         ind["open_strength"] = None
-    ind["pe"] = getattr(quote, "pe", None)
 
     # 来自技术信号
     sig = sig or {}
@@ -163,7 +170,7 @@ def compute_fast_indicators(quote, sig: dict | None) -> dict:
     return ind
 
 
-def collect_one(stock_service: StockService, code: str) -> dict | None:
+def collect_one(stock_service: StockService, code: str, snapshot_quotes: dict | None = None) -> dict | None:
     """采集一只股票：ground truth（共识+各引擎分）+ 快速指标。"""
     try:
         resp = stock_service.analyze_stock(code, force=True)
@@ -187,8 +194,12 @@ def collect_one(stock_service: StockService, code: str) -> dict | None:
         row[f"eng_{en}"] = eng_by_name.get(en)
     row["has_ai"] = 1 if any(en in eng_by_name for en in AI_ENGINES) else 0
 
-    # 快速指标
+    # 快速指标：优先实时行情，回退 market_snapshot
     quote = stock_service.get_realtime(code)
+    price = getattr(quote, "price", None) or 0.0
+    if not price and snapshot_quotes and code in snapshot_quotes:
+        # 周末/非交易时段回退：用 market_snapshot 的上个交易日数据
+        quote = snapshot_quotes[code]
     sig = resp.signals_summary
     inds = compute_fast_indicators(quote, sig)
     row.update(inds)
@@ -204,6 +215,21 @@ def main():
 
     cm = CacheManager()
     stock_service = StockService(cache_mgr=cm)
+
+    # 加载 market_snapshot 作为回退数据源
+    snapshot_quotes: dict = {}
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(cm._path))
+        conn.row_factory = sqlite3.Row
+        for r in conn.execute("SELECT * FROM market_snapshot").fetchall():
+            d = dict(r)
+            if d.get("code"):
+                snapshot_quotes[d["code"]] = d
+        conn.close()
+        print(f"market_snapshot 回退数据: {len(snapshot_quotes)} 只")
+    except Exception as e:
+        print(f"[warn] 加载 market_snapshot 失败: {e}")
 
     samples = select_samples(stock_service, args.limit)
     print(f"样本数: {len(samples)}")
@@ -234,7 +260,7 @@ def main():
             if code in done_codes:
                 continue
             print(f"[{i + 1}/{len(samples)}] {code} ...", end=" ", flush=True)
-            row = collect_one(stock_service, code)
+            row = collect_one(stock_service, code, snapshot_quotes)
             if row:
                 if writer is None:
                     if not fieldnames:
