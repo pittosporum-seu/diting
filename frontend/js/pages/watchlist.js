@@ -2,16 +2,16 @@
  * 自选股页面 — 谛听 v0.7.1
  * 自选股列表 + 添加/删除 + 搜索建议
  */
-import { api } from '../api.js?v=0.7.6';
-import { cacheManager } from '../cache.js?v=0.7.6';
+import { api } from '../api.js?v=0.7.7';
+import { cacheManager } from '../cache.js?v=0.7.7';
 import {
   ui,
   _fmt, _pctSigned, _priceStyle, _dataTimeBar, _esc,
-} from '../ui.js?v=0.7.6';
+} from '../ui.js?v=0.7.7';
 import {
   showStatus, _renderSkeleton, _loadWithCache,
   _getStockList, _initSearchSuggestions,
-} from '../core.js?v=0.7.6';
+} from '../core.js?v=0.7.7';
 
 export async function renderWatchlist() {
   const skeleton = () => {

@@ -2,9 +2,9 @@
  * 谛听 · v0.7.2 — SPA 入口
  * 启动逻辑 + 事件处理。共享代码在 core.js。
  */
-import { state, showStatus, _loadWithCache, disposePage } from './core.js?v=0.7.6';
-import { cacheManager } from './cache.js?v=0.7.6';
-import { renderPage } from './router.js?v=0.7.6';
+import { state, showStatus, _loadWithCache, disposePage } from './core.js?v=0.7.7';
+import { cacheManager } from './cache.js?v=0.7.7';
+import { renderPage } from './router.js?v=0.7.7';
 
 // 注意: disposePage 已迁至 core.js，app.js 不再被 router.js 引用
 // → app.js → router.js → pages → core.js ✓ (无循环)
@@ -14,9 +14,9 @@ window.addEventListener('diting:watchlist_changed', () => {
   cacheManager.remove('dashboard');
   cacheManager.remove('opportunities');
   if (state.currentPage === 'dashboard') {
-    import('./pages/dashboard.js?v=0.7.6').then(m => m.renderDashboard());
+    import('./pages/dashboard.js?v=0.7.7').then(m => m.renderDashboard());
   } else if (state.currentPage === 'opportunities') {
-    import('./pages/opportunities.js?v=0.7.6').then(m => m.renderOpportunities());
+    import('./pages/opportunities.js?v=0.7.7').then(m => m.renderOpportunities());
   }
 });
 

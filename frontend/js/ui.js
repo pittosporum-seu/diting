@@ -2,7 +2,7 @@
  * UI 组件库 — 谛听 v0.7.1
  * 统计卡片、表格、错误提示、数据时间戳等公共 UI 组件
  */
-import { cacheManager } from './cache.js?v=0.7.6';
+import { cacheManager } from './cache.js?v=0.7.7';
 
 /* ── UI 组件库 ── */
 const ui = {

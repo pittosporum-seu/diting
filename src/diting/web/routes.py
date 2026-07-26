@@ -215,6 +215,29 @@ async def api_opportunities():
     return _api_response(data, freshness=freshness)
 
 
+@router.get("/api/analysis/progress")
+async def api_analysis_progress():
+    """查询后台深度分析进度。"""
+    progress = scan_service.get_deep_progress()
+    if progress is None:
+        progress = {"status": "unavailable", "total": 0, "done": 0}
+    return _api_response(progress)
+
+
+@router.post("/api/analysis/refresh")
+async def api_analysis_refresh():
+    """显式触发全量重跑：强制重扫机会并对候选跑全量分析（忽略缓存与休市限制）。"""
+    data = scan_service.get_opportunities(force_refresh=True)
+    progress = scan_service.get_deep_progress()
+    return _api_response(
+        {
+            "status": "ok",
+            "total": data.get("total", 0) if isinstance(data, dict) else 0,
+            "progress": progress,
+        }
+    )
+
+
 @router.get("/api/market-sentiment")
 async def api_market_sentiment():
     data = dashboard_service.get_market_sentiment()

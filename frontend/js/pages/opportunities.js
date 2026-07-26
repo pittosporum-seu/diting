@@ -2,14 +2,14 @@
  * 选股机会页面 — 谛听 v0.7.1
  * 自选股机会 + 全市场热点扫描 /w 统计卡片
  */
-import { api } from '../api.js?v=0.7.6';
+import { api } from '../api.js?v=0.7.7';
 import {
   ui,
   _ratingTag, _fmt, _pctSigned, _dataTimeBar, _esc,
-} from '../ui.js?v=0.7.6';
+} from '../ui.js?v=0.7.7';
 import {
   showStatus, _renderSkeleton, _loadWithCache,
-} from '../core.js?v=0.7.6';
+} from '../core.js?v=0.7.7';
 
 export async function renderOpportunities() {
   const skeleton = () => {
@@ -62,6 +62,23 @@ export async function renderOpportunities() {
     const watchlistRows = _buildTableRows(fromWatchlist);
     const marketRows = _buildTableRows(fromMarket);
 
+    // 深度分析进度指示器
+    const prog = oppData?.deep_analysis_progress;
+    let progressSection = '';
+    if (prog && prog.status === 'running' && prog.total > 0) {
+      const pctVal = Math.round((prog.done / prog.total) * 100);
+      progressSection = `
+        <div class="card" style="margin-top:12px;padding:12px 16px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);margin-bottom:6px">
+            <span>🧠 正在对候选股跑全量分析${prog.current_code ? '（' + _esc(prog.current_code) + '）' : ''}</span>
+            <span>${prog.done} / ${prog.total}</span>
+          </div>
+          <div style="height:6px;background:var(--border-color);border-radius:3px;overflow:hidden">
+            <div style="width:${pctVal}%;height:100%;background:var(--color-primary);transition:width .3s"></div>
+          </div>
+        </div>`;
+    }
+
     let watchlistSection = '';
     if (fromWatchlist.length > 0) {
       watchlistSection = `
@@ -89,6 +106,8 @@ export async function renderOpportunities() {
       <p class="page-desc">自选股 + 全市场热点扫描</p>
 
       ${ui.statGrid(4)}${ui.statCard(oppData?.total ?? '--', '总机会')}${ui.statCard(oppData?.strong_buy ?? '--', '强烈买入', 'var(--color-buy)')}${ui.statCard(oppData?.watch ?? '--', '建议关注', 'var(--color-watch)')}${ui.statCard(oppData?.avoid ?? '--', '需回避', 'var(--color-avoid)')}</div>
+
+      ${progressSection}
 
       ${watchlistSection}
       ${marketSection}

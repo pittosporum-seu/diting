@@ -170,8 +170,12 @@ class StockService(_BaseService):
 
     # ── Full Analysis ───────────────────────────────
 
-    def analyze_stock(self, code: str) -> StockAnalysisResponse:
+    def analyze_stock(self, code: str, force: bool = False) -> StockAnalysisResponse:
         """个股全流程分析，返回模板/API 通用数据结构。
+
+        Args:
+            code: 股票代码。
+            force: True 时跳过缓存、且休市也跑全量引擎（显式重跑）。
 
         Returns:
             StockAnalysisResponse dataclass（非裸 dict）。
@@ -184,9 +188,9 @@ class StockService(_BaseService):
             TechnicalSignals,
         )
 
-        # L1: 内存 TTL
+        # L1: 内存 TTL（force=True 时跳过缓存，强制重算）
         cm = self._get_cache_mgr()
-        cached = cm.mem_get_adaptive(f"analysis:{code}", trading_ttl=60)
+        cached = None if force else cm.mem_get_adaptive(f"analysis:{code}", trading_ttl=60)
         if cached is not None:
             if isinstance(cached, StockAnalysisResponse):
                 cached._cache_state = "stale"
@@ -195,9 +199,9 @@ class StockService(_BaseService):
             if isinstance(cached, dict):
                 cached["_cache_state"] = "stale"
                 return _dict_to_response(cached)
-        # L2: SQLite stock_analysis_cache
+        # L2: SQLite stock_analysis_cache（force=True 时跳过）
         try:
-            db_row = cm.db_get("stock_analysis_cache", code)
+            db_row = None if force else cm.db_get("stock_analysis_cache", code)
             if db_row and db_row.get("result_json"):
                 import json as _json
 
@@ -331,9 +335,9 @@ class StockService(_BaseService):
                     remaining=engine_names,
                 )
 
-        # v0.6.6: 非交易时段跳过 AI 引擎
+        # v0.6.6: 非交易时段跳过 AI 引擎（force=True 时休市也跑全量）
         state = get_market_state()
-        if not state.should_call_api:
+        if not state.should_call_api and not force:
             _skipped_ai = [en for en in engine_names if en in _ai_engines]
             engine_names = [en for en in engine_names if en not in _ai_engines]
             record_skipped(_skipped_ai, "non_trading_hours")

@@ -23,9 +23,9 @@ engines:
     - verdict            # 结论翻译（必选）
     - vmd_rsi            # VMD+RSI 择时
     - volume_profile     # 成交量分布
-    # - wyckoff          # 以下需 AI，当前不可用时自动跳过
-    # - buffett
-    # - can_slim
+    - wyckoff            # 以下需 AI，无 API key 或非交易时段自动 graceful skip
+    - buffett
+    - can_slim
 
   weights:
     vmd_rsi: 1.2

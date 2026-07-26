@@ -14,14 +14,37 @@ logger = _get_logger()
 class ScanService(_BaseService):
     """选股扫描服务。"""
 
+    # 深度分析候选池大小：quick 初筛后取前 N 名跑全量分析
+    CANDIDATE_POOL_SIZE = 30
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._stock_service = None
+        self._deep_analysis_mgr = None
+
+    def set_stock_service(self, stock_service) -> None:
+        """注入 StockService 以支持候选股深度分析。"""
+        from .deep_analysis import DeepAnalysisManager
+
+        self._stock_service = stock_service
+        self._deep_analysis_mgr = DeepAnalysisManager(stock_service)
+
+    def get_deep_progress(self) -> dict | None:
+        """返回后台深度分析进度（未注入 stock_service 时为 None）。"""
+        if self._deep_analysis_mgr is None:
+            return None
+        return self._deep_analysis_mgr.get_progress()
+
     def get_opportunities(self, force_refresh: bool = False) -> dict:
-        """选股机会扫描：自选股 + 全市场 Top 20。
+        """选股机会：quick 初筛 → 候选跑全量分析 → 优中选优 Top20。
 
-        v0.6.5: 支持 force_refresh 绕过 L1 缓存。
-        v0.6.5-bugfix: 非交易时段返回空，不触发阻塞扫描。
+        排行榜上的每一只都经过全量引擎分析，评分与详情页一致。
+        流程：
+        1. quick_score 初筛全市场 + 自选股 → 候选池
+        2. 后台对候选跑全量 analyze_stock（带进度）
+        3. 取已有全量分析结果的候选，按引擎共识分排序取 Top20
         """
-        from ...cache import get_market_state
-
+        # L1 缓存
         if not force_refresh:
             cm = self._get_cache_mgr()
             cached = cm.mem_get_adaptive("opportunities", trading_ttl=120)
@@ -29,36 +52,44 @@ class ScanService(_BaseService):
                 cached["_cache_state"] = "stale"
                 return cached
 
-        # v0.6.5-bugfix: 非交易时段不做全市场重扫描（避免阻塞事件循环）
-        # v0.7.6: 但不再返回空，而是用“自选股扫描 + 缓存的市场 Top20”组装最近机会
-        state = get_market_state()
-        if not state.should_call_api and not force_refresh:
-            logger.debug(
-                "services.opportunities.offhours",
-                phase=state.phase,
-            )
-            return self._build_offhours_opportunities()
-
         try:
-            # Layer 1: 自选股扫描
+            # 1. quick 初筛：全市场 Top N + 自选股
+            market_candidates = self._scan_market_top20(
+                force=force_refresh, top_n=self.CANDIDATE_POOL_SIZE
+            )
             watchlist_items = self._scan_watchlist()
 
-            # Layer 2: 全市场扫描 Top 20（缓存 1h）
-            market_items = self._scan_market_top20()
+            # 2. 候选集（去重，自选股优先）
+            candidates = self._merge_candidates(market_candidates, watchlist_items)
 
-            # 合并统计
-            all_items = watchlist_items + market_items
-            all_items.sort(key=lambda x: x["score"], reverse=True)
+            # 3. 触发后台深度分析（对候选跑全量 analyze_stock）
+            if self._deep_analysis_mgr is not None and candidates:
+                self._deep_analysis_mgr.start(
+                    [c["code"] for c in candidates], force=force_refresh
+                )
+
+            # 4. 收集已有全量分析结果的候选（引擎共识分）
+            analyzed = self._collect_analyzed(candidates)
+
+            # 5. 优中选优：按引擎分排序取 Top20
+            analyzed.sort(key=lambda x: x["score"], reverse=True)
+            top20 = analyzed[:20]
+
+            from_watchlist = [it for it in top20 if it.get("source") == "watchlist"]
+            from_market = [it for it in top20 if it.get("source") != "watchlist"]
 
             result = {
-                "total": len(all_items),
-                "strong_buy": sum(1 for r in all_items if r["score"] >= 80),
-                "watch": sum(1 for r in all_items if 65 <= r["score"] < 80),
-                "avoid": sum(1 for r in all_items if r["score"] < 20),
-                "items": all_items,
-                "from_watchlist": watchlist_items,
-                "from_market": market_items,
+                "total": len(analyzed),
+                "strong_buy": sum(1 for r in analyzed if r["score"] >= 80),
+                "watch": sum(1 for r in analyzed if 65 <= r["score"] < 80),
+                "avoid": sum(1 for r in analyzed if r["score"] < 20),
+                "items": top20,
+                "from_watchlist": from_watchlist,
+                "from_market": from_market,
             }
+            progress = self.get_deep_progress()
+            if progress is not None:
+                result["deep_analysis_progress"] = progress
             self._get_cache_mgr().mem_set("opportunities", result)
             return result
         except Exception:
@@ -72,6 +103,84 @@ class ScanService(_BaseService):
                 "from_watchlist": [],
                 "from_market": [],
             }
+
+    def _merge_candidates(
+        self, market_items: list[dict], watchlist_items: list[dict]
+    ) -> list[dict]:
+        """合并市场候选与自选股，去重（自选股优先保留）。"""
+        seen: set[str] = set()
+        candidates: list[dict] = []
+        # 自选股优先
+        for it in watchlist_items:
+            code = it.get("code")
+            if code and code not in seen:
+                seen.add(code)
+                it = dict(it)
+                it["source"] = "watchlist"
+                candidates.append(it)
+        for it in market_items:
+            code = it.get("code")
+            if code and code not in seen:
+                seen.add(code)
+                it = dict(it)
+                it.setdefault("source", "market")
+                candidates.append(it)
+        return candidates
+
+    def _get_cached_analysis(self, code: str) -> dict | None:
+        """读取某只股票的全量分析缓存（内存 → SQLite），无则 None。"""
+        import json as _json
+
+        cm = self._get_cache_mgr()
+        try:
+            cached = cm.mem_get(f"analysis:{code}")
+            if cached:
+                if isinstance(cached, dict):
+                    return cached
+                # StockAnalysisResponse dataclass
+                from dataclasses import asdict
+
+                return asdict(cached)
+        except Exception:
+            pass
+        try:
+            db_row = cm.db_get("stock_analysis_cache", code)
+            if db_row and db_row.get("result_json"):
+                return _json.loads(db_row["result_json"])
+        except Exception:
+            pass
+        return None
+
+    def _collect_analyzed(self, candidates: list[dict]) -> list[dict]:
+        """收集已有全量分析结果的候选，用引擎共识分替换 quick 分。"""
+        analyzed: list[dict] = []
+        for cand in candidates:
+            code = cand.get("code")
+            if not code:
+                continue
+            analysis = self._get_cached_analysis(code)
+            if not analysis or analysis.get("score") is None:
+                continue  # 尚未完成全量分析，不入榜
+            if analysis.get("error"):
+                continue
+            analyzed.append(
+                {
+                    "code": code,
+                    "name": analysis.get("name") or cand.get("name") or code,
+                    "price": analysis.get("price") or cand.get("price"),
+                    "change_pct": analysis.get("change_pct", cand.get("change_pct")),
+                    "score": analysis["score"],  # 引擎共识分（与详情页同源）
+                    "rating": analysis.get("rating"),
+                    "rating_label": analysis.get("rating_label"),
+                    "rating_emoji": analysis.get("rating_emoji"),
+                    "confidence": analysis.get("confidence"),
+                    "signals": cand.get("signals", []),  # quick 信号标签
+                    "quick_score": cand.get("score"),  # 保留初筛分供参考
+                    "source": cand.get("source", "market"),
+                    "analyzed": True,
+                }
+            )
+        return analyzed
 
     def _scan_watchlist(self) -> list[dict]:
         """扫描自选股评分。"""
@@ -121,39 +230,6 @@ class ScanService(_BaseService):
         except Exception:
             logger.warning("services.scan_watchlist.failed")
             return []
-
-    def _build_offhours_opportunities(self) -> dict:
-        """非交易时段组装机会：自选股（实时抓）+ 市场 Top20。
-
-        市场 Top20 策略：若已有扫描结果且之后没有再开盘（扫描日 >= 最近交易日），
-        直接复用缓存（如周五收盘后的扫描）；否则做一次全量扫描。保证任何时刻都有结果。
-        """
-        from ...cache import get_market_state
-
-        state = get_market_state()
-
-        try:
-            watchlist_items = self._scan_watchlist()
-        except Exception:
-            logger.warning("services.offhours.watchlist_failed")
-            watchlist_items = []
-
-        market_items = self._get_valid_market_top20(state.last_trade_date)
-
-        all_items = watchlist_items + market_items
-        all_items.sort(key=lambda x: x["score"], reverse=True)
-
-        result = {
-            "total": len(all_items),
-            "strong_buy": sum(1 for r in all_items if r["score"] >= 80),
-            "watch": sum(1 for r in all_items if 65 <= r["score"] < 80),
-            "avoid": sum(1 for r in all_items if r["score"] < 20),
-            "items": all_items,
-            "from_watchlist": watchlist_items,
-            "from_market": market_items,
-        }
-        self._get_cache_mgr().mem_set("opportunities", result)
-        return result
 
     def _get_valid_market_top20(self, last_trade_date) -> list[dict]:
         """获取有效的市场 Top20。
@@ -215,11 +291,12 @@ class ScanService(_BaseService):
             pass
         return [], None
 
-    def _scan_market_top20(self, force: bool = False) -> list[dict]:
-        """全市场扫描 Top 20：ashare 分批获取行情 → 过滤 → 评分 → 写入 SQLite + 内存。
+    def _scan_market_top20(self, force: bool = False, top_n: int = 20) -> list[dict]:
+        """全市场扫描：ashare 分批获取行情 → 过滤 → quick_score 评分 → 写入 SQLite + 内存。
 
         每 1h 重新扫描，使用 CacheManager 持久化 market_snapshot + market_scan_cache。
         force=True 时跳过内存缓存检查，强制重扫。
+        top_n: 返回 quick_score 排名前 top_n 名（作为深度分析候选池）。
         """
         from ...engines.rating import score_to_rating
 
@@ -330,9 +407,9 @@ class ScanService(_BaseService):
                 except Exception:
                     logger.warning("services.scan_market.stock_dict_write_failed")
 
-            # 评分排序 Top 20
+            # 评分排序，取前 top_n 名作为深度分析候选池
             all_results.sort(key=lambda x: x["score"], reverse=True)
-            top20 = all_results[:20]
+            top20 = all_results[:top_n]
 
             # 写入 market_scan_cache
             try:

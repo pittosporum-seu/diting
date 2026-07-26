@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -99,35 +99,80 @@ class TestReadLatestScan:
         assert scan_date is None
 
 
-class TestOffhoursOpportunities:
-    def test_weekend_returns_nonempty(self, scan, cache_mgr):
-        """周末有有效扫描缓存时，返回非空机会（不返回空）。"""
-        _seed_scan_db(cache_mgr, "2026-07-24", MARKET_ITEMS)
-        with patch.object(scan, "_scan_watchlist", return_value=[]):
-            with patch("src.diting.cache.get_market_state") as mock_state:
-                mock_state.return_value = MagicMock(
-                    should_call_api=False,
-                    phase="weekend",
-                    last_trade_date=date(2026, 7, 24),
-                )
-                result = scan.get_opportunities()
-        assert result["total"] == 2
-        assert len(result["from_market"]) == 2
-        assert result["items"][0]["score"] >= result["items"][-1]["score"]
+class TestTieredOpportunities:
+    """分层分析：排行榜只收录有全量分析结果的候选，用引擎共识分。"""
 
-    def test_offhours_includes_watchlist(self, scan, cache_mgr):
-        """非交易时段结果包含自选股。"""
-        _seed_scan_db(cache_mgr, "2026-07-24", MARKET_ITEMS)
-        watchlist = [{"code": "002475", "name": "立讯精密", "score": 88, "signals": []}]
-        with patch.object(scan, "_scan_watchlist", return_value=watchlist):
-            with patch("src.diting.cache.get_market_state") as mock_state:
-                mock_state.return_value = MagicMock(
-                    should_call_api=False,
-                    phase="weekend",
-                    last_trade_date=date(2026, 7, 24),
+    def _seed_analysis(self, cache_mgr, code, score, name="测试"):
+        """预置某只股票的全量分析缓存。"""
+        cache_mgr.db_set(
+            "stock_analysis_cache",
+            code,
+            {
+                "result_json": json.dumps(
+                    {
+                        "code": code,
+                        "name": name,
+                        "price": 10.0,
+                        "change_pct": 1.0,
+                        "score": score,
+                        "rating": "hold",
+                        "rating_label": "建议观望",
+                        "error": None,
+                    },
+                    ensure_ascii=False,
                 )
+            },
+        )
+
+    def test_ranking_uses_engine_score(self, scan, cache_mgr):
+        """排行榜用全量引擎分（非 quick 分），与详情页一致。"""
+        # 候选：quick 分 600000 高，但全量引擎分 600000 低、000002 高
+        market = [
+            {"code": "600000", "name": "浦发银行", "score": 90, "signals": []},
+            {"code": "000002", "name": "万科A", "score": 50, "signals": []},
+        ]
+        # 全量分析缓存：600000 引擎分 40，000002 引擎分 80
+        self._seed_analysis(cache_mgr, "600000", 40)
+        self._seed_analysis(cache_mgr, "000002", 80)
+
+        with patch.object(scan, "_scan_market_top20", return_value=market):
+            with patch.object(scan, "_scan_watchlist", return_value=[]):
                 result = scan.get_opportunities()
-        assert result["total"] == 3  # 1 自选 + 2 市场
-        assert result["from_watchlist"] == watchlist
-        # 自选股 88 分排最前
+
+        # 按引擎分排序：000002(80) 在前，600000(40) 在后
+        assert result["items"][0]["code"] == "000002"
+        assert result["items"][0]["score"] == 80
+        assert result["items"][1]["code"] == "600000"
+        assert result["items"][1]["score"] == 40
+
+    def test_only_analyzed_stocks_ranked(self, scan, cache_mgr):
+        """未完成全量分析的候选不入榜。"""
+        market = [
+            {"code": "600000", "name": "浦发银行", "score": 90, "signals": []},
+            {"code": "000002", "name": "万科A", "score": 50, "signals": []},
+        ]
+        # 只有 600000 有全量分析缓存，000002 没有
+        self._seed_analysis(cache_mgr, "600000", 70)
+
+        with patch.object(scan, "_scan_market_top20", return_value=market):
+            with patch.object(scan, "_scan_watchlist", return_value=[]):
+                result = scan.get_opportunities()
+
+        codes = [it["code"] for it in result["items"]]
+        assert "600000" in codes
+        assert "000002" not in codes  # 未全量分析，不入榜
+
+    def test_watchlist_included_when_analyzed(self, scan, cache_mgr):
+        """自选股完成全量分析后入榜。"""
+        market = [{"code": "600000", "name": "浦发银行", "score": 90, "signals": []}]
+        watchlist = [{"code": "002475", "name": "立讯精密", "score": 55, "signals": []}]
+        self._seed_analysis(cache_mgr, "600000", 60)
+        self._seed_analysis(cache_mgr, "002475", 88, name="立讯精密")
+
+        with patch.object(scan, "_scan_market_top20", return_value=market):
+            with patch.object(scan, "_scan_watchlist", return_value=watchlist):
+                result = scan.get_opportunities()
+
+        # 002475 引擎分 88 最高，排第一
         assert result["items"][0]["code"] == "002475"
+        assert result["items"][0]["source"] == "watchlist"

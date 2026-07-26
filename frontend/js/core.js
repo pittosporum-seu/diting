@@ -2,9 +2,9 @@
  * 谛听 · v0.7.2 — 共享核心（无循环依赖）
  * 被 app.js、router.js、pages/*.js 共同引用
  */
-import { cacheManager } from './cache.js?v=0.7.6';
-import { api } from './api.js?v=0.7.6';
-import { ui } from './ui.js?v=0.7.6';
+import { cacheManager } from './cache.js?v=0.7.7';
+import { api } from './api.js?v=0.7.7';
+import { ui } from './ui.js?v=0.7.7';
 
 /* ── 全局状态 ── */
 export const state = {
@@ -192,7 +192,7 @@ export function _initSearchSuggestions(inputEl, opts = {}) {
 /* ── 图表清理 ── */
 export function disposePage() {
   // charts 在运行时才需要，不在 import 时求值
-  import('./charts.js?v=0.7.6').then(m => {
+  import('./charts.js?v=0.7.7').then(m => {
     ['kline-chart', 'volume-chart', 'engine-bars', 'vmd-gauge', 'portfolio-pie'].forEach(m.charts.dispose);
   });
 }

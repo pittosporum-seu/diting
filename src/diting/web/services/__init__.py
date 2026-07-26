@@ -61,6 +61,8 @@ class AnalysisService(_BaseService):
         self._dashboard = DashboardService(**shared)
         self._watchlist = WatchlistService(**shared)
         self._scan = ScanService(**shared)
+        # 注入 StockService 给 ScanService，支持候选股深度分析
+        self._scan.set_stock_service(self._stock)
 
     @property
     def _cache_mgr(self):
@@ -91,8 +93,8 @@ class AnalysisService(_BaseService):
 
     # ── StockService 代理 ──
 
-    def analyze_stock(self, code: str) -> StockAnalysisResponse:
-        return self._stock.analyze_stock(code)
+    def analyze_stock(self, code: str, force: bool = False) -> StockAnalysisResponse:
+        return self._stock.analyze_stock(code, force=force)
 
     def get_realtime(self, code: str, force_refresh: bool = False):
         return self._stock.get_realtime(code, force_refresh)
