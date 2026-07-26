@@ -276,12 +276,22 @@ def clean_numpy(obj):
 
 
 def quick_score(q: RealtimeQuote) -> tuple[int, list[str]]:
-    """快速评分：涨跌幅连续映射。"""
+    """快速评分：多因子轻量筛选（用于全市场初筛，非最终评分）。
+
+    因子（都不需 AI/历史数据，仅用实时行情）：
+    1. 涨跌幅（主因子）
+    2. 日内位置（收在日内高/低位）
+    3. 开盘强度（收盘相对开盘）
+    4. 估值（PE，若可得）
+
+    注意：这只是初筛分，排行榜最终用全量引擎分析分（与详情页一致）。
+    """
     signals: list[str] = []
     score = 50.0
 
+    # 1. 涨跌幅（主因子）
     if q.change_pct is not None:
-        score += q.change_pct * 3
+        score += q.change_pct * 2.5
         if q.change_pct > 4:
             signals.append("强势上涨")
         elif q.change_pct > 2:
@@ -291,8 +301,37 @@ def quick_score(q: RealtimeQuote) -> tuple[int, list[str]]:
         elif q.change_pct < -2:
             signals.append("小幅下跌")
 
-    # TODO: 量比需要历史日均成交量，RealtimeQuote 没有此字段
-    # 原 turnover/volume 算的是成交均价而非量比，已移除
+    # 2. 日内位置：收在日内高位更强（0~1）
+    try:
+        if q.high and q.low and q.high > q.low and q.price is not None:
+            pos = (q.price - q.low) / (q.high - q.low)
+            score += (pos - 0.5) * 8  # ±4
+            if pos > 0.8:
+                signals.append("收于日内高位")
+            elif pos < 0.2:
+                signals.append("收于日内低位")
+    except (TypeError, ZeroDivisionError):
+        pass
+
+    # 3. 开盘强度：收盘高于开盘 = 尾盘走强
+    try:
+        if q.open and q.price is not None and q.open > 0:
+            open_strength = (q.price - q.open) / q.open * 100
+            score += max(-5, min(5, open_strength)) * 0.8  # ±4
+            if open_strength > 2:
+                signals.append("尾盘走强")
+            elif open_strength < -2:
+                signals.append("尾盘走弱")
+    except (TypeError, ZeroDivisionError):
+        pass
+
+    # 4. 估值（PE，若可得）
+    if q.pe is not None and q.pe > 0:
+        if q.pe < 20:
+            score += 3
+            signals.append("低估值")
+        elif q.pe > 60:
+            score -= 3
 
     score = max(0, min(100, round(score)))
     return score, signals
