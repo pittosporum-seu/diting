@@ -46,7 +46,7 @@ def recompute_signals(ss: StockService, code: str) -> dict | None:
         hist = ss.get_historical(code)
         if hist is None or hist.df is None or len(hist.df) < 20:
             return None
-        signals = TechnicalCalculator.compute(hist)
+        signals = TechnicalCalculator.calculate(hist)
         return {
             "rsi_14": signals.rsi_14,
             "macd_histogram": signals.macd_histogram,
