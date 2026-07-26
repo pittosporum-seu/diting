@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from ..ai.client import AIClient
+from ..ai.client import AIClient, get_llm
 from ..enums import DataType, Rating, Signal
 from ..infra.logging_config import get_logger
 from ..sandbox.executor import SandboxExecutor
@@ -55,6 +55,8 @@ WYCKOFF_SYSTEM_PROMPT = """你是一个威克夫方法分析专家。你的任�
 
 评分规则：Accumulation 阶段靠后的分数更高（A=20, B=40, C=60, D=80, E=90）
 Distribution 阶段分数更低（A=30, B=25, C=20, D=15, E=10）
+
+重要：代码必须自含所需数据（从上述摘要中取值），最后调用 analyze() 并用 print() 将返回的 dict 打印到标准输出（这是结果被捕获的唯一方式，不 print 则视为无输出）。
 """
 
 
@@ -73,7 +75,7 @@ class WyckoffEngine(AnalysisEngine):
         llm: AIClient | None = None,
         sandbox: SandboxExecutor | None = None,
     ):
-        self._llm = llm or AIClient()
+        self._llm = llm or get_llm()
         self._sandbox = sandbox or SandboxExecutor()
 
     def required_data(self) -> list[DataType]:

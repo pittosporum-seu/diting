@@ -1,6 +1,6 @@
 """谛听 · 巴菲特/芒格价值评分引擎（AI + 沙箱）"""
 
-from ..ai.client import AIClient
+from ..ai.client import AIClient, get_llm
 from ..enums import DataType, Rating
 from ..infra.logging_config import get_logger
 from ..sandbox.executor import SandboxExecutor
@@ -34,6 +34,8 @@ BUFFETT_SYSTEM = """你是巴菲特/芒格价值投资分析专家。分析给�
     "bear_reasons": ["看空理由1", "看空理由2", "看空理由3"]
 }
 每条理由必须具体、可验证并引用输入中的财务或估值指标；证据不足时返回空数组，禁止编造。
+
+重要：代码必须自含所需数据（从上述摘要中取值），最后调用 analyze() 并用 print() 将返回的 dict 打印到标准输出（这是结果被捕获的唯一方式，不 print 则视为无输出）。
 """
 
 
@@ -43,7 +45,7 @@ class BuffettEngine(AnalysisEngine):
     version = "1.0.0"
 
     def __init__(self, llm=None, sandbox=None):
-        self._llm = llm or AIClient()
+        self._llm = llm or get_llm()
         self._sandbox = sandbox or SandboxExecutor()
 
     def required_data(self):

@@ -26,11 +26,13 @@ class AIClient:
         api_key: str = "",
         temperature: float = 0.3,
         max_tokens: int = 4000,
+        api_base: str = "",
     ):
         self.model = model
         self.api_key = api_key
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.api_base = api_base
 
     def complete(
         self,
@@ -54,6 +56,7 @@ class AIClient:
         model = kwargs.pop("model", self.model)
         temperature = kwargs.pop("temperature", self.temperature)
         max_tokens = kwargs.pop("max_tokens", self.max_tokens)
+        api_base = kwargs.pop("api_base", self.api_base)
 
         start = time.perf_counter()
         try:
@@ -66,6 +69,7 @@ class AIClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 api_key=self.api_key or None,
+                api_base=api_base or None,
                 **kwargs,
             )
         except Exception as e:
@@ -105,8 +109,9 @@ def get_llm() -> AIClient:
 
         api_key = os.environ.get("AI_API_KEY", "")
         default_model = os.environ.get("AI_MODEL", "deepseek/deepseek-v4-pro")
+        api_base = os.environ.get("AI_BASE_URL", "")
 
-        # 尝试从 DB 读取用户保存的模型
+        # 尝试从 DB 读取用户保存的模型 / base_url
         model = default_model
         try:
             from ..storage import WatchlistDB
@@ -115,8 +120,10 @@ def get_llm() -> AIClient:
             saved = db.get_settings()
             if saved.get("ai_model"):
                 model = saved["ai_model"]
+            if saved.get("ai_base_url"):
+                api_base = saved["ai_base_url"]
         except Exception:
             pass
 
-        _llm = AIClient(model=model, api_key=api_key)
+        _llm = AIClient(model=model, api_key=api_key, api_base=api_base)
     return _llm
