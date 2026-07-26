@@ -112,15 +112,15 @@ class WyckoffEngine(AnalysisEngine):
             f"Period: {n} days\n"
             f"Close range: {close.min():.2f} - {close.max():.2f}\n"
             f"Current close: {close.iloc[-1]:.2f}\n"
-            f"Recent 5 closes: {[round(x,2) for x in close.iloc[-5:].tolist()]}\n"
+            f"Recent 5 closes: {[round(x, 2) for x in close.iloc[-5:].tolist()]}\n"
         )
         if "high" in hist.df.columns:
-            hi = hist.df['high'].min()
-            hm = hist.df['high'].max()
+            hi = hist.df["high"].min()
+            hm = hist.df["high"].max()
             data_summary += f"High range: {hi:.2f} - {hm:.2f}\n"
         if "low" in hist.df.columns:
-            lo = hist.df['low'].min()
-            lm = hist.df['low'].max()
+            lo = hist.df["low"].min()
+            lm = hist.df["low"].max()
             data_summary += f"Low range: {lo:.2f} - {lm:.2f}\n"
         if "volume" in hist.df.columns or "成交量" in hist.df.columns:
             vol_col = "volume" if "volume" in hist.df.columns else "成交量"

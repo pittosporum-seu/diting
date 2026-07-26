@@ -21,7 +21,7 @@ def _make_worker(cache_mgr, **cfg_overrides) -> AnalysisPrefetchWorker:
         "enabled": True,
         "idle_hour": 18,
         "batch_size": 3,
-        "stock_delay": 0,   # 测试中不等待
+        "stock_delay": 0,  # 测试中不等待
         "batch_delay": 0,
         "max_stocks": 30,
         "signal_threshold": 65,
@@ -29,9 +29,7 @@ def _make_worker(cache_mgr, **cfg_overrides) -> AnalysisPrefetchWorker:
     cfg.update(cfg_overrides)
     stock_service = MagicMock()
     scan_service = MagicMock()
-    return AnalysisPrefetchWorker(
-        stock_service, scan_service, cache_mgr=cache_mgr, cfg=cfg
-    )
+    return AnalysisPrefetchWorker(stock_service, scan_service, cache_mgr=cache_mgr, cfg=cfg)
 
 
 # ═══════════════════════════════════════════
@@ -153,7 +151,9 @@ class TestBatchExecution:
         """单只失败不中断后续抓取。"""
         w = _make_worker(cache_mgr, batch_size=3)
         w._stock_service.analyze_stock.side_effect = [
-            Exception("boom"), None, None,
+            Exception("boom"),
+            None,
+            None,
         ]
         with patch.object(w, "_build_priority_queue", return_value=["a", "b", "c"]):
             w._run_once()

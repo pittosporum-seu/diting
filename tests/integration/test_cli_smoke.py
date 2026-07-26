@@ -47,8 +47,11 @@ class TestCLISmoke:
         result = runner.invoke(cli, ["scan", "002475,603659"])
         assert result.exit_code == 0
         # When data fails, the error message should include one of the symbols
-        assert ("002475" in result.output or "603659" in result.output
-                or "数据获取失败" in result.output)
+        assert (
+            "002475" in result.output
+            or "603659" in result.output
+            or "数据获取失败" in result.output
+        )
 
     def test_scan_json(self):
         """diting scan --json 输出。"""
@@ -100,10 +103,18 @@ class TestCLISmoke:
         result = runner.invoke(cli, ["compare", "002475,600519"])
         assert result.exit_code == 0
         # Should contain stock codes, names, or a data-unavailable message
-        assert any(x in result.output for x in [
-            "002475", "600519", "数据获取失败", "无返回数据",
-            "评分", "PE", "RSI",
-        ])
+        assert any(
+            x in result.output
+            for x in [
+                "002475",
+                "600519",
+                "数据获取失败",
+                "无返回数据",
+                "评分",
+                "PE",
+                "RSI",
+            ]
+        )
 
     def test_compare_json(self):
         """diting compare --json 退出码 0。"""
@@ -127,17 +138,28 @@ class TestCLISmoke:
     def test_watchlist_with_example(self):
         """diting watchlist -f config/watchlist.example.csv 退出码 0。"""
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "watchlist", "-f", "config/watchlist.example.csv",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "watchlist",
+                "-f",
+                "config/watchlist.example.csv",
+            ],
+        )
         assert result.exit_code == 0
 
     def test_watchlist_json(self):
         """diting watchlist -f config/watchlist.example.csv --json。"""
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "watchlist", "-f", "config/watchlist.example.csv", "--json",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "watchlist",
+                "-f",
+                "config/watchlist.example.csv",
+                "--json",
+            ],
+        )
         assert result.exit_code == 0
 
     def test_init_help(self):

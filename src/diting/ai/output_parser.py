@@ -30,10 +30,19 @@ class AiOutputParser:
     """
 
     # 已知的顶层字段，其余放入 metadata
-    _KNOWN_FIELDS = frozenset({
-        "score", "narrative", "signals", "risks", "bull_reasons", "bear_reasons",
-        "confidence", "rating", "warnings",
-    })
+    _KNOWN_FIELDS = frozenset(
+        {
+            "score",
+            "narrative",
+            "signals",
+            "risks",
+            "bull_reasons",
+            "bear_reasons",
+            "confidence",
+            "rating",
+            "warnings",
+        }
+    )
 
     @staticmethod
     def parse(raw: str) -> AiEngineOutput:
@@ -85,7 +94,7 @@ class AiOutputParser:
             return {}
 
         try:
-            json_str = raw[raw.index("{"):raw.rindex("}") + 1]
+            json_str = raw[raw.index("{") : raw.rindex("}") + 1]
             # 清洗 numpy 类型：np.float64(44.57) → 44.57, np.False_ → false 等
             json_str = AiOutputParser._clean_numpy(json_str, target="json")
             return json.loads(json_str)
@@ -95,7 +104,8 @@ class AiOutputParser:
         # 回退：尝试 ast.literal_eval（处理单引号 Python dict）
         try:
             import ast
-            json_str = raw[raw.index("{"):raw.rindex("}") + 1]
+
+            json_str = raw[raw.index("{") : raw.rindex("}") + 1]
             # 清洗 numpy 类型：ast.literal_eval 也不识别这些
             json_str = AiOutputParser._clean_numpy(json_str, target="python")
             return ast.literal_eval(json_str)
@@ -116,18 +126,18 @@ class AiOutputParser:
             清洗后的文本
         """
         # np.float64(44.57) → 44.57  (json 和 python 都适用)
-        text = re.sub(r'np\.float\d*\(([^)]+)\)', r'\1', text)
+        text = re.sub(r"np\.float\d*\(([^)]+)\)", r"\1", text)
         # np.int64(10) → 10
-        text = re.sub(r'np\.int\d*\(([^)]+)\)', r'\1', text)
+        text = re.sub(r"np\.int\d*\(([^)]+)\)", r"\1", text)
         # np.bool_(True) / np.bool_(False)
-        text = re.sub(r'np\.bool_\(([^)]+)\)', r'\1', text)
+        text = re.sub(r"np\.bool_\(([^)]+)\)", r"\1", text)
 
         if target == "json":
-            text = re.sub(r'np\.False_', 'false', text)
-            text = re.sub(r'np\.True_', 'true', text)
+            text = re.sub(r"np\.False_", "false", text)
+            text = re.sub(r"np\.True_", "true", text)
         else:  # python
-            text = re.sub(r'np\.False_', 'False', text)
-            text = re.sub(r'np\.True_', 'True', text)
+            text = re.sub(r"np\.False_", "False", text)
+            text = re.sub(r"np\.True_", "True", text)
 
         return text
 

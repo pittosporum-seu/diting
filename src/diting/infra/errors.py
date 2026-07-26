@@ -10,6 +10,7 @@ from __future__ import annotations
 
 class DitingError(Exception):
     """谛听所有异常的基类"""
+
     pass
 
 

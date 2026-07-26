@@ -81,10 +81,7 @@ def _fetch_tencent_daily(code: str, count: int = 500) -> list[dict] | None:
         [{"date": "...", "open": ..., "close": ..., "high": ..., "low": ...,
           "volume": ..., "amount": ...}, ...]
     """
-    url = (
-        f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
-        f"?param={code},day,,,{count},qfq"
-    )
+    url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{count},qfq"
     try:
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
@@ -95,29 +92,31 @@ def _fetch_tencent_daily(code: str, count: int = 500) -> list[dict] | None:
         result = []
         for row in klines:
             if isinstance(row, dict):
-                result.append({
-                    "date": str(row.get("date", "")),
-                    "open": float(row.get("open", 0) or 0),
-                    "close": float(row.get("close", 0) or 0),
-                    "high": float(row.get("high", 0) or 0),
-                    "low": float(row.get("low", 0) or 0),
-                    "volume": int(float(row.get("volume", 0) or 0)),
-                    "amount": float(row.get("amount", 0) or 0),
-                })
+                result.append(
+                    {
+                        "date": str(row.get("date", "")),
+                        "open": float(row.get("open", 0) or 0),
+                        "close": float(row.get("close", 0) or 0),
+                        "high": float(row.get("high", 0) or 0),
+                        "low": float(row.get("low", 0) or 0),
+                        "volume": int(float(row.get("volume", 0) or 0)),
+                        "amount": float(row.get("amount", 0) or 0),
+                    }
+                )
             elif len(row) >= 6:
-                result.append({
-                    "date": str(row[0]),
-                    "open": float(row[1]) if not isinstance(row[1], dict) else 0,
-                    "close": float(row[2]) if not isinstance(row[2], dict) else 0,
-                    "high": float(row[3]) if not isinstance(row[3], dict) else 0,
-                    "low": float(row[4]) if not isinstance(row[4], dict) else 0,
-                    "volume": int(float(row[5]) if not isinstance(row[5], dict) else 0),
-                    "amount": (
-                        float(row[6])
-                        if len(row) > 6 and not isinstance(row[6], dict)
-                        else 0.0
-                    ),
-                })
+                result.append(
+                    {
+                        "date": str(row[0]),
+                        "open": float(row[1]) if not isinstance(row[1], dict) else 0,
+                        "close": float(row[2]) if not isinstance(row[2], dict) else 0,
+                        "high": float(row[3]) if not isinstance(row[3], dict) else 0,
+                        "low": float(row[4]) if not isinstance(row[4], dict) else 0,
+                        "volume": int(float(row[5]) if not isinstance(row[5], dict) else 0),
+                        "amount": (
+                            float(row[6]) if len(row) > 6 and not isinstance(row[6], dict) else 0.0
+                        ),
+                    }
+                )
         return result if result else None
     except Exception as e:
         logger.warning("ashare.tencent.daily.failed", code=code, error=str(e))
@@ -167,7 +166,7 @@ class AshareProvider(DataProvider):
         now = datetime.now()
 
         for i in range(0, len(symbols), batch_size):
-            batch = symbols[i:i + batch_size]
+            batch = symbols[i : i + batch_size]
             sina_codes = [_to_sina_code(s) for s in batch]
             query = ",".join(sina_codes)
             url = f"{_SINA_API}{query}"
@@ -205,9 +204,7 @@ class AshareProvider(DataProvider):
                 try:
                     price = float(parsed["price"])
                     pre_close = float(parsed["close"])
-                    change_pct = (
-                        ((price - pre_close) / pre_close * 100) if pre_close else 0.0
-                    )
+                    change_pct = ((price - pre_close) / pre_close * 100) if pre_close else 0.0
 
                     quote = RealtimeQuote(
                         symbol=code,
@@ -223,22 +220,16 @@ class AshareProvider(DataProvider):
                     )
                     results[code] = quote
                 except (ValueError, TypeError) as e:
-                    logger.warning(
-                        "ashare.realtime.row_failed", symbol=code, error=str(e)
-                    )
+                    logger.warning("ashare.realtime.row_failed", symbol=code, error=str(e))
 
         return results
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         sina_code = _to_sina_code(symbol)
         klines = _fetch_tencent_daily(sina_code, count=2000)
 
         if not klines:
-            raise DataUnavailableError(
-                f"ashare: no historical data for {symbol}"
-            )
+            raise DataUnavailableError(f"ashare: no historical data for {symbol}")
 
         import pandas as pd
 

@@ -73,6 +73,7 @@ def _get_ttl(trading_ttl: int) -> int:
     """
     try:
         from ..cache.market_state import get_market_state
+
         state = get_market_state()
         if state.is_trading:
             return trading_ttl

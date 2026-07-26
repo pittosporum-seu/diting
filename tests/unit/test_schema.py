@@ -25,8 +25,15 @@ from src.diting.schema import (
 class TestRealtimeQuote:
     def test_create_and_asdict(self):
         q = RealtimeQuote(
-            symbol="002475", name="立讯精密", price=70.4, change_pct=2.1,
-            open=69.0, high=71.0, low=68.5, volume=10000, turnover=700000,
+            symbol="002475",
+            name="立讯精密",
+            price=70.4,
+            change_pct=2.1,
+            open=69.0,
+            high=71.0,
+            low=68.5,
+            volume=10000,
+            turnover=700000,
         )
         d = asdict(q)
         assert d["symbol"] == "002475"
@@ -35,16 +42,30 @@ class TestRealtimeQuote:
 
     def test_optional_fields_default_none(self):
         q = RealtimeQuote(
-            symbol="002475", name="立讯精密", price=70.4, change_pct=2.1,
-            open=69.0, high=71.0, low=68.5, volume=10000, turnover=700000,
+            symbol="002475",
+            name="立讯精密",
+            price=70.4,
+            change_pct=2.1,
+            open=69.0,
+            high=71.0,
+            low=68.5,
+            volume=10000,
+            turnover=700000,
         )
         assert q.pe is None
         assert q.pb is None
 
     def test_frozen_prevents_mutation(self):
         q = RealtimeQuote(
-            symbol="002475", name="立讯精密", price=70.4, change_pct=2.1,
-            open=69.0, high=71.0, low=68.5, volume=10000, turnover=700000,
+            symbol="002475",
+            name="立讯精密",
+            price=70.4,
+            change_pct=2.1,
+            open=69.0,
+            high=71.0,
+            low=68.5,
+            volume=10000,
+            turnover=700000,
         )
         with pytest.raises(Exception):
             q.price = 80.0  # type: ignore
@@ -52,9 +73,17 @@ class TestRealtimeQuote:
     def test_json_roundtrip_restores_datetime_and_source(self):
         timestamp = datetime(2026, 7, 15, 10, 30)
         quote = RealtimeQuote(
-            symbol="002475", name="立讯精密", price=70.4, change_pct=2.1,
-            open=69.0, high=71.0, low=68.5, volume=10000, turnover=700000,
-            timestamp=timestamp, source=DataSource.MX_DATA,
+            symbol="002475",
+            name="立讯精密",
+            price=70.4,
+            change_pct=2.1,
+            open=69.0,
+            high=71.0,
+            low=68.5,
+            volume=10000,
+            turnover=700000,
+            timestamp=timestamp,
+            source=DataSource.MX_DATA,
         )
         payload = asdict(quote)
         payload["timestamp"] = payload["timestamp"].isoformat()
@@ -75,8 +104,11 @@ class TestRealtimeQuote:
 class TestVMDResult:
     def test_create(self):
         v = VMDResult(
-            symbol="002475", cycle_position=0.3, trend_slope=0.15,
-            dominant_period=14, trend_broken=False,
+            symbol="002475",
+            cycle_position=0.3,
+            trend_slope=0.15,
+            dominant_period=14,
+            trend_broken=False,
         )
         assert v.cycle_position == 0.3
         assert not v.trend_broken
@@ -87,12 +119,23 @@ class TestTechnicalSignals:
     def test_create_minimal(self):
         ts = TechnicalSignals(
             symbol="002475",
-            rsi_14=45.0, macd=0.5, macd_signal_line=0.3, macd_histogram=0.2,
-            kdj_k=50.0, kdj_d=48.0, kdj_j=54.0,
-            bollinger_upper=75.0, bollinger_middle=70.0, bollinger_lower=65.0,
+            rsi_14=45.0,
+            macd=0.5,
+            macd_signal_line=0.3,
+            macd_histogram=0.2,
+            kdj_k=50.0,
+            kdj_d=48.0,
+            kdj_j=54.0,
+            bollinger_upper=75.0,
+            bollinger_middle=70.0,
+            bollinger_lower=65.0,
             bollinger_position=0.5,
-            ma_5=71.0, ma_20=70.0, ma_60=68.0,
-            vwap=70.5, vwap_deviation=-0.1, volume_ratio=0.85,
+            ma_5=71.0,
+            ma_20=70.0,
+            ma_60=68.0,
+            vwap=70.5,
+            vwap_deviation=-0.1,
+            volume_ratio=0.85,
         )
         assert ts.rsi_14 == 45.0
         assert isinstance(ts.timestamp, datetime)
@@ -106,8 +149,15 @@ class TestAnalysisContext:
 
     def test_with_data(self):
         q = RealtimeQuote(
-            symbol="002475", name="立讯精密", price=70.4, change_pct=2.1,
-            open=69.0, high=71.0, low=68.5, volume=10000, turnover=700000,
+            symbol="002475",
+            name="立讯精密",
+            price=70.4,
+            change_pct=2.1,
+            open=69.0,
+            high=71.0,
+            low=68.5,
+            volume=10000,
+            turnover=700000,
         )
         ctx = AnalysisContext(symbol="002475", realtime=q)
         assert ctx.realtime.price == 70.4
@@ -116,8 +166,11 @@ class TestAnalysisContext:
 class TestAnalysisResult:
     def test_minimal(self):
         r = AnalysisResult(
-            engine_name="wyckoff", engine_version="1.0.0",
-            symbol="002475", score=65.0, rating=Rating.BUY,
+            engine_name="wyckoff",
+            engine_version="1.0.0",
+            symbol="002475",
+            score=65.0,
+            rating=Rating.BUY,
         )
         assert r.score == 65.0
         assert r.rating == Rating.BUY
@@ -127,8 +180,11 @@ class TestAnalysisResult:
 
     def test_empty_signals_and_risks_json_roundtrip(self):
         result = AnalysisResult(
-            engine_name="wyckoff", engine_version="1.0.0",
-            symbol="002475", score=65.0, rating=Rating.BUY,
+            engine_name="wyckoff",
+            engine_version="1.0.0",
+            symbol="002475",
+            score=65.0,
+            rating=Rating.BUY,
         )
         payload = asdict(result)
         payload["rating"] = payload["rating"].value
@@ -147,7 +203,9 @@ class TestAnalysisResult:
 class TestConsensusScore:
     def test_create(self):
         cs = ConsensusScore(
-            symbol="002475", weighted_score=72.5, rating=Rating.ACCUMULATE,
+            symbol="002475",
+            weighted_score=72.5,
+            rating=Rating.ACCUMULATE,
         )
         assert cs.weighted_score == 72.5
         assert cs.engines_used == ()
@@ -210,17 +268,22 @@ class TestStockAnalysisResponse:
             price=70.4,
             change_pct=2.1,
             score=82.0,
-            engine_scores=[EngineScoreItem(
-                engine_name="wyckoff",
-                score=85.0,
-                rating="strong_buy",
-                rating_label="强烈买入",
-                confidence=0.9,
-                duration_ms=120,
-            )],
-            engine_skipped=[EngineSkipInfo(
-                engine_name="buffett", reason="no_api_key",
-            )],
+            engine_scores=[
+                EngineScoreItem(
+                    engine_name="wyckoff",
+                    score=85.0,
+                    rating="strong_buy",
+                    rating_label="强烈买入",
+                    confidence=0.9,
+                    duration_ms=120,
+                )
+            ],
+            engine_skipped=[
+                EngineSkipInfo(
+                    engine_name="buffett",
+                    reason="no_api_key",
+                )
+            ],
             bull_reasons=["Spring确认"],
             signals_summary={"rsi_14": 45.0},
             _cache_state="cached",
@@ -234,12 +297,8 @@ class TestStockAnalysisResponse:
             "confidence": 0.9,
             "duration_ms": 120,
         }
-        decoded["engine_scores"] = [
-            EngineScoreItem(**item) for item in decoded["engine_scores"]
-        ]
-        decoded["engine_skipped"] = [
-            EngineSkipInfo(**item) for item in decoded["engine_skipped"]
-        ]
+        decoded["engine_scores"] = [EngineScoreItem(**item) for item in decoded["engine_scores"]]
+        decoded["engine_skipped"] = [EngineSkipInfo(**item) for item in decoded["engine_skipped"]]
 
         restored = StockAnalysisResponse(**decoded)
         assert restored.engine_scores[0].engine_name == "wyckoff"

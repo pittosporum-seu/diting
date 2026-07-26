@@ -17,32 +17,56 @@ logger = get_logger(__name__)
 # 格式: date(年, 月, 日)
 _HOLIDAYS: set[date] = {
     # 元旦 2026-01-01 ~ 2026-01-03
-    date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3),
+    date(2026, 1, 1),
+    date(2026, 1, 2),
+    date(2026, 1, 3),
     # 春节 2026-02-15 ~ 2026-02-21
-    date(2026, 2, 15), date(2026, 2, 16), date(2026, 2, 17),
-    date(2026, 2, 18), date(2026, 2, 19), date(2026, 2, 20), date(2026, 2, 21),
+    date(2026, 2, 15),
+    date(2026, 2, 16),
+    date(2026, 2, 17),
+    date(2026, 2, 18),
+    date(2026, 2, 19),
+    date(2026, 2, 20),
+    date(2026, 2, 21),
     # 清明节 2026-04-04 ~ 2026-04-06
-    date(2026, 4, 4), date(2026, 4, 5), date(2026, 4, 6),
+    date(2026, 4, 4),
+    date(2026, 4, 5),
+    date(2026, 4, 6),
     # 劳动节 2026-05-01 ~ 2026-05-05
-    date(2026, 5, 1), date(2026, 5, 2), date(2026, 5, 3),
-    date(2026, 5, 4), date(2026, 5, 5),
+    date(2026, 5, 1),
+    date(2026, 5, 2),
+    date(2026, 5, 3),
+    date(2026, 5, 4),
+    date(2026, 5, 5),
     # 端午节 2026-06-25 ~ 2026-06-27
-    date(2026, 6, 25), date(2026, 6, 26), date(2026, 6, 27),
+    date(2026, 6, 25),
+    date(2026, 6, 26),
+    date(2026, 6, 27),
     # 中秋节 2026-09-25 ~ 2026-09-27
-    date(2026, 9, 25), date(2026, 9, 26), date(2026, 9, 27),
+    date(2026, 9, 25),
+    date(2026, 9, 26),
+    date(2026, 9, 27),
     # 国庆节 2026-10-01 ~ 2026-10-07
-    date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 3),
-    date(2026, 10, 4), date(2026, 10, 5), date(2026, 10, 6), date(2026, 10, 7),
+    date(2026, 10, 1),
+    date(2026, 10, 2),
+    date(2026, 10, 3),
+    date(2026, 10, 4),
+    date(2026, 10, 5),
+    date(2026, 10, 6),
+    date(2026, 10, 7),
 }
 
 # 调休上班日（周末但上班）
 _WORK_WEEKENDS: set[date] = {
     # 春节调休: 2026-02-14(六), 2026-02-22(日)
-    date(2026, 2, 14), date(2026, 2, 22),
+    date(2026, 2, 14),
+    date(2026, 2, 22),
     # 劳动节调休: 2026-04-26(日), 2026-05-09(六)
-    date(2026, 4, 26), date(2026, 5, 9),
+    date(2026, 4, 26),
+    date(2026, 5, 9),
     # 国庆调休: 2026-09-19(六), 2026-10-10(六)
-    date(2026, 9, 19), date(2026, 10, 10),
+    date(2026, 9, 19),
+    date(2026, 10, 10),
 }
 
 # ── A 股交易时段 ──
@@ -133,6 +157,7 @@ def _check_stock_dict_refresh() -> bool:
     """
     try:
         from .cache_manager import CacheManager
+
         cm = CacheManager()
         row = cm.db_get("stock_dict", "__last_refresh__")
         if row and row.get("updated_at"):
@@ -150,14 +175,19 @@ def _update_stock_dict_refresh() -> None:
     """更新 stock_dict 刷新记录。"""
     try:
         from .cache_manager import CacheManager
+
         cm = CacheManager()
-        cm.db_set("stock_dict", "__last_refresh__", {
-            "name": "__last_refresh__",
-            "pinyin": "",
-            "market": "",
-            "status": "ok",
-            "updated_at": datetime.now(),
-        })
+        cm.db_set(
+            "stock_dict",
+            "__last_refresh__",
+            {
+                "name": "__last_refresh__",
+                "pinyin": "",
+                "market": "",
+                "status": "ok",
+                "updated_at": datetime.now(),
+            },
+        )
     except Exception:
         pass
 

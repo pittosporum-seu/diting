@@ -49,27 +49,35 @@ class WatchlistService(_BaseService):
                     if not code:
                         continue
                     cached = cm.db_get("market_snapshot", code) if cm else None
-                    results.append({
-                        "code": code,
-                        "name": (cached.get("name") if cached else None)
-                        or s.get("name", code),
-                        "price": cached.get("price") if cached else None,
-                        "change_pct": cached.get("change_pct") if cached else None,
-                        "volume": cached.get("volume") if cached else None,
-                    })
+                    results.append(
+                        {
+                            "code": code,
+                            "name": (cached.get("name") if cached else None) or s.get("name", code),
+                            "price": cached.get("price") if cached else None,
+                            "change_pct": cached.get("change_pct") if cached else None,
+                            "volume": cached.get("volume") if cached else None,
+                        }
+                    )
                 return results
             except Exception:
                 return []
 
         try:
-            cfg = Config()
-            stocks = cfg.load_watchlist(validate=False)
-            codes = [s["code"] for s in stocks if s.get("code")]
+            # 优先从自选股 DB（用户通过 UI 维护）读取，空则回退配置文件的静态列表
+            stocks = self._db().list()
+            if not stocks:
+                cfg = Config()
+                stocks = cfg.load_watchlist(validate=False)
+            codes = [
+                s.get("code") or s.get("symbol", "")
+                for s in stocks
+                if (s.get("code") or s.get("symbol"))
+            ]
 
             repo = self._build_repo()
             all_quotes: dict = {}
             for i in range(0, len(codes), 4):
-                batch = codes[i:i + 4]
+                batch = codes[i : i + 4]
                 try:
                     all_quotes.update(repo.get_realtime(batch))
                 except Exception:
@@ -77,16 +85,20 @@ class WatchlistService(_BaseService):
 
             results = []
             for s in stocks:
-                code = s.get("code", "")
+                code = s.get("code") or s.get("symbol", "")
+                if not code:
+                    continue
                 q = all_quotes.get(code)
-                results.append({
-                    "code": code,
-                    "name": q.name if q else s.get("name", code),
-                    "price": q.price if q else None,
-                    "change_pct": q.change_pct if q else None,
-                    "volume": q.volume if q else None,
-                    "pe": q.pe if q else None,
-                })
+                results.append(
+                    {
+                        "code": code,
+                        "name": q.name if q else s.get("name", code),
+                        "price": q.price if q else None,
+                        "change_pct": q.change_pct if q else None,
+                        "volume": q.volume if q else None,
+                        "pe": q.pe if q else None,
+                    }
+                )
             return results
         except Exception:
             logger.warning("services.watchlist.failed")

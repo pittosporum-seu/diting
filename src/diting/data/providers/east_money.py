@@ -86,9 +86,7 @@ class EastMoneyProvider(DataProvider):
                     headers=_HEADERS,
                     timeout=5,
                 )
-                self._available = (
-                    resp.status_code == 200 and "data" in resp.json()
-                )
+                self._available = resp.status_code == 200 and "data" in resp.json()
             except Exception:
                 self._available = False
         return self._available
@@ -134,9 +132,7 @@ class EastMoneyProvider(DataProvider):
             try:
                 raw = data.get("data")
                 if not raw:
-                    logger.warning(
-                        "east_money.realtime.empty_data", code=code
-                    )
+                    logger.warning("east_money.realtime.empty_data", code=code)
                     continue
 
                 price = _div100(raw.get("f43", 0))
@@ -228,9 +224,7 @@ class EastMoneyProvider(DataProvider):
 
         klines = data.get("data", {}).get("klines", [])
         if not klines:
-            raise DataUnavailableError(
-                f"east_money: no fund flow data for {symbol}"
-            )
+            raise DataUnavailableError(f"east_money: no fund flow data for {symbol}")
 
         # 取最新一行（最近交易日）
         latest = klines[-1]
@@ -240,16 +234,14 @@ class EastMoneyProvider(DataProvider):
             parts = list(latest)
 
         if len(parts) < 11:
-            raise DataUnavailableError(
-                f"east_money: unexpected fund flow format for {symbol}"
-            )
+            raise DataUnavailableError(f"east_money: unexpected fund flow format for {symbol}")
 
         try:
             raw_date = parts[0].strip()
             if len(raw_date) >= 10:
                 flow_date = date.fromisoformat(raw_date[:10])
             else:
-                flow_date = (day or date.today())
+                flow_date = day or date.today()
 
             return FundFlow(
                 symbol=symbol,
@@ -270,10 +262,6 @@ class EastMoneyProvider(DataProvider):
 
     # ── 历史行情（暂不支持）─────────────────────────────
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         """东方财富暂不实现历史日线（已有 ashare/eltdx 覆盖）。"""
-        raise DataUnavailableError(
-            "east_money does not support historical data"
-        )
+        raise DataUnavailableError("east_money does not support historical data")

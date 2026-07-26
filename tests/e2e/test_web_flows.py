@@ -12,6 +12,7 @@ def client() -> TestClient:
 
     with patch("src.diting.web.app.start_prefetch_worker"):
         from src.diting.web.app import app
+
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 
@@ -23,7 +24,6 @@ class TestDashboardFlow:
         resp = client.get("/api/dashboard")
         assert resp.status_code == 200
         body = resp.json()
-        data = body["data"]
         # 应包含核心字段
         assert "server_time" in body
         assert "freshness" in body

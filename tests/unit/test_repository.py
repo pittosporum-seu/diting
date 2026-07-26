@@ -34,20 +34,26 @@ class HealthyProvider(DataProvider):
     def fetch_realtime(self, symbols: list[str]) -> dict[str, RealtimeQuote]:
         return {
             s: RealtimeQuote(
-                symbol=s, name=f"Healthy{s}", price=100.0, change_pct=1.0,
-                open=99.0, high=101.0, low=98.5,
-                volume=10000, turnover=1000000,
+                symbol=s,
+                name=f"Healthy{s}",
+                price=100.0,
+                change_pct=1.0,
+                open=99.0,
+                high=101.0,
+                low=98.5,
+                volume=10000,
+                turnover=1000000,
             )
             for s in symbols
         }
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         return HistoricalData(
-            symbol=symbol, df=None,
+            symbol=symbol,
+            df=None,
             columns=["date", "open", "close"],
-            start_date=start, end_date=end,
+            start_date=start,
+            end_date=end,
         )
 
 
@@ -68,9 +74,7 @@ class UnhealthyProvider(DataProvider):
     def fetch_realtime(self, symbols: list[str]) -> dict[str, RealtimeQuote]:
         raise DataUnavailableError("unhealthy")
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         raise DataUnavailableError("unhealthy")
 
 
@@ -96,21 +100,27 @@ class PartialProvider(DataProvider):
         for s in symbols:
             if s not in self.missing:
                 result[s] = RealtimeQuote(
-                    symbol=s, name=f"Partial{s}", price=50.0, change_pct=0.5,
-                    open=49.5, high=50.5, low=49.0,
-                    volume=5000, turnover=250000,
+                    symbol=s,
+                    name=f"Partial{s}",
+                    price=50.0,
+                    change_pct=0.5,
+                    open=49.5,
+                    high=50.5,
+                    low=49.0,
+                    volume=5000,
+                    turnover=250000,
                 )
         return result
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         if symbol in self.missing:
             raise DataUnavailableError(f"partial: no data for {symbol}")
         return HistoricalData(
-            symbol=symbol, df=None,
+            symbol=symbol,
+            df=None,
             columns=["date", "close"],
-            start_date=start, end_date=end,
+            start_date=start,
+            end_date=end,
         )
 
 
@@ -159,10 +169,12 @@ class TestFallbackChain:
 
     def test_partial_fallback(self):
         """partial 返回了部分，其余从下一个 provider 补"""
-        repo = MarketDataRepository([
-            PartialProvider(missing=["603659"]),
-            HealthyProvider(),
-        ])
+        repo = MarketDataRepository(
+            [
+                PartialProvider(missing=["603659"]),
+                HealthyProvider(),
+            ]
+        )
         results = repo.get_realtime(["002475", "603659"])
         # 002475 从 partial 获取
         assert results["002475"].price == 50.0
@@ -177,32 +189,36 @@ class TestFallbackChain:
 
     def test_historical_fallback_on_failure(self):
         """历史数据优先用 priority=10，失败则降级"""
-        repo = MarketDataRepository([
-            PartialProvider(missing=["002475"]),
-            HealthyProvider(),
-        ])
-        # partial 没有 002475 的历史数据 → 降级到 healthy
-        result = repo.get_historical(
-            "002475", date(2026, 1, 1), date(2026, 6, 30)
+        repo = MarketDataRepository(
+            [
+                PartialProvider(missing=["002475"]),
+                HealthyProvider(),
+            ]
         )
+        # partial 没有 002475 的历史数据 → 降级到 healthy
+        result = repo.get_historical("002475", date(2026, 1, 1), date(2026, 6, 30))
         assert result.symbol == "002475"
 
 
 class TestHealthCheck:
     def test_health_check(self):
-        repo = MarketDataRepository([
-            HealthyProvider(),
-            UnhealthyProvider(),
-        ])
+        repo = MarketDataRepository(
+            [
+                HealthyProvider(),
+                UnhealthyProvider(),
+            ]
+        )
         status = repo.health_check()
         assert status["healthy"] is True
         assert status["unhealthy"] is False
 
     def test_available_providers(self):
-        repo = MarketDataRepository([
-            HealthyProvider(),
-            UnhealthyProvider(),
-        ])
+        repo = MarketDataRepository(
+            [
+                HealthyProvider(),
+                UnhealthyProvider(),
+            ]
+        )
         available = repo.available_providers
         assert "healthy" in available
         assert "unhealthy" not in available
@@ -222,20 +238,20 @@ class TestSourceAnnotation:
 class ChineseColumnsProvider(HealthyProvider):
     """Return provider data using Chinese market column names."""
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
-        frame = pd.DataFrame({
-            "日期": ["2026-01-02"],
-            "开盘": [10.0],
-            "最高": [11.0],
-            "最低": [9.5],
-            "收盘": [10.5],
-            "成交量": [1000],
-            "成交额": [10500.0],
-            "时间": ["15:00:00"],
-            "涨跌幅": [5.0],
-        })
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
+        frame = pd.DataFrame(
+            {
+                "日期": ["2026-01-02"],
+                "开盘": [10.0],
+                "最高": [11.0],
+                "最低": [9.5],
+                "收盘": [10.5],
+                "成交量": [1000],
+                "成交额": [10500.0],
+                "时间": ["15:00:00"],
+                "涨跌幅": [5.0],
+            }
+        )
         return HistoricalData(
             symbol=symbol,
             df=frame,
@@ -278,7 +294,14 @@ class TestColumnNormalization:
         result = repo.get_historical("002475", date(2026, 1, 1), date(2026, 1, 31))
 
         assert result.columns == [
-            "date", "open", "high", "low", "close",
-            "volume", "turnover", "time", "change_pct",
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "turnover",
+            "time",
+            "change_pct",
         ]
         assert list(result.df.columns) == result.columns

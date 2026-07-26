@@ -39,9 +39,7 @@ class FakeProvider(DataProvider):
             for s in symbols
         }
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         return HistoricalData(
             symbol=symbol,
             df=None,
@@ -68,9 +66,7 @@ class FailingProvider(DataProvider):
     def fetch_realtime(self, symbols: list[str]) -> dict[str, RealtimeQuote]:
         raise DataUnavailableError("failing provider always fails")
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         raise DataUnavailableError("failing provider always fails")
 
 
@@ -114,9 +110,7 @@ class TestFakeProvider:
 
     def test_fetch_historical(self):
         p = FakeProvider()
-        result = p.fetch_historical(
-            "002475", date(2026, 1, 1), date(2026, 6, 30)
-        )
+        result = p.fetch_historical("002475", date(2026, 1, 1), date(2026, 6, 30))
         assert result.symbol == "002475"
         assert result.start_date == date(2026, 1, 1)
         assert "close" in result.columns

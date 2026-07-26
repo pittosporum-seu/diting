@@ -1,4 +1,37 @@
 # Tests 子 workflow
+# 核心测试（非网络）为必过门禁；网络测试单独跑，允许偶发失败不阻塞。
+
+name: Tests
+
+on:
+  workflow_call:
+
+jobs:
+  # 核心测试：不依赖外部网络，必须通过
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      - name: Run core tests (no network)
+        run: uv run pytest tests/ -m "not network" -v --tb=short
+
+  # 网络测试：依赖 ashare/腾讯等外部源，偶发失败不阻塞主门禁
+  pytest-network:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      - name: Run network tests (allowed to be flaky)
+        run: uv run pytest tests/ -m "network" -v --tb=short
+# Tests 子 workflow
 
 name: Tests
 

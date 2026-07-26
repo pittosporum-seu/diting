@@ -62,10 +62,14 @@ class TestCacheDbGetBoundary:
 
             # 用 CacheManager 建表（有 key, value, updated_at, expires_at, tier 五列）
             cm = CacheManager(db_path=str(db_path))
-            cm.db_set("cache_meta", "partial_key", {
-                "key": "partial_key",
-                "value": "hello",
-            })
+            cm.db_set(
+                "cache_meta",
+                "partial_key",
+                {
+                    "key": "partial_key",
+                    "value": "hello",
+                },
+            )
 
             # 手动删除 expires_at 列，模拟列数不匹配
             conn = sqlite3.connect(str(db_path))
@@ -95,10 +99,14 @@ class TestCacheDbGetBoundary:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test.db"
             cm = CacheManager(db_path=str(db_path))
-            cm.db_set("cache_meta", "extra_key", {
-                "key": "extra_key",
-                "value": "world",
-            })
+            cm.db_set(
+                "cache_meta",
+                "extra_key",
+                {
+                    "key": "extra_key",
+                    "value": "world",
+                },
+            )
 
             # 手动加一列
             conn = sqlite3.connect(str(db_path))

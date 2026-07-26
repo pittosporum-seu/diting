@@ -25,6 +25,7 @@ def client() -> TestClient:
 
     with patch("src.diting.web.app.start_prefetch_worker"):
         from src.diting.web.app import app
+
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 
@@ -152,15 +153,27 @@ class TestMarketIndices:
 class TestSignalStats:
     """验证 buy/watch/hold/avoid 信号计数。"""
 
-    @pytest.mark.parametrize("field", [
-        "buy_signals", "watch_signals", "hold_signals", "avoid_signals",
-    ])
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "buy_signals",
+            "watch_signals",
+            "hold_signals",
+            "avoid_signals",
+        ],
+    )
     def test_signal_count_exists(self, dashboard: dict, field: str):
         assert field in dashboard["data"], f"缺少 {field}"
 
-    @pytest.mark.parametrize("field", [
-        "buy_signals", "watch_signals", "hold_signals", "avoid_signals",
-    ])
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "buy_signals",
+            "watch_signals",
+            "hold_signals",
+            "avoid_signals",
+        ],
+    )
     def test_signal_count_is_non_negative_int(self, dashboard: dict, field: str):
         val = dashboard["data"][field]
         assert isinstance(val, int), f"{field} 应为 int，实际 {type(val)}"

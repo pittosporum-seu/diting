@@ -49,8 +49,11 @@ class CANSLIMEngine(AnalysisEngine):
     def analyze(self, context: AnalysisContext) -> AnalysisResult:
         if not context.realtime:
             return AnalysisResult(
-                engine_name=self.name, engine_version=self.version,
-                symbol=context.symbol, score=0, rating=Rating.HOLD,
+                engine_name=self.name,
+                engine_version=self.version,
+                symbol=context.symbol,
+                score=0,
+                rating=Rating.HOLD,
                 error="No data",
             )
 
@@ -62,8 +65,10 @@ class CANSLIMEngine(AnalysisEngine):
         output = self._run_ai(CANSLIM_SYSTEM, info)
 
         return AnalysisResult(
-            engine_name=self.name, engine_version=self.version,
-            symbol=context.symbol, score=output.score,
+            engine_name=self.name,
+            engine_version=self.version,
+            symbol=context.symbol,
+            score=output.score,
             rating=score_to_rating(output.score),
             narrative=output.narrative,
             confidence=0.6,

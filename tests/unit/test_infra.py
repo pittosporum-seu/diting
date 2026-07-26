@@ -1,6 +1,5 @@
 """infra 层测试：异常 + 装饰器"""
 
-
 import pytest
 
 from src.diting.infra.decorators import cached, log_latency, retry

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -47,6 +47,7 @@ class TestProviderFallback:
     def _make_repo(self, providers):
         """创建带空缓存的 Repository。"""
         from src.diting.data.cache import CacheLayer
+
         empty_cache = CacheLayer(max_size=10, default_ttl=0)
         return MarketDataRepository(providers=providers, cache=empty_cache)
 

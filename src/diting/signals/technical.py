@@ -48,9 +48,7 @@ class TechnicalCalculator:
         volume = cls._get_column(df, "volume")
 
         if len(close) < 20:
-            raise DataUnavailableError(
-                f"Need >=20 rows for {data.symbol}, got {len(close)}"
-            )
+            raise DataUnavailableError(f"Need >=20 rows for {data.symbol}, got {len(close)}")
 
         ind = cls._indicator_config()
         rsi_period = ind.get("rsi", {}).get("period", 14)
@@ -234,6 +232,4 @@ class TechnicalCalculator:
                 if arr.dtype == object:
                     arr = arr.astype(float)
                 return arr
-        raise DataUnavailableError(
-            f"Column '{col_name}' not found in {df.columns.tolist()}"
-        )
+        raise DataUnavailableError(f"Column '{col_name}' not found in {df.columns.tolist()}")

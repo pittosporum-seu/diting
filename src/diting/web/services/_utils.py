@@ -20,6 +20,7 @@ def _get_logger():
     global logger
     if logger is None:
         from ...infra.logging_config import get_logger
+
         logger = get_logger(__name__)
     return logger
 
@@ -46,6 +47,7 @@ _RATING_EMOJI: dict[str, str] = {
 
 # ── Shared base class ──────────────────────────────
 
+
 class _BaseService:
     """所有 service 类的共享基类，提供 CacheManager / WatchlistDB / repo 构建。"""
 
@@ -67,6 +69,7 @@ class _BaseService:
         """获取缓存管理器实例（延迟初始化）。"""
         if self._cache_mgr is None:
             from ...cache import CacheManager
+
             self._cache_mgr = CacheManager()
         return self._cache_mgr
 
@@ -74,6 +77,7 @@ class _BaseService:
         """获取 WatchlistDB 实例（用于读写 watchlist + settings）。"""
         if self._watchlist_db is None:
             from ...storage import WatchlistDB
+
             self._watchlist_db = WatchlistDB()
         return self._watchlist_db
 
@@ -146,6 +150,7 @@ class _BaseService:
 
 # ── Pure utility functions ─────────────────────────
 
+
 def extract_chart_arrays(df) -> dict:
     """从历史 DataFrame 提取图表数据（OHLC / Volume / MA / Boll / RSI 序列）。"""
     import numpy as np
@@ -215,8 +220,7 @@ def extract_chart_arrays(df) -> dict:
 
     if n >= 5:
         result["ma_5"] = [
-            _safe(v)
-            for v in df[col_map["close"]].astype(float).rolling(window=5).mean()
+            _safe(v) for v in df[col_map["close"]].astype(float).rolling(window=5).mean()
         ]
     if n >= 20:
         ma20 = df[col_map["close"]].astype(float).rolling(window=20).mean()
@@ -234,10 +238,7 @@ def extract_chart_arrays(df) -> dict:
         rsi = np.full(n, np.nan)
         avg_gain = float(np.mean(gain[:14]))
         avg_loss = float(np.mean(loss[:14]))
-        rsi[14] = (
-            100.0 if avg_loss == 0
-            else float(100 - 100 / (1 + avg_gain / avg_loss))
-        )
+        rsi[14] = 100.0 if avg_loss == 0 else float(100 - 100 / (1 + avg_gain / avg_loss))
         for i in range(15, n):
             avg_gain = (avg_gain * 13 + gain[i - 1]) / 14
             avg_loss = (avg_loss * 13 + loss[i - 1]) / 14
@@ -256,13 +257,13 @@ def clean_numpy(obj):
     from datetime import datetime as dt
 
     import numpy as np
+
     if is_dataclass(obj):
         return clean_numpy(asdict(obj))
     if isinstance(obj, dt):
         return str(obj)
     if isinstance(obj, dict):
-        return {k: clean_numpy(v) for k, v in obj.items()
-                if not k.startswith('_')}
+        return {k: clean_numpy(v) for k, v in obj.items() if not k.startswith("_")}
     if isinstance(obj, (list, tuple)):
         return [clean_numpy(v) for v in obj]
     if isinstance(obj, np.integer):
@@ -310,10 +311,8 @@ def load_stock_list() -> list[dict]:
     try:
         import json as _json
         from pathlib import Path as _Path
-        path = (
-            _Path(__file__).resolve().parents[4]
-            / "frontend" / "data" / "stock-list.json"
-        )
+
+        path = _Path(__file__).resolve().parents[4] / "frontend" / "data" / "stock-list.json"
         if path.exists():
             with open(path) as f:
                 _stock_list_cache = _json.load(f)

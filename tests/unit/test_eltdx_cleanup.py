@@ -51,7 +51,7 @@ def test_legacy_analysis_settings_exclude_eltdx() -> None:
     assert [item["requires_api_key"] for item in settings["provider_toggles"]] == [
         False,  # eastmoney
         False,  # ashare
-        True,   # mxdata
+        True,  # mxdata
         False,  # akshare
     ]
 

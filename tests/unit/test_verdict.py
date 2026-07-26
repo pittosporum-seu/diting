@@ -283,8 +283,8 @@ def test_mixed_signals_produces_both_reasons():
     engine = VerdictEngine()
     ctx = AnalysisContext(
         symbol="000001",
-        signals=_make_signals(rsi=22.0),       # 看多
-        vmd=_make_vmd(cycle_position=0.85),     # 看空
+        signals=_make_signals(rsi=22.0),  # 看多
+        vmd=_make_vmd(cycle_position=0.85),  # 看空
     )
     result = engine.analyze(ctx)
     assert len(result.metadata["bull_reasons"]) >= 1
@@ -303,4 +303,5 @@ def test_required_data():
     """VerdictEngine 声明需要 REALTIME 数据"""
     engine = VerdictEngine()
     from src.diting.enums import DataType
+
     assert DataType.REALTIME in engine.required_data()

@@ -49,7 +49,7 @@ class TestWatchlistFlow:
                 today_is_trade_day=True,
             )
 
-            with patch.object(self.service, "_build_repo") as mock_repo:
+            with patch.object(self.service._watchlist, "_build_repo") as mock_repo:
                 mock_quote = MagicMock()
                 mock_quote.price = 38.5
                 mock_quote.name = "立讯精密"
@@ -90,9 +90,7 @@ class TestWatchlistFlow:
                 stock = [r for r in results if r["code"] == "002475"][0]
                 assert stock["name"] == "立讯精密"
                 assert stock["price"] == 38.5, "周末应从 DB 缓存获取价格"
-                mock_cm.return_value.db_get.assert_called_once_with(
-                    "market_snapshot", "002475"
-                )
+                mock_cm.return_value.db_get.assert_called_once_with("market_snapshot", "002475")
 
     def test_remove_watchlist_then_check_db(self):
         """删除 002475 → 查 DB 确认已删除。"""

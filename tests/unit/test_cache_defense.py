@@ -67,10 +67,14 @@ class TestCacheDefense:
             cm = CacheManager(db_path=str(db_path))
 
             # 通过 CacheManager 写入正确结构的数据
-            cm.db_set("stock_analysis_cache", "002475", {
-                "code": "002475",
-                "result_json": '{"score": 80}',
-            })
+            cm.db_set(
+                "stock_analysis_cache",
+                "002475",
+                {
+                    "code": "002475",
+                    "result_json": '{"score": 80}',
+                },
+            )
 
             result = cm.db_get("stock_analysis_cache", "002475")
             assert result is not None, "正常数据应能读取"
@@ -84,10 +88,14 @@ class TestCacheDefense:
 
             # 先通过 CacheManager 创建正常表
             cm = CacheManager(db_path=str(db_path))
-            cm.db_set("cache_meta", "test_key", {
-                "key": "test_key",
-                "value": "test_value",
-            })
+            cm.db_set(
+                "cache_meta",
+                "test_key",
+                {
+                    "key": "test_key",
+                    "value": "test_value",
+                },
+            )
 
             # 直接在 SQLite 加一列额外字段（schema 中没有的列）
             conn = sqlite3.connect(str(db_path))

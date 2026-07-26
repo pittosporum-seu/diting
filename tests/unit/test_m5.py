@@ -51,9 +51,12 @@ class TestVolumeProfile:
         ctx = AnalysisContext(
             symbol="test",
             historical=HistoricalData(
-                symbol="test", df=df, columns=["close"],
-                start_date=date.today(), end_date=date.today(),
-            )
+                symbol="test",
+                df=df,
+                columns=["close"],
+                start_date=date.today(),
+                end_date=date.today(),
+            ),
         )
         engine = VolumeProfileEngine()
         result = engine.analyze(ctx)
@@ -79,12 +82,25 @@ class TestVMDRSI:
         ctx = AnalysisContext(
             symbol="test",
             signals=TechnicalSignals(
-                symbol="test", rsi_14=20, macd=0, macd_signal_line=0, macd_histogram=0,
-                kdj_k=50, kdj_d=50, kdj_j=50,
-                bollinger_upper=70, bollinger_middle=65, bollinger_lower=60,
-                bollinger_position=0.5, ma_5=65, ma_20=65, ma_60=65,
-                vwap=65, vwap_deviation=0, volume_ratio=1,
-            )
+                symbol="test",
+                rsi_14=20,
+                macd=0,
+                macd_signal_line=0,
+                macd_histogram=0,
+                kdj_k=50,
+                kdj_d=50,
+                kdj_j=50,
+                bollinger_upper=70,
+                bollinger_middle=65,
+                bollinger_lower=60,
+                bollinger_position=0.5,
+                ma_5=65,
+                ma_20=65,
+                ma_60=65,
+                vwap=65,
+                vwap_deviation=0,
+                volume_ratio=1,
+            ),
         )
         engine = VMDRSIEngine()
         result = engine.analyze(ctx)
@@ -95,15 +111,31 @@ class TestVMDRSI:
         ctx = AnalysisContext(
             symbol="test",
             signals=TechnicalSignals(
-                symbol="test", rsi_14=50, macd=0, macd_signal_line=0, macd_histogram=0,
-                kdj_k=50, kdj_d=50, kdj_j=50,
-                bollinger_upper=70, bollinger_middle=65, bollinger_lower=60,
-                bollinger_position=0.5, ma_5=65, ma_20=65, ma_60=65,
-                vwap=65, vwap_deviation=0, volume_ratio=1,
+                symbol="test",
+                rsi_14=50,
+                macd=0,
+                macd_signal_line=0,
+                macd_histogram=0,
+                kdj_k=50,
+                kdj_d=50,
+                kdj_j=50,
+                bollinger_upper=70,
+                bollinger_middle=65,
+                bollinger_lower=60,
+                bollinger_position=0.5,
+                ma_5=65,
+                ma_20=65,
+                ma_60=65,
+                vwap=65,
+                vwap_deviation=0,
+                volume_ratio=1,
             ),
             vmd=VMDResult(
-                symbol="test", cycle_position=0.05, trend_slope=0.001,
-                dominant_period=20, trend_broken=False,
+                symbol="test",
+                cycle_position=0.05,
+                trend_slope=0.001,
+                dominant_period=20,
+                trend_broken=False,
             ),
         )
         engine = VMDRSIEngine()
@@ -121,12 +153,18 @@ class TestConsensus:
         engine = ConsensusEngine(weights={"wyckoff": 0.3, "vmd_rsi": 0.7})
         results = [
             AnalysisResult(
-                engine_name="wyckoff", engine_version="1.0", symbol="test",
-                score=60, rating=Rating.BUY,
+                engine_name="wyckoff",
+                engine_version="1.0",
+                symbol="test",
+                score=60,
+                rating=Rating.BUY,
             ),
             AnalysisResult(
-                engine_name="vmd_rsi", engine_version="1.0", symbol="test",
-                score=40, rating=Rating.HOLD,
+                engine_name="vmd_rsi",
+                engine_version="1.0",
+                symbol="test",
+                score=40,
+                rating=Rating.HOLD,
             ),
         ]
         cs = engine.fuse("test", results)
@@ -150,12 +188,19 @@ class TestConsensus:
         engine = ConsensusEngine()
         results = [
             AnalysisResult(
-                engine_name="wyckoff", engine_version="1.0", symbol="test",
-                score=70, rating=Rating.BUY,
+                engine_name="wyckoff",
+                engine_version="1.0",
+                symbol="test",
+                score=70,
+                rating=Rating.BUY,
             ),
             AnalysisResult(
-                engine_name="buffett", engine_version="1.0", symbol="test",
-                score=0, rating=Rating.HOLD, error="timeout",
+                engine_name="buffett",
+                engine_version="1.0",
+                symbol="test",
+                score=0,
+                rating=Rating.HOLD,
+                error="timeout",
             ),
         ]
         cs = engine.fuse("test", results)
@@ -171,11 +216,24 @@ class TestConsensus:
 class TestAlert:
     def test_rsi_oversold_triggers(self):
         signals = TechnicalSignals(
-            symbol="002475", rsi_14=18, macd=0, macd_signal_line=0, macd_histogram=0,
-            kdj_k=50, kdj_d=50, kdj_j=50,
-            bollinger_upper=70, bollinger_middle=65, bollinger_lower=60,
-            bollinger_position=0.5, ma_5=65, ma_20=65, ma_60=65,
-            vwap=65, vwap_deviation=0, volume_ratio=1,
+            symbol="002475",
+            rsi_14=18,
+            macd=0,
+            macd_signal_line=0,
+            macd_histogram=0,
+            kdj_k=50,
+            kdj_d=50,
+            kdj_j=50,
+            bollinger_upper=70,
+            bollinger_middle=65,
+            bollinger_lower=60,
+            bollinger_position=0.5,
+            ma_5=65,
+            ma_20=65,
+            ma_60=65,
+            vwap=65,
+            vwap_deviation=0,
+            volume_ratio=1,
         )
         alerts = AlertManager.check("002475", signals=signals)
         assert len(alerts) > 0
@@ -183,11 +241,24 @@ class TestAlert:
 
     def test_no_alert_when_normal(self):
         signals = TechnicalSignals(
-            symbol="002475", rsi_14=50, macd=0, macd_signal_line=0, macd_histogram=0,
-            kdj_k=50, kdj_d=50, kdj_j=50,
-            bollinger_upper=70, bollinger_middle=65, bollinger_lower=60,
-            bollinger_position=0.5, ma_5=65, ma_20=65, ma_60=65,
-            vwap=65, vwap_deviation=0, volume_ratio=1,
+            symbol="002475",
+            rsi_14=50,
+            macd=0,
+            macd_signal_line=0,
+            macd_histogram=0,
+            kdj_k=50,
+            kdj_d=50,
+            kdj_j=50,
+            bollinger_upper=70,
+            bollinger_middle=65,
+            bollinger_lower=60,
+            bollinger_position=0.5,
+            ma_5=65,
+            ma_20=65,
+            ma_60=65,
+            vwap=65,
+            vwap_deviation=0,
+            volume_ratio=1,
         )
         alerts = AlertManager.check("002475", signals=signals)
         assert len(alerts) == 0

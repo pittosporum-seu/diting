@@ -105,37 +105,45 @@ class EChartsBuilder:
             },
         ]
         if ma_5:
-            series.append({
-                "name": "MA5",
-                "type": "line",
-                "data": ma_5,
-                "lineStyle": {"width": 1, "color": EChartsBuilder.PALETTE[3], "type": "dashed"},
-                "symbol": "none",
-            })
+            series.append(
+                {
+                    "name": "MA5",
+                    "type": "line",
+                    "data": ma_5,
+                    "lineStyle": {"width": 1, "color": EChartsBuilder.PALETTE[3], "type": "dashed"},
+                    "symbol": "none",
+                }
+            )
         if ma_20:
-            series.append({
-                "name": "MA20",
-                "type": "line",
-                "data": ma_20,
-                "lineStyle": {"width": 1, "color": EChartsBuilder.PALETTE[5], "type": "dashed"},
-                "symbol": "none",
-            })
+            series.append(
+                {
+                    "name": "MA20",
+                    "type": "line",
+                    "data": ma_20,
+                    "lineStyle": {"width": 1, "color": EChartsBuilder.PALETTE[5], "type": "dashed"},
+                    "symbol": "none",
+                }
+            )
         if boll_upper:
-            series.append({
-                "name": "布林上轨",
-                "type": "line",
-                "data": boll_upper,
-                "lineStyle": {"width": 0.5, "color": "#9ca3af", "type": "dotted"},
-                "symbol": "none",
-            })
+            series.append(
+                {
+                    "name": "布林上轨",
+                    "type": "line",
+                    "data": boll_upper,
+                    "lineStyle": {"width": 0.5, "color": "#9ca3af", "type": "dotted"},
+                    "symbol": "none",
+                }
+            )
         if boll_lower:
-            series.append({
-                "name": "布林下轨",
-                "type": "line",
-                "data": boll_lower,
-                "lineStyle": {"width": 0.5, "color": "#9ca3af", "type": "dotted"},
-                "symbol": "none",
-            })
+            series.append(
+                {
+                    "name": "布林下轨",
+                    "type": "line",
+                    "data": boll_lower,
+                    "lineStyle": {"width": 0.5, "color": "#9ca3af", "type": "dotted"},
+                    "symbol": "none",
+                }
+            )
 
         return {
             "tooltip": EChartsBuilder._tooltip(),
@@ -276,9 +284,7 @@ class EChartsBuilder:
         profit_pcts: list[float],
     ) -> dict:
         """持仓概览：市值占比饼图 + 盈亏瀑布图"""
-        pie_colors = [
-            "#22c55e" if p >= 0 else "#ef4444" for p in profit_pcts
-        ]
+        pie_colors = ["#22c55e" if p >= 0 else "#ef4444" for p in profit_pcts]
         return {
             "tooltip": {"trigger": "item", "formatter": "{b}: {c} ({d}%)"},
             "legend": EChartsBuilder._legend(),

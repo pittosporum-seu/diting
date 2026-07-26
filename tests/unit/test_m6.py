@@ -59,8 +59,7 @@ class TestReportBuilder:
             symbols=("002475",),
             results={
                 "002475": [
-                    _make_result("002475", "wyckoff", 65.0, Rating.BUY,
-                                 narrative="测试信号"),
+                    _make_result("002475", "wyckoff", 65.0, Rating.BUY, narrative="测试信号"),
                 ],
             },
         )
@@ -78,8 +77,7 @@ class TestReportBuilder:
             symbols=("002475",),
             results={
                 "002475": [
-                    _make_result("002475", "wyckoff", 65.0, Rating.BUY,
-                                 narrative="测试"),
+                    _make_result("002475", "wyckoff", 65.0, Rating.BUY, narrative="测试"),
                 ],
             },
         )
@@ -193,8 +191,7 @@ class TestReportBuilder:
             results={
                 "002475": [
                     _make_result("002475", "wyckoff", 65.0, Rating.BUY),
-                    _make_result("002475", "buffett", 0, Rating.HOLD,
-                                 error="数据源不可用"),
+                    _make_result("002475", "buffett", 0, Rating.HOLD, error="数据源不可用"),
                 ],
             },
         )
@@ -211,8 +208,13 @@ class TestReportBuilder:
             symbols=("002475",),
             results={
                 "002475": [
-                    _make_result("002475", "vmd_rsi", 30.0, Rating.REDUCE,
-                                 risks=("RSI=78 超买", "VMD 接近峰顶")),
+                    _make_result(
+                        "002475",
+                        "vmd_rsi",
+                        30.0,
+                        Rating.REDUCE,
+                        risks=("RSI=78 超买", "VMD 接近峰顶"),
+                    ),
                 ],
             },
         )

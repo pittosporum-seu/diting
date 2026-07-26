@@ -195,29 +195,17 @@ class ReportBuilder:
             if change_pct is not None:
                 sign = "+" if change_pct >= 0 else ""
                 color = "#22c55e" if change_pct >= 0 else "#ef4444"
-                change_str = (
-                    f' <span style="color:{color}">{sign}{change_pct:.2f}%</span>'
-                )
-            price_html = (
-                f'<div class="meta-row">'
-                f"<span>价格: ¥{price:.2f}{change_str}</span>"
-                f"</div>"
-            )
+                change_str = f' <span style="color:{color}">{sign}{change_pct:.2f}%</span>'
+            price_html = f'<div class="meta-row"><span>价格: ¥{price:.2f}{change_str}</span></div>'
 
         risk_html = ""
         if all_risks:
             unique = list(dict.fromkeys(all_risks))[:5]
-            risk_html = (
-                '<div class="risks">风险: ' + " | ".join(unique) + "</div>"
-            )
+            risk_html = '<div class="risks">风险: ' + " | ".join(unique) + "</div>"
 
         narrative_html = ""
         if narratives:
-            narrative_html = (
-                '<div class="narrative">'
-                + "<br>".join(narratives[:3])
-                + "</div>"
-            )
+            narrative_html = '<div class="narrative">' + "<br>".join(narratives[:3]) + "</div>"
 
         rating_val = avg_rating.value
         rating_label = RATING_LABELS.get(avg_rating, rating_val)
@@ -258,9 +246,7 @@ class ReportBuilder:
             if change_pct is not None:
                 sign = "+" if change_pct >= 0 else ""
                 color = "#22c55e" if change_pct >= 0 else "#ef4444"
-                change_str = (
-                    f' <span style="color:{color}">{sign}{change_pct:.2f}%</span>'
-                )
+                change_str = f' <span style="color:{color}">{sign}{change_pct:.2f}%</span>'
             price_html = f"<span>¥{price:.2f}{change_str}</span>"
 
         rating_val = avg_rating.value
@@ -377,9 +363,7 @@ class ReportBuilder:
         if not names:
             return "<p style='color:#6b7280;text-align:center;'>无持仓数据</p>"
 
-        return EChartsBuilder.render_holdings_chart(
-            "holdings_pie", names, values, pcts
-        )
+        return EChartsBuilder.render_holdings_chart("holdings_pie", names, values, pcts)
 
     def _build_overview_stats(self, result: PipelineResult) -> str:
         """L2 概览统计盒。"""
@@ -391,9 +375,7 @@ class ReportBuilder:
             all_results.extend(rlist)
 
         valid = [r for r in all_results if not r.error]
-        avg_score = (
-            sum(r.score for r in valid) / len(valid) if valid else 0
-        )
+        avg_score = sum(r.score for r in valid) / len(valid) if valid else 0
         strong_buy = sum(1 for r in valid if r.rating == Rating.STRONG_BUY)
         buy = sum(1 for r in valid if r.rating == Rating.BUY)
 

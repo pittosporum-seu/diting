@@ -14,6 +14,7 @@ def client() -> TestClient:
 
     with patch("src.diting.web.app.start_prefetch_worker"):
         from src.diting.web.app import app
+
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 
@@ -71,9 +72,8 @@ class TestFreshnessConsistency:
             data_time = data_time.replace(tzinfo=UTC)
         # data_time 不应超过当前时间（允许 5s 时钟偏差）
         from datetime import timedelta
-        assert data_time <= now + timedelta(seconds=5), (
-            f"data_time {data_time} 在未来 (now={now})"
-        )
+
+        assert data_time <= now + timedelta(seconds=5), f"data_time {data_time} 在未来 (now={now})"
 
     @pytest.mark.parametrize("endpoint", FRESHNESS_ENDPOINTS)
     def test_server_time_gte_data_time(self, client: TestClient, endpoint: str):
@@ -90,9 +90,7 @@ class TestFreshnessConsistency:
             server_time = server_time.replace(tzinfo=UTC)
         if data_time.tzinfo is None:
             data_time = data_time.replace(tzinfo=UTC)
-        assert server_time >= data_time, (
-            f"server_time {server_time} < data_time {data_time}"
-        )
+        assert server_time >= data_time, f"server_time {server_time} < data_time {data_time}"
 
     @pytest.mark.parametrize("endpoint", FRESHNESS_ENDPOINTS)
     def test_age_seconds_non_negative(self, client: TestClient, endpoint: str):
@@ -119,5 +117,12 @@ class TestFreshnessSource:
         resp = client.get("/api/dashboard")
         body = resp.json()
         f = body.get("freshness", {})
-        valid_sources = ("cache", "realtime", "memory_cache", "sqlite_cache", "unknown", "unavailable")
+        valid_sources = (
+            "cache",
+            "realtime",
+            "memory_cache",
+            "sqlite_cache",
+            "unknown",
+            "unavailable",
+        )
         assert f.get("source") in valid_sources

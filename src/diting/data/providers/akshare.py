@@ -102,14 +102,10 @@ class AkShareProvider(DataProvider):
                         else None
                     ),
                     pb=(
-                        float(row["市净率"])
-                        if row.get("市净率") and row["市净率"] != "-"
-                        else None
+                        float(row["市净率"]) if row.get("市净率") and row["市净率"] != "-" else None
                     ),
                     total_mv=(
-                        float(row["总市值"])
-                        if row.get("总市值") and row["总市值"] != "-"
-                        else None
+                        float(row["总市值"]) if row.get("总市值") and row["总市值"] != "-" else None
                     ),
                     timestamp=now,
                 )
@@ -123,9 +119,7 @@ class AkShareProvider(DataProvider):
 
         return results
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         try:
             import akshare as ak
         except ImportError:
@@ -147,14 +141,10 @@ class AkShareProvider(DataProvider):
                 symbol=symbol,
                 error=str(e),
             )
-            raise DataUnavailableError(
-                f"akshare historical {symbol}: {e}"
-            ) from e
+            raise DataUnavailableError(f"akshare historical {symbol}: {e}") from e
 
         if df is None or df.empty:
-            raise DataUnavailableError(
-                f"akshare: no historical data for {symbol}"
-            )
+            raise DataUnavailableError(f"akshare: no historical data for {symbol}")
 
         # 标准化列名
         col_rename = {

@@ -1,6 +1,5 @@
 """谛听 · Volume Profile 引擎（纯计算）"""
 
-
 import numpy as np
 
 from ..enums import DataType, Rating
@@ -24,22 +23,31 @@ class VolumeProfileEngine(AnalysisEngine):
         hist = context.historical
         if hist is None or hist.df is None:
             return AnalysisResult(
-                engine_name=self.name, engine_version=self.version,
-                symbol=context.symbol, score=50, rating=Rating.HOLD,
+                engine_name=self.name,
+                engine_version=self.version,
+                symbol=context.symbol,
+                score=50,
+                rating=Rating.HOLD,
                 error="No historical data",
             )
 
         df = hist.df
         if df.empty:
             return AnalysisResult(
-                engine_name=self.name, engine_version=self.version,
-                symbol=context.symbol, score=50, rating=Rating.HOLD,
+                engine_name=self.name,
+                engine_version=self.version,
+                symbol=context.symbol,
+                score=50,
+                rating=Rating.HOLD,
                 error="No historical data",
             )
         if "close" not in df.columns and "收盘价" not in df.columns:
             return AnalysisResult(
-                engine_name=self.name, engine_version=self.version,
-                symbol=context.symbol, score=50, rating=Rating.HOLD,
+                engine_name=self.name,
+                engine_version=self.version,
+                symbol=context.symbol,
+                score=50,
+                rating=Rating.HOLD,
                 error="No close price data",
             )
         close_col = "close" if "close" in df.columns else "收盘价"
@@ -81,24 +89,23 @@ class VolumeProfileEngine(AnalysisEngine):
         elif current > vah:
             score = 35.0
             narrative = f"现价 ¥{current:.1f} 高于价值区上沿 ¥{vah:.1f}"
-            bear_reasons.append(
-                f"现价 ¥{current:.1f} 高于 VAH ¥{vah:.1f}，偏离价值区存在回归风险"
-            )
+            bear_reasons.append(f"现价 ¥{current:.1f} 高于 VAH ¥{vah:.1f}，偏离价值区存在回归风险")
         else:
             score = 45.0
             narrative = f"现价 ¥{current:.1f} 低于价值区下沿 ¥{val:.1f}"
             bull_reasons.append(
                 f"现价 ¥{current:.1f} 低于 VAL ¥{val:.1f}，回归价值区可形成修复空间"
             )
-            bear_reasons.append(
-                f"现价 ¥{current:.1f} 跌破 VAL ¥{val:.1f}，价值区支撑尚未确认"
-            )
+            bear_reasons.append(f"现价 ¥{current:.1f} 跌破 VAL ¥{val:.1f}，价值区支撑尚未确认")
 
         rating = score_to_rating(score)
 
         return AnalysisResult(
-            engine_name=self.name, engine_version=self.version,
-            symbol=context.symbol, score=score, rating=rating,
+            engine_name=self.name,
+            engine_version=self.version,
+            symbol=context.symbol,
+            score=score,
+            rating=rating,
             narrative=narrative,
             risks=tuple(bear_reasons),
             metadata={

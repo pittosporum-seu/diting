@@ -44,9 +44,7 @@ _TEST_CASES = [
 @pytest.mark.parametrize("score,expected", _TEST_CASES)
 def test_score_to_rating(score: float, expected: Rating):
     """评分映射：各档位边界正确。"""
-    assert score_to_rating(score) == expected, (
-        f"score={score} should map to {expected.value}"
-    )
+    assert score_to_rating(score) == expected, f"score={score} should map to {expected.value}"
 
 
 def test_all_ratings_covered():

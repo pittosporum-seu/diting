@@ -25,6 +25,7 @@ dashboard_service = DashboardService(cache_mgr=_cache_mgr, scan_service=scan_ser
 watchlist_service = WatchlistService(cache_mgr=_cache_mgr)
 # ── API response wrapper ────────────────────────
 
+
 def _build_freshness(
     data_time: datetime | None = None,
     source: str = "unknown",
@@ -64,6 +65,7 @@ def _extract_freshness(data: dict, default_ttl: int = 60) -> FreshnessInfo | Non
         return _build_freshness(source=source, ttl_seconds=default_ttl)
     return None
 
+
 def _api_response(
     data: dict,
     *,
@@ -91,37 +93,43 @@ def _api_response(
         resp["error"] = error
     return resp
 
+
 # ── Page routes (Jinja2) ────────────────────────────
+
 
 @router.get("/")
 async def search_page(request: Request):
     from .app import templates
+
     return templates.TemplateResponse(request, "search.html")
 
 
 @router.get("/stock/{code}")
 async def stock_page(request: Request, code: str):
     from .app import templates
+
     resp = stock_service.analyze_stock(code)
     data = asdict(resp)
 
     if data.get("error"):
         return templates.TemplateResponse(
-            request, "result.html",
+            request,
+            "result.html",
             {"code": code, "error": data["error"]},
         )
 
     return templates.TemplateResponse(
-        request, "result.html",
+        request,
+        "result.html",
         {
-            **{k: v for k, v in data.items()
-               if not k.startswith("_") and k != "signals_summary"},
+            **{k: v for k, v in data.items() if not k.startswith("_") and k != "signals_summary"},
             "chart_data": json.dumps(data.get("chart_data", {}), ensure_ascii=False),
         },
     )
 
 
 # ── JSON API routes ────────────────────────────
+
 
 @router.get("/api/health")
 async def api_health():
@@ -194,9 +202,7 @@ async def api_watchlist_remove(code: str):
         raise ValueError("code 必须是6位数字")
     ok = watchlist_service.remove_watchlist(code)
     if not ok:
-        raise AnalysisError(
-            message="自选股不存在", error_code="NOT_FOUND", http_status_code=404
-        )
+        raise AnalysisError(message="自选股不存在", error_code="NOT_FOUND", http_status_code=404)
     return _api_response({"status": "ok", "code": code})
 
 
@@ -242,6 +248,7 @@ async def api_save_settings(request: Request):
 
 # ── Cache management ────────────────────────────
 
+
 @router.get("/api/cache/stats")
 async def api_cache_stats():
     return _api_response(dashboard_service.get_cache_stats())
@@ -259,12 +266,14 @@ async def api_cache_refresh_scan():
 
 # ── SPA catch-all ────────────────────────────
 
+
 @router.get("/{path:path}")
 async def spa_files(path: str):
     """Serve SPA static files for non-API paths."""
     from fastapi.responses import FileResponse
 
     from .app import FRONTEND
+
     fp = FRONTEND / path
     if fp.exists() and fp.is_file():
         return FileResponse(fp)

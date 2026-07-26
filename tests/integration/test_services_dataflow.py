@@ -54,9 +54,12 @@ class TestForceRefreshDashboard:
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
             mock_cm.return_value.mem_get_adaptive.return_value = None
             with patch.object(self.service, "_build_repo") as mock_repo:
-                mock_repo.return_value.get_realtime.return_value = {"000001.SH": MagicMock(
-                    price=3300.0, change_pct=0.5,
-                )}
+                mock_repo.return_value.get_realtime.return_value = {
+                    "000001.SH": MagicMock(
+                        price=3300.0,
+                        change_pct=0.5,
+                    )
+                }
                 self.service.get_market_sentiment(force_refresh=True)
 
         mock_cm.return_value.mem_get_adaptive.assert_not_called()
@@ -72,8 +75,10 @@ class TestForceRefreshScan:
         """force_refresh=True 时跳过 L1 选股机会缓存。"""
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
             mock_cm.return_value.mem_get_adaptive.return_value = None
-            with patch.object(self.service, "_scan_watchlist", return_value=[]), \
-                 patch.object(self.service, "_scan_market_top20", return_value=[]):
+            with (
+                patch.object(self.service, "_scan_watchlist", return_value=[]),
+                patch.object(self.service, "_scan_market_top20", return_value=[]),
+            ):
                 self.service.get_opportunities(force_refresh=True)
 
         mock_cm.return_value.mem_get_adaptive.assert_not_called()
@@ -194,10 +199,19 @@ class TestMarketStateDashboard:
             mock_cm.return_value.db_get_latest.return_value = None
             mock_cm.return_value.mem_get.return_value = None
             with patch.object(self.service, "_build_repo", return_value=mock_repo):
-                with patch.object(self.scan_service, "get_opportunities", return_value={
-                    "total": 0, "strong_buy": 0, "watch": 0, "avoid": 0,
-                    "items": [], "from_watchlist": [], "from_market": [],
-                }):
+                with patch.object(
+                    self.scan_service,
+                    "get_opportunities",
+                    return_value={
+                        "total": 0,
+                        "strong_buy": 0,
+                        "watch": 0,
+                        "avoid": 0,
+                        "items": [],
+                        "from_watchlist": [],
+                        "from_market": [],
+                    },
+                ):
                     result, freshness = self.service.get_dashboard_data()
 
         assert result is not None
@@ -313,6 +327,7 @@ class TestPrefetchWorker:
     def test_worker_creation(self):
         """Worker 实例创建。"""
         from src.diting.cache.prefetch import PrefetchWorker
+
         worker = PrefetchWorker(StockService())
         assert worker is not None
         assert not worker.is_running
@@ -321,6 +336,7 @@ class TestPrefetchWorker:
     def test_run_once_skips_on_weekend(self, mock_state):
         """周末跳过预刷新。"""
         from src.diting.cache.prefetch import PrefetchWorker
+
         mock_state.return_value = MarketState(
             phase="weekend",
             last_trade_date=datetime(2026, 7, 10).date(),
@@ -389,9 +405,14 @@ class TestWeekendFallback:
         )
 
         db_data = {
-            "code": "000001", "name": "平安银行", "price": 12.5,
-            "change_pct": 1.5, "open": 12.3, "high": 12.6,
-            "low": 12.2, "volume": 1000000,
+            "code": "000001",
+            "name": "平安银行",
+            "price": 12.5,
+            "change_pct": 1.5,
+            "open": 12.3,
+            "high": 12.6,
+            "low": 12.2,
+            "volume": 1000000,
         }
 
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
@@ -439,8 +460,12 @@ class TestScanMarketRepo:
                 mock_cm.return_value.db_get.return_value = None
                 with patch.object(self.service, "_build_repo") as mock_repo:
                     mock_quote = _MockQuote(
-                        symbol="000001", name="平安银行",
-                        price=12.0, change_pct=1.0, volume=10000, turnover=0,
+                        symbol="000001",
+                        name="平安银行",
+                        price=12.0,
+                        change_pct=1.0,
+                        volume=10000,
+                        turnover=0,
                     )
                     mock_repo.return_value.get_realtime.return_value = {
                         "000001": mock_quote,

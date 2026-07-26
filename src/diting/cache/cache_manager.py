@@ -267,9 +267,7 @@ class CacheManager:
             try:
                 # 根据表名推断主键列名
                 pk_col = self._pk_column(table)
-                cur = conn.execute(
-                    f"SELECT * FROM {table} WHERE {pk_col} = ?", (key,)
-                )
+                cur = conn.execute(f"SELECT * FROM {table} WHERE {pk_col} = ?", (key,))
                 row = cur.fetchone()
                 if row is None:
                     return None
@@ -299,9 +297,7 @@ class CacheManager:
             conn = self._connect()
             try:
                 pk_col = self._pk_column(table)
-                cur = conn.execute(
-                    f"SELECT * FROM {table} ORDER BY {pk_col} DESC LIMIT 1"
-                )
+                cur = conn.execute(f"SELECT * FROM {table} ORDER BY {pk_col} DESC LIMIT 1")
                 row = cur.fetchone()
                 if row is None:
                     return None
@@ -337,8 +333,7 @@ class CacheManager:
             conn = self._connect()
             try:
                 conn.execute(
-                    f"INSERT OR REPLACE INTO {table} ({columns}) "
-                    f"VALUES ({placeholders})",
+                    f"INSERT OR REPLACE INTO {table} ({columns}) VALUES ({placeholders})",
                     values,
                 )
                 conn.commit()
@@ -367,8 +362,7 @@ class CacheManager:
                     row.setdefault("updated_at", datetime.now())
                     values = [row.get(c) for c in cols]
                     conn.execute(
-                        f"INSERT OR REPLACE INTO {table} ({col_names}) "
-                        f"VALUES ({placeholders})",
+                        f"INSERT OR REPLACE INTO {table} ({col_names}) VALUES ({placeholders})",
                         values,
                     )
                 conn.commit()
@@ -406,9 +400,7 @@ class CacheManager:
                     if deleted < 500:
                         break
             except Exception as e:
-                logger.warning(
-                    "cache.db_delete_old.failed", table=table, error=str(e)
-                )
+                logger.warning("cache.db_delete_old.failed", table=table, error=str(e))
             finally:
                 conn.close()
 
@@ -434,8 +426,13 @@ class CacheManager:
             db_size = 0
 
         tables = [
-            "market_snapshot", "watchlist_cache", "stock_analysis_cache",
-            "dashboard_cache", "market_scan_cache", "stock_dict", "cache_meta",
+            "market_snapshot",
+            "watchlist_cache",
+            "stock_analysis_cache",
+            "dashboard_cache",
+            "market_scan_cache",
+            "stock_dict",
+            "cache_meta",
         ]
         table_counts = {}
         for t in tables:
@@ -487,8 +484,13 @@ class CacheManager:
         self._mem.clear()
 
         tables = [
-            "market_snapshot", "watchlist_cache", "stock_analysis_cache",
-            "dashboard_cache", "market_scan_cache", "stock_dict", "cache_meta",
+            "market_snapshot",
+            "watchlist_cache",
+            "stock_analysis_cache",
+            "dashboard_cache",
+            "market_scan_cache",
+            "stock_dict",
+            "cache_meta",
         ]
         with self._lock:
             conn = self._connect()
@@ -588,9 +590,7 @@ class CacheManager:
                 for col_name, col_def in expected_cols:
                     if col_name.lower() not in existing:
                         try:
-                            conn.execute(
-                                f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}"
-                            )
+                            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}")
                             conn.commit()
                             logger.info(
                                 "cache.schema_migrated",

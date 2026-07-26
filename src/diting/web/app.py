@@ -23,6 +23,7 @@ from ..infra.errors import AnalysisError
 
 class NumpyEncoder(json.JSONEncoder):
     """Handle numpy types in JSON serialization."""
+
     def default(self, obj):
         if isinstance(obj, (np.integer,)):
             return int(obj)
@@ -31,6 +32,7 @@ class NumpyEncoder(json.JSONEncoder):
         if isinstance(obj, (np.ndarray,)):
             return obj.tolist()
         return super().default(obj)
+
 
 # ── suppress LiteLLM debug noise ──
 os.environ.setdefault("LITELLM_LOG", "ERROR")
@@ -57,21 +59,25 @@ async def start_prefetch_worker():
     try:
         from ..cache.prefetch import PrefetchWorker
         from .routes import stock_service as service
+
         _prefetch_worker = PrefetchWorker(service)
         _prefetch_worker.start()
     except Exception:
         import logging
+
         logging.getLogger(__name__).warning("prefetch.startup_failed")
     # v0.7.5: 后台优先级个股抓取
     try:
         from ..cache.analysis_prefetch import AnalysisPrefetchWorker
         from .routes import dashboard_service, scan_service, stock_service
+
         _analysis_prefetch_worker = AnalysisPrefetchWorker(
             stock_service, scan_service, dashboard_service=dashboard_service
         )
         _analysis_prefetch_worker.start()
     except Exception:
         import logging
+
         logging.getLogger(__name__).warning("analysis_prefetch.startup_failed")
 
 
@@ -120,9 +126,7 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
 
 
 @app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(
-    request: Request, exc: StarletteHTTPException
-) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """处理 Starlette HTTPException（含 404 等）→ 统一 ApiErrorResponse。"""
     error_code_map = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}
     return JSONResponse(
@@ -153,4 +157,5 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 
 from .routes import router  # noqa: E402, I001
+
 app.include_router(router)

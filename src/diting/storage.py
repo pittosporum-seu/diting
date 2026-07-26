@@ -220,8 +220,7 @@ class WatchlistDB:
                     (key, user_id),
                 )
                 conn.execute(
-                    "INSERT INTO settings (key, value, user_id, updated_at) "
-                    "VALUES (?, ?, ?, ?)",
+                    "INSERT INTO settings (key, value, user_id, updated_at) VALUES (?, ?, ?, ?)",
                     (key, value, user_id, datetime.now()),
                 )
                 conn.commit()
@@ -264,8 +263,9 @@ class WatchlistDB:
     # ── 内部方法 ──────────────────────────────────
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self._path),
-                               detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        conn = sqlite3.connect(
+            str(self._path), detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
+        )
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
@@ -292,8 +292,6 @@ class WatchlistDB:
         cur = conn.execute("PRAGMA table_info(settings)")
         cols = {row[1] for row in cur.fetchall()}
         if "updated_at" not in cols:
-            conn.execute(
-                "ALTER TABLE settings ADD COLUMN updated_at TIMESTAMP"
-            )
+            conn.execute("ALTER TABLE settings ADD COLUMN updated_at TIMESTAMP")
             conn.commit()
             logger.info("storage.settings_migrated", added="updated_at")

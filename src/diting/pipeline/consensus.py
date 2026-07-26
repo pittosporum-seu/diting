@@ -1,6 +1,5 @@
 """谛听 · 多引擎共识融合"""
 
-
 from ..engines.rating import score_to_rating
 from ..infra.config_loader import ConfigLoader
 from ..infra.logging_config import get_logger
@@ -58,8 +57,11 @@ class ConsensusEngine:
                 default_score=50,
             )
             return ConsensusScore(
-                symbol=symbol, weighted_score=50, rating=Rating.HOLD,
-                engines_used=tuple(engine_names), engines_failed=tuple(failed_names),
+                symbol=symbol,
+                weighted_score=50,
+                rating=Rating.HOLD,
+                engines_used=tuple(engine_names),
+                engines_failed=tuple(failed_names),
             )
 
         score = weighted_sum / total_weight
@@ -94,8 +96,10 @@ class ConsensusEngine:
                     severity = "severe" if diff >= 4 else "moderate"
                     conflicts.append(
                         Conflict(
-                            engine_a=a, engine_b=b,
-                            a_rating=ra, b_rating=rb,
+                            engine_a=a,
+                            engine_b=b,
+                            a_rating=ra,
+                            b_rating=rb,
                             severity=severity,
                         )
                     )
@@ -110,7 +114,11 @@ class ConsensusEngine:
             # 配置不可用时回退到统一函数
             return score_to_rating(score)
         s0, s1, s2, s3, s4 = (
-            thresholds[0], thresholds[1], thresholds[2], thresholds[3], thresholds[4]
+            thresholds[0],
+            thresholds[1],
+            thresholds[2],
+            thresholds[3],
+            thresholds[4],
         )
         if score >= s0:
             return Rating.STRONG_BUY

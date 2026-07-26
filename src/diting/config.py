@@ -27,7 +27,7 @@ class Config:
         self._data: dict[str, str] = {}
         self._load_env()
         self._watchlist_db = None  # 懒加载
-        self._db_path = db_path    # 测试可注入临时 DB 路径
+        self._db_path = db_path  # 测试可注入临时 DB 路径
 
     def _load_env(self) -> None:
         env_file = self._root / ".env"
@@ -73,6 +73,7 @@ class Config:
         """懒加载 WatchlistDB 实例。"""
         if self._watchlist_db is None:
             from .storage import WatchlistDB
+
             self._watchlist_db = WatchlistDB(db_path=self._db_path)
         return self._watchlist_db
 
@@ -134,32 +135,23 @@ class Config:
 
         for i, row in enumerate(rows, start=2):  # 第1行是header
             # 去掉空白
-            cleaned = {k.strip(): v.strip() if isinstance(v, str) else v
-                       for k, v in row.items()}
+            cleaned = {k.strip(): v.strip() if isinstance(v, str) else v for k, v in row.items()}
 
             # 必填列
             for col in cls.WATCHLIST_REQUIRED_COLS:
                 if col not in cleaned or not cleaned[col]:
-                    errors.append(
-                        f"行{i}: 缺少必填列 '{col}'"
-                    )
+                    errors.append(f"行{i}: 缺少必填列 '{col}'")
 
             code = cleaned.get("code", "")
             market = cleaned.get("market", "").lower()
 
             # 代码格式：6位数字
             if code and not cls._CODE_PATTERN.match(code):
-                errors.append(
-                    f"行{i}: 代码 '{code}' 格式错误，应为6位数字"
-                )
+                errors.append(f"行{i}: 代码 '{code}' 格式错误，应为6位数字")
 
             # 市场字段：sz/sh/bj
             if market and not cls._MARKET_PATTERN.match(market):
-                errors.append(
-                    f"行{i}: 市场 '{market}' 无效，应为 sz/sh/bj"
-                )
+                errors.append(f"行{i}: 市场 '{market}' 无效，应为 sz/sh/bj")
 
         if errors:
-            raise ConfigError(
-                f"watchlist 验证失败 ({path}):\n" + "\n".join(errors)
-            )
+            raise ConfigError(f"watchlist 验证失败 ({path}):\n" + "\n".join(errors))

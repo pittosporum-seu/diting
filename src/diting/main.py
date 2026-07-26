@@ -139,9 +139,7 @@ def _score_color(score: float) -> str:
     return click.style(s, fg="red", bold=True)
 
 
-def _parse_symbols(
-    symbols: str | None, watchlist: str, cfg: Config
-) -> list[str]:
+def _parse_symbols(symbols: str | None, watchlist: str, cfg: Config) -> list[str]:
     if symbols:
         return [s.strip() for s in symbols.split(",") if s.strip()]
     wl = cfg.load_watchlist(watchlist)
@@ -209,19 +207,17 @@ def cli(ctx):
 @click.argument("code")
 @click.option("--more", is_flag=True, help="详细分析模式")
 @click.option("--report", "gen_report", is_flag=True, help="生成 HTML 报告")
-@click.option(
-    "--engine", "-e", default=None, help="指定分析引擎（逗号分隔）"
-)
+@click.option("--engine", "-e", default=None, help="指定分析引擎（逗号分隔）")
 @click.option("--json", "-j", "json_output", is_flag=True, help="JSON 格式输出")
 @click.pass_context
 def _default_code(ctx, code, more, gen_report, engine, json_output):
     """默认股票分析 — `diting <code>`"""
-    _do_analyze(code, more=more, gen_report=gen_report, engine=engine,
-                json_output=json_output)
+    _do_analyze(code, more=more, gen_report=gen_report, engine=engine, json_output=json_output)
 
 
 def _do_analyze(
-    code: str, *,
+    code: str,
+    *,
     more: bool = False,
     gen_report: bool = False,
     engine: str | None = None,
@@ -277,6 +273,7 @@ def _do_analyze(
     if historical and historical.df is not None:
         try:
             from .signals.technical import TechnicalCalculator
+
             sig = TechnicalCalculator.calculate(historical)
         except Exception:
             pass
@@ -313,8 +310,11 @@ def _do_analyze(
         engine_names = engines_cfg.get("default", discover_engines()[:3])
 
     ctx_obj = AnalysisContext(
-        symbol=code, realtime=quote, historical=historical,
-        signals=sig, vmd=vmd,
+        symbol=code,
+        realtime=quote,
+        historical=historical,
+        signals=sig,
+        vmd=vmd,
     )
 
     try:
@@ -334,15 +334,48 @@ def _do_analyze(
                 if not s:
                     continue
                 low = s.lower()
-                if any(w in low for w in ("看多", "买入", "超卖", "低估", "支撑",
-                                          "金叉", "反弹", "触底", "低位", "价值",
-                                          "增长", "成长", "流入", "放量", "突破")):
+                if any(
+                    w in low
+                    for w in (
+                        "看多",
+                        "买入",
+                        "超卖",
+                        "低估",
+                        "支撑",
+                        "金叉",
+                        "反弹",
+                        "触底",
+                        "低位",
+                        "价值",
+                        "增长",
+                        "成长",
+                        "流入",
+                        "放量",
+                        "突破",
+                    )
+                ):
                     if len(bull_reasons) < 4:
                         short = s[:60] + ("…" if len(s) > 60 else "")
                         bull_reasons.append(short)
-                elif any(w in low for w in ("看空", "卖出", "超买", "高估", "压力",
-                                            "死叉", "回调", "高位", "泡沫", "流出",
-                                            "缩量", "破位", "风险", "偏高")):
+                elif any(
+                    w in low
+                    for w in (
+                        "看空",
+                        "卖出",
+                        "超买",
+                        "高估",
+                        "压力",
+                        "死叉",
+                        "回调",
+                        "高位",
+                        "泡沫",
+                        "流出",
+                        "缩量",
+                        "破位",
+                        "风险",
+                        "偏高",
+                    )
+                ):
                     if len(bear_reasons) < 4:
                         short = s[:60] + ("…" if len(s) > 60 else "")
                         bear_reasons.append(short)
@@ -373,10 +406,7 @@ def _do_analyze(
         rating_val = _rating_cn(consensus.rating)
         emoji = _rating_emoji(consensus.rating)
         score_display = _score_color(consensus.weighted_score)
-        click.echo(
-            f"  {quote.symbol} · {name}  "
-            f"{pct_str}"
-        )
+        click.echo(f"  {quote.symbol} · {name}  {pct_str}")
         click.echo(f"  {emoji} {rating_val} · 评分 {score_display}/100")
     else:
         click.echo(f"  {quote.symbol} · {name}  {pct_str}")
@@ -422,11 +452,13 @@ def _show_more(code: str, quote, sig=None, vmd=None) -> None:
     # ── technical signals ──
     click.echo("\n📊 技术面")
     if sig:
-        rsi_label = "超卖 ⚠️" if sig.rsi_14 < 30 else (
-            "超买 ⚠️" if sig.rsi_14 > 70 else "正常")
+        rsi_label = "超卖 ⚠️" if sig.rsi_14 < 30 else ("超买 ⚠️" if sig.rsi_14 > 70 else "正常")
         macd_label = "金叉 ✅" if sig.macd > sig.macd_signal_line else "死叉"
-        boll_label = "下轨" if sig.bollinger_position < 0.1 else (
-            "上轨" if sig.bollinger_position > 0.9 else "中轨")
+        boll_label = (
+            "下轨"
+            if sig.bollinger_position < 0.1
+            else ("上轨" if sig.bollinger_position > 0.9 else "中轨")
+        )
 
         click.echo(f"  RSI(14):     {sig.rsi_14:.1f}  {rsi_label}")
         click.echo(f"  MACD:        {sig.macd:.3f}  {macd_label}")
@@ -481,15 +513,11 @@ def _extract_chart_arrays(df) -> dict:
 
     # MA5
     if n >= 5:
-        result["ma_5"] = (
-            df[close_col].astype(float).rolling(window=5).mean().tolist()
-        )
+        result["ma_5"] = df[close_col].astype(float).rolling(window=5).mean().tolist()
 
     # MA20
     if n >= 20:
-        result["ma_20"] = (
-            df[close_col].astype(float).rolling(window=20).mean().tolist()
-        )
+        result["ma_20"] = df[close_col].astype(float).rolling(window=20).mean().tolist()
 
     # Bollinger (20, 2)
     if n >= 20:
@@ -547,6 +575,7 @@ def _show_report(code: str, quote, repo, engine: str | None = None) -> None:
     if historical and historical.df is not None:
         try:
             from .signals.technical import TechnicalCalculator
+
             sig = TechnicalCalculator.calculate(historical)
         except Exception:
             pass
@@ -555,6 +584,7 @@ def _show_report(code: str, quote, repo, engine: str | None = None) -> None:
     if historical and historical.df is not None:
         try:
             from .signals.vmd import VMDDecomposer
+
             df = historical.df
             close_col = None
             for c in ["close", "收盘", "收盘价"]:
@@ -577,8 +607,11 @@ def _show_report(code: str, quote, repo, engine: str | None = None) -> None:
         engine_names = engines_cfg.get("default", discover_engines()[:3])
 
     ctx_obj = AnalysisContext(
-        symbol=code, realtime=quote, historical=historical,
-        signals=sig, vmd=vmd,
+        symbol=code,
+        realtime=quote,
+        historical=historical,
+        signals=sig,
+        vmd=vmd,
     )
 
     try:
@@ -590,15 +623,19 @@ def _show_report(code: str, quote, repo, engine: str | None = None) -> None:
 
     try:
         from .report.builder import ReportBuilder
+
         builder = ReportBuilder(level="L2")
-        html = builder.build(result, chart_data={
-            code: {
-                "name": quote.name,
-                "realtime_price": quote.price,
-                "change_pct": quote.change_pct,
-                **chart_arrays,
-            }
-        })
+        html = builder.build(
+            result,
+            chart_data={
+                code: {
+                    "name": quote.name,
+                    "realtime_price": quote.price,
+                    "change_pct": quote.change_pct,
+                    **chart_arrays,
+                }
+            },
+        )
         path = Path(f"report-{code}.html")
         path.write_text(html, encoding="utf-8")
         click.echo(f"📄 报告已保存: {path}")
@@ -636,12 +673,19 @@ def scan(codes, json_output):
     if json_output:
         data = []
         for q in quotes.values():
-            data.append({
-                "symbol": q.symbol, "name": q.name,
-                "price": q.price, "change_pct": q.change_pct,
-                "volume": q.volume, "turnover": q.turnover,
-                "pe": q.pe, "pb": q.pb, "total_mv": q.total_mv,
-            })
+            data.append(
+                {
+                    "symbol": q.symbol,
+                    "name": q.name,
+                    "price": q.price,
+                    "change_pct": q.change_pct,
+                    "volume": q.volume,
+                    "turnover": q.turnover,
+                    "pe": q.pe,
+                    "pb": q.pb,
+                    "total_mv": q.total_mv,
+                }
+            )
         click.echo(json.dumps(data, ensure_ascii=False, indent=2))
         elapsed = _elapsed(t0)
         click.echo(f"\n⏱ 耗时: {elapsed}")
@@ -652,8 +696,9 @@ def scan(codes, json_output):
         name = q.name or q.symbol
         pct = q.change_pct
         if pct is not None:
-            pct_str = click.style(f"{pct:+.2f}%", fg="green" if pct > 0
-                                  else "red" if pct < 0 else "white")
+            pct_str = click.style(
+                f"{pct:+.2f}%", fg="green" if pct > 0 else "red" if pct < 0 else "white"
+            )
         else:
             pct_str = "  -"
         vol_str = f"{q.volume / 1e4:.0f}万" if q.volume else "-"
@@ -695,7 +740,11 @@ def l1_alias(ctx, code, more, engine):
 def l2_alias(ctx, code, engine):
     """[兼容] 旧版 L2 → 同 diting <code> --report --more"""
     ctx.invoke(
-        _default_code, code=code, gen_report=True, more=True, engine=engine,
+        _default_code,
+        code=code,
+        gen_report=True,
+        more=True,
+        engine=engine,
     )
 
 
@@ -719,6 +768,7 @@ def run_alias(symbols):
 @dataclass
 class _StockSummary:
     """Lightweight stock summary for compare/watchlist."""
+
     symbol: str
     name: str
     price: float
@@ -727,7 +777,7 @@ class _StockSummary:
     rsi: float | None
     vmd_position: float | None
     score: float
-    rating: str   # Rating.value string
+    rating: str  # Rating.value string
 
 
 def _compute_quick_score(
@@ -770,7 +820,9 @@ def _score_to_rating_str(score: float) -> str:
 
 
 def _compute_one_summary_from_quote(
-    code: str, quote, repo: MarketDataRepository,
+    code: str,
+    quote,
+    repo: MarketDataRepository,
 ) -> _StockSummary | None:
     """Compute signals and score for one stock from a pre-fetched quote."""
     if quote is None:
@@ -788,6 +840,7 @@ def _compute_one_summary_from_quote(
     if historical and historical.df is not None:
         try:
             from .signals.technical import TechnicalCalculator
+
             sig = TechnicalCalculator.calculate(historical)
             rsi = sig.rsi_14
         except Exception:
@@ -798,6 +851,7 @@ def _compute_one_summary_from_quote(
     if historical and historical.df is not None:
         try:
             from .signals.vmd import VMDDecomposer
+
             df = historical.df
             close_col = None
             for c in ["close", "收盘", "收盘价"]:
@@ -830,7 +884,8 @@ def _compute_one_summary_from_quote(
 
 
 def _compute_stock_summaries(
-    symbols: list[str], repo: MarketDataRepository,
+    symbols: list[str],
+    repo: MarketDataRepository,
 ) -> list[_StockSummary]:
     """Fetch realtime quotes in one batch, then historical+signals in parallel."""
     # ── batch realtime ──
@@ -844,7 +899,10 @@ def _compute_stock_summaries(
     with ThreadPoolExecutor(max_workers=min(8, len(symbols))) as pool:
         futures = {
             pool.submit(
-                _compute_one_summary_from_quote, s, all_quotes.get(s), repo,
+                _compute_one_summary_from_quote,
+                s,
+                all_quotes.get(s),
+                repo,
             ): s
             for s in symbols
         }
@@ -895,13 +953,19 @@ def compare(codes, json_output):
     if json_output:
         data = []
         for s in summaries:
-            data.append({
-                "symbol": s.symbol, "name": s.name,
-                "price": s.price, "change_pct": s.change_pct,
-                "pe": s.pe, "rsi": s.rsi,
-                "vmd_position": s.vmd_position,
-                "score": s.score, "rating": s.rating,
-            })
+            data.append(
+                {
+                    "symbol": s.symbol,
+                    "name": s.name,
+                    "price": s.price,
+                    "change_pct": s.change_pct,
+                    "pe": s.pe,
+                    "rsi": s.rsi,
+                    "vmd_position": s.vmd_position,
+                    "score": s.score,
+                    "rating": s.rating,
+                }
+            )
         click.echo(json.dumps(data, ensure_ascii=False, indent=2))
         elapsed = _elapsed(t0)
         click.echo(f"\n⏱ 耗时: {elapsed}")
@@ -970,7 +1034,10 @@ def compare(codes, json_output):
 @cli.command()
 @click.option("--json", "-j", "json_output", is_flag=True, help="JSON 格式输出")
 @click.option(
-    "--file", "-f", "watchlist_file", default=None,
+    "--file",
+    "-f",
+    "watchlist_file",
+    default=None,
     help="自选股 CSV 文件路径（默认 config/watchlist.csv）",
 )
 def watchlist(json_output, watchlist_file):
@@ -1017,13 +1084,19 @@ def watchlist(json_output, watchlist_file):
     if json_output:
         data = []
         for s in summaries:
-            data.append({
-                "symbol": s.symbol, "name": s.name,
-                "price": s.price, "change_pct": s.change_pct,
-                "pe": s.pe, "rsi": s.rsi,
-                "vmd_position": s.vmd_position,
-                "score": s.score, "rating": s.rating,
-            })
+            data.append(
+                {
+                    "symbol": s.symbol,
+                    "name": s.name,
+                    "price": s.price,
+                    "change_pct": s.change_pct,
+                    "pe": s.pe,
+                    "rsi": s.rsi,
+                    "vmd_position": s.vmd_position,
+                    "score": s.score,
+                    "rating": s.rating,
+                }
+            )
         click.echo(json.dumps(data, ensure_ascii=False, indent=2))
         elapsed = _elapsed(t0)
         click.echo(f"\n⏱ 耗时: {elapsed}")
@@ -1037,8 +1110,7 @@ def watchlist(json_output, watchlist_file):
         rating_label = _rating_cn(s.rating)
         score_display = _score_color(s.score)
         click.echo(
-            f"  {s.name:<10}  {s.price:>8.2f}  {pct_str}  "
-            f"{score_display} {emoji}  {rating_label}"
+            f"  {s.name:<10}  {s.price:>8.2f}  {pct_str}  {score_display} {emoji}  {rating_label}"
         )
 
     elapsed = _elapsed(t0)
@@ -1057,9 +1129,7 @@ def init(yes, mx_key, ai_key):
     _do_init(yes=yes, mx_key=mx_key, ai_key=ai_key)
 
 
-def _do_init(
-    *, yes: bool = False, mx_key: str | None = None, ai_key: str | None = None
-) -> None:
+def _do_init(*, yes: bool = False, mx_key: str | None = None, ai_key: str | None = None) -> None:
     """Interactive first-time configuration wizard."""
     env_path = Path.cwd() / ".env"
 
@@ -1085,8 +1155,10 @@ def _do_init(
                 else:
                     click.echo(f"  检测到 MX_APIKEY ({hermes_env})")
                     choice = click.prompt(
-                        "  是否使用？", type=click.Choice(["Y", "n"]),
-                        default="Y", show_choices=False,
+                        "  是否使用？",
+                        type=click.Choice(["Y", "n"]),
+                        default="Y",
+                        show_choices=False,
                         prompt_suffix=" [Y/n] ",
                     )
                     if choice == "Y":
@@ -1100,7 +1172,8 @@ def _do_init(
             else:
                 final_mx_key = click.prompt(
                     "  请输入 MX_APIKEY",
-                    default="", show_default=False,
+                    default="",
+                    show_default=False,
                 )
                 if not final_mx_key.strip():
                     final_mx_key = None
@@ -1118,13 +1191,15 @@ def _do_init(
         choice = click.prompt(
             "  是否需要配置 AI API KEY（用于智能分析引擎）？",
             type=click.Choice(["y", "N"]),
-            default="N", show_choices=False,
+            default="N",
+            show_choices=False,
             prompt_suffix=" [y/N] ",
         )
         if choice == "y":
             final_ai_key = click.prompt(
                 "  请输入 AI_API_KEY",
-                default="", show_default=False,
+                default="",
+                show_default=False,
             )
             if not final_ai_key.strip():
                 final_ai_key = None
@@ -1175,9 +1250,7 @@ def _read_env_value(env_path: Path, key: str) -> str | None:
     return None
 
 
-def _build_env_lines(
-    mx_key: str | None, ai_key: str | None
-) -> list[str]:
+def _build_env_lines(mx_key: str | None, ai_key: str | None) -> list[str]:
     """Build .env content lines."""
     lines = [
         "# 谛听 · 环境变量\n",
@@ -1204,9 +1277,7 @@ def _test_connection(mx_key: str) -> None:
         from .data.providers.mx_data import MxDataProvider
         from .data.repository import MarketDataRepository
 
-        repo = MarketDataRepository(
-            providers=[MxDataProvider(api_key=mx_key)]
-        )
+        repo = MarketDataRepository(providers=[MxDataProvider(api_key=mx_key)])
         quotes = repo.get_realtime(["000001"])
         if quotes and "000001" in quotes:
             q = quotes["000001"]

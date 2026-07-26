@@ -111,20 +111,24 @@ class StockService(_BaseService):
                 # 写入 SQLite
                 try:
                     cm = self._get_cache_mgr()
-                    cm.db_set("watchlist_cache", code, {
-                        "code": code,
-                        "name": result.name,
-                        "price": result.price,
-                        "change_pct": result.change_pct,
-                        "high": result.high,
-                        "low": result.low,
-                        "volume": result.volume,
-                        "amount": result.turnover,
-                        "pe": result.pe,
-                        "pb": result.pb,
-                        "total_mv": result.total_mv,
-                        "score": 0,
-                    })
+                    cm.db_set(
+                        "watchlist_cache",
+                        code,
+                        {
+                            "code": code,
+                            "name": result.name,
+                            "price": result.price,
+                            "change_pct": result.change_pct,
+                            "high": result.high,
+                            "low": result.low,
+                            "volume": result.volume,
+                            "amount": result.turnover,
+                            "pe": result.pe,
+                            "pb": result.pb,
+                            "total_mv": result.total_mv,
+                            "score": 0,
+                        },
+                    )
                 except Exception:
                     pass
             return result
@@ -134,11 +138,13 @@ class StockService(_BaseService):
 
     def _async_refresh_realtime(self, code: str) -> None:
         """后台异步刷新单只股票实时行情。"""
+
         def _refresh():
             try:
                 self.get_realtime(code, force_refresh=True)
             except Exception:
                 pass
+
         t = threading.Thread(target=_refresh, daemon=True, name=f"async-realtime-{code}")
         t.start()
 
@@ -194,6 +200,7 @@ class StockService(_BaseService):
             db_row = cm.db_get("stock_analysis_cache", code)
             if db_row and db_row.get("result_json"):
                 import json as _json
+
                 result = _json.loads(db_row["result_json"])
                 result.setdefault("chart_data", {})
                 result.setdefault("signals", None)
@@ -268,6 +275,7 @@ class StockService(_BaseService):
         if historical and historical.df is not None:
             try:
                 from ...signals.technical import TechnicalCalculator
+
                 sig = TechnicalCalculator.calculate(historical)
             except Exception:
                 pass
@@ -287,7 +295,8 @@ class StockService(_BaseService):
         discovered = discover_engines()
         available_engines = set(discovered or all_engines)
         engine_names = [
-            en for en in all_engines
+            en
+            for en in all_engines
             if en in available_engines and saved.get(f"engine_{en}", "1") == "1"
         ]
         enabled_engine_names = list(engine_names)
@@ -342,6 +351,7 @@ class StockService(_BaseService):
         if historical and historical.df is not None and not historical.df.empty:
             try:
                 from ...signals.vmd import VMDDecomposer
+
                 close_col = "close" if "close" in historical.df.columns else "收盘价"
                 if close_col in historical.df.columns:
                     close_vals = historical.df[close_col].dropna().values
@@ -359,8 +369,12 @@ class StockService(_BaseService):
             logger.debug("services.fund_flow.skip", code=code)
 
         ctx_obj = AnalysisContext(
-            symbol=code, realtime=quote, historical=historical,
-            signals=sig, vmd=vmd, fund_flow=fund_flow,
+            symbol=code,
+            realtime=quote,
+            historical=historical,
+            signals=sig,
+            vmd=vmd,
+            fund_flow=fund_flow,
         )
 
         consensus: ConsensusScore | None = None
@@ -378,13 +392,15 @@ class StockService(_BaseService):
                 if r.error:
                     record_skipped([r.engine_name], "error")
                     continue
-                engine_scores.append({
-                    "name": r.engine_name,
-                    "score": r.score,
-                    "rating": r.rating.value,
-                    "rating_cn": _RATING_CN.get(r.rating.value, r.rating.value),
-                    "confidence": r.confidence,
-                })
+                engine_scores.append(
+                    {
+                        "name": r.engine_name,
+                        "score": r.score,
+                        "rating": r.rating.value,
+                        "rating_cn": _RATING_CN.get(r.rating.value, r.rating.value),
+                        "confidence": r.confidence,
+                    }
+                )
                 metadata = r.metadata if isinstance(r.metadata, dict) else {}
                 for reason in metadata.get("bull_reasons", []) or []:
                     text = str(reason).strip()
@@ -397,7 +413,9 @@ class StockService(_BaseService):
             for error in pipe_result.errors:
                 engine_name = str(error.get("engine", ""))
                 error_text = str(error.get("error", "")).lower()
-                reason = "timeout" if "timeout" in error_text or "timed out" in error_text else "error"
+                reason = (
+                    "timeout" if "timeout" in error_text or "timed out" in error_text else "error"
+                )
                 record_skipped([engine_name], reason)
         except Exception as exc:
             record_skipped(engine_names, "error")
@@ -424,8 +442,7 @@ class StockService(_BaseService):
 
         successful_engines = {item["name"] for item in engine_scores}
         engine_skipped = [
-            item for item in engine_skipped
-            if item["engine_name"] not in successful_engines
+            item for item in engine_skipped if item["engine_name"] not in successful_engines
         ]
         engine_order = {name: index for index, name in enumerate(enabled_engine_names)}
         engine_scores.sort(key=lambda item: engine_order.get(item["name"], len(engine_order)))
@@ -453,17 +470,21 @@ class StockService(_BaseService):
         # 写入 SQLite
         try:
             import json as _json
+
             serializable = clean_numpy(result)
             l2_ttl = 30 if (state and state.should_call_api) else 1440
-            cm.db_set("stock_analysis_cache", code, {
-                "code": code,
-                "result_json": _json.dumps(serializable, default=str, ensure_ascii=False),
-                "expires_at": datetime.now() + timedelta(minutes=l2_ttl),
-            })
+            cm.db_set(
+                "stock_analysis_cache",
+                code,
+                {
+                    "code": code,
+                    "result_json": _json.dumps(serializable, default=str, ensure_ascii=False),
+                    "expires_at": datetime.now() + timedelta(minutes=l2_ttl),
+                },
+            )
         except Exception:
             pass
         return response
-
 
     # ── Search & List ───────────────────────────────
 
@@ -515,6 +536,7 @@ class StockService(_BaseService):
 
 
 # ── Module-level helper ──────────────────────────
+
 
 def _dict_to_response(d: dict) -> StockAnalysisResponse:
     """将内部 dict 转换为 StockAnalysisResponse dataclass。"""

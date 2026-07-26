@@ -1,0 +1,31 @@
+# pre-commit 钩子配置
+# 安装：pre-commit install
+# 手动全量运行：pre-commit run --all-files
+#
+# 作用：在 git commit 时强制运行 lint/format/基础检查，
+# 未通过的提交会被拦截（对人和 AI 同样强制）。
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1024']
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20
+    hooks:
+      # Lint（含 import 排序），自动修复
+      - id: ruff
+        args: [--fix]
+      # 统一代码格式
+      - id: ruff-format

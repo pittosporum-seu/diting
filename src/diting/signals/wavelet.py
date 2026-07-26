@@ -46,7 +46,7 @@ class WaveletDenoiser:
         denoised = pywt.waverec(denoised_coeffs, wavelet)
         # 截断到原始长度
         if len(denoised) > len(signal):
-            denoised = denoised[:len(signal)]
+            denoised = denoised[: len(signal)]
 
         logger.info("wavelet.done", length=len(signal), wavelet=wavelet)
         return denoised

@@ -2,6 +2,7 @@
 
 覆盖 v0.6.5 连续评分 + 量比因子。
 """
+
 from dataclasses import dataclass
 
 from src.diting.web.services._utils import quick_score
@@ -10,6 +11,7 @@ from src.diting.web.services._utils import quick_score
 @dataclass
 class _MockQuote:
     """模拟 RealtimeQuote，只包含 _quick_score 用到的字段"""
+
     symbol: str = "000001"
     name: str = "测试"
     price: float = 10.0

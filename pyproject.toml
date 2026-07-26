@@ -47,6 +47,7 @@ dev = [
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
     "ruff==0.15.20",
+    "pre-commit==4.2.0",
 ]
 
 [project.scripts]
@@ -59,12 +60,20 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/diting"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "network: 需要访问外部数据源(ashare/腾讯等)的测试，CI 中可能较慢或偶发",
+]
 
 [dependency-groups]
 dev = [
@@ -72,4 +81,5 @@ dev = [
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
     "ruff==0.15.20",
+    "pre-commit==4.2.0",
 ]

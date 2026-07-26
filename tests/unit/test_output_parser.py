@@ -46,8 +46,7 @@ class TestAiOutputParser:
 
     def test_parse_with_structured_reasons(self):
         raw = (
-            '{"score": 70, "bull_reasons": ["盈利增长", "估值合理"], '
-            '"bear_reasons": ["行业波动"]}'
+            '{"score": 70, "bull_reasons": ["盈利增长", "估值合理"], "bear_reasons": ["行业波动"]}'
         )
         result = AiOutputParser.parse(raw)
         assert result.bull_reasons == ["盈利增长", "估值合理"]
@@ -182,20 +181,23 @@ class TestAiOutputParser:
 
     # ── 评分 → 评级 ──
 
-    @pytest.mark.parametrize("score,expected_rating", [
-        (95, Rating.STRONG_BUY),
-        (80, Rating.STRONG_BUY),
-        (79, Rating.BUY),
-        (65, Rating.BUY),
-        (64, Rating.ACCUMULATE),
-        (50, Rating.ACCUMULATE),
-        (49, Rating.HOLD),
-        (35, Rating.HOLD),
-        (34, Rating.REDUCE),
-        (20, Rating.REDUCE),
-        (19, Rating.SELL),
-        (0, Rating.SELL),
-    ])
+    @pytest.mark.parametrize(
+        "score,expected_rating",
+        [
+            (95, Rating.STRONG_BUY),
+            (80, Rating.STRONG_BUY),
+            (79, Rating.BUY),
+            (65, Rating.BUY),
+            (64, Rating.ACCUMULATE),
+            (50, Rating.ACCUMULATE),
+            (49, Rating.HOLD),
+            (35, Rating.HOLD),
+            (34, Rating.REDUCE),
+            (20, Rating.REDUCE),
+            (19, Rating.SELL),
+            (0, Rating.SELL),
+        ],
+    )
     def test_score_to_rating(self, score, expected_rating):
         raw = f'{{"score": {score}, "narrative": "test"}}'
         result = AiOutputParser.parse(raw)

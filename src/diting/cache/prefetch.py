@@ -123,7 +123,7 @@ class PrefetchWorker:
             return
 
         self._run_count += 1
-        run_mid_freq = (self._run_count % 4 == 0)  # every 4th run (120s)
+        run_mid_freq = self._run_count % 4 == 0  # every 4th run (120s)
 
         logger.info(
             "prefetch.run",

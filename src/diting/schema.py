@@ -12,9 +12,11 @@ from .enums import DataSource, Rating
 # 数据层协议
 # ============================================================
 
+
 @dataclass(frozen=True)
 class RealtimeQuote:
     """实时行情"""
+
     symbol: str
     name: str
     price: float
@@ -34,6 +36,7 @@ class RealtimeQuote:
 @dataclass(frozen=True)
 class HistoricalData:
     """历史行情"""
+
     symbol: str
     df: Any
     columns: list[str]
@@ -45,6 +48,7 @@ class HistoricalData:
 @dataclass(frozen=True)
 class Financials:
     """财务数据"""
+
     symbol: str
     report_date: date
     revenue: float
@@ -65,6 +69,7 @@ class Financials:
 @dataclass(frozen=True)
 class FundFlow:
     """资金流向"""
+
     symbol: str
     date: date
     main_net_inflow: float
@@ -83,9 +88,11 @@ class FundFlow:
 # 信号层协议
 # ============================================================
 
+
 @dataclass(frozen=True)
 class VMDResult:
     """VMD 分解结果"""
+
     symbol: str
     cycle_position: float
     trend_slope: float
@@ -98,6 +105,7 @@ class VMDResult:
 @dataclass(frozen=True)
 class TechnicalSignals:
     """技术指标信号"""
+
     symbol: str
     rsi_14: float
     macd: float
@@ -123,9 +131,11 @@ class TechnicalSignals:
 # 分析层协议
 # ============================================================
 
+
 @dataclass(frozen=True)
 class AnalysisContext:
     """传给分析引擎的完整上下文"""
+
     symbol: str
     realtime: RealtimeQuote | None = None
     historical: HistoricalData | None = None
@@ -138,6 +148,7 @@ class AnalysisContext:
 @dataclass(frozen=True)
 class AnalysisResult:
     """所有分析引擎的统一输出"""
+
     engine_name: str
     engine_version: str
     symbol: str
@@ -158,9 +169,11 @@ class AnalysisResult:
 # 管道层协议
 # ============================================================
 
+
 @dataclass(frozen=True)
 class ConsensusScore:
     """多引擎共识评分"""
+
     symbol: str
     weighted_score: float
     rating: Rating
@@ -172,6 +185,7 @@ class ConsensusScore:
 @dataclass(frozen=True)
 class Conflict:
     """引擎间的评级冲突"""
+
     engine_a: str
     engine_b: str
     a_rating: Rating
@@ -182,6 +196,7 @@ class Conflict:
 @dataclass(frozen=True)
 class PipelineResult:
     """管道完整执行结果"""
+
     symbols: tuple = ()
     results: dict = field(default_factory=dict)
     consensus: dict = field(default_factory=dict)
@@ -194,9 +209,11 @@ class PipelineResult:
 # Web 响应协议
 # ============================================================
 
+
 @dataclass
 class EngineScoreItem:
     """单个分析引擎的评分结果。"""
+
     engine_name: str
     score: float
     rating: str
@@ -208,6 +225,7 @@ class EngineScoreItem:
 @dataclass
 class EngineSkipInfo:
     """被跳过的分析引擎信息。"""
+
     engine_name: str
     reason: str  # "no_api_key", "non_trading_hours", "timeout", "error"
 
@@ -260,11 +278,13 @@ class StockAnalysisResponse:
 # 基础设施协议
 # ============================================================
 
+
 @dataclass
 class FreshnessInfo:
     """数据新鲜度信息，在所有 API 响应中透传。"""
-    data_time: datetime | None    # 数据产生时间（provider 返回的时间戳）
-    source: str                   # 来源标识（mx-data / eastmoney / cache）
-    is_fresh: bool                # 是否在有效期内
-    age_seconds: float            # 数据年龄（秒）
-    ttl_seconds: int              # 有效期（秒）
+
+    data_time: datetime | None  # 数据产生时间（provider 返回的时间戳）
+    source: str  # 来源标识（mx-data / eastmoney / cache）
+    is_fresh: bool  # 是否在有效期内
+    age_seconds: float  # 数据年龄（秒）
+    ttl_seconds: int  # 有效期（秒）

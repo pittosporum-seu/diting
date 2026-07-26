@@ -26,12 +26,24 @@ logger = get_logger(__name__)
 # ── 查询模板 ──────────────────────────────────────
 
 _REALTIME_FIELDS = (
-    "收盘价", "涨跌幅", "开盘价", "最高价", "最低价",
-    "成交量", "成交额", "市盈率", "市净率", "总市值",
+    "收盘价",
+    "涨跌幅",
+    "开盘价",
+    "最高价",
+    "最低价",
+    "成交量",
+    "成交额",
+    "市盈率",
+    "市净率",
+    "总市值",
 )
 
 _HISTORICAL_FIELDS = (
-    "每日收盘价", "开盘价", "最高价", "最低价", "成交量",
+    "每日收盘价",
+    "开盘价",
+    "最高价",
+    "最低价",
+    "成交量",
 )
 
 
@@ -58,9 +70,7 @@ class MxDataProvider(DataProvider):
             try:
                 self._client = MXData(api_key=self._api_key)
             except ValueError as e:
-                raise DataUnavailableError(
-                    f"mx-data: {e}"
-                ) from e
+                raise DataUnavailableError(f"mx-data: {e}") from e
         return self._client
 
     # ── 接口实现 ──────────────────────────────────
@@ -81,7 +91,7 @@ class MxDataProvider(DataProvider):
         results: dict[str, RealtimeQuote] = {}
         batch_size = 4
         for i in range(0, len(symbols), batch_size):
-            batch = symbols[i:i + batch_size]
+            batch = symbols[i : i + batch_size]
             names = " ".join(batch)
             fields = " ".join(_REALTIME_FIELDS)
             query = f"{names} {fields}"
@@ -89,30 +99,21 @@ class MxDataProvider(DataProvider):
 
         return results
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         fields = " ".join(_HISTORICAL_FIELDS)
-        query = (
-            f"{symbol} {fields} "
-            f"{start.strftime('%Y-%m-%d')} 至 {end.strftime('%Y-%m-%d')}"
-        )
+        query = f"{symbol} {fields} {start.strftime('%Y-%m-%d')} 至 {end.strftime('%Y-%m-%d')}"
         return self._query_historical(query, symbol, start, end)
 
     # ── 内部方法 ──────────────────────────────────
 
-    def _query_realtime(
-        self, query: str, symbols: list[str]
-    ) -> dict[str, RealtimeQuote]:
+    def _query_realtime(self, query: str, symbols: list[str]) -> dict[str, RealtimeQuote]:
         """查询实时行情并映射到 RealtimeQuote"""
         try:
             client = self._get_client()
             raw = client.query(query)
             tables, _, _, error = MXData.parse_result(raw)
         except Exception as e:
-            logger.error(
-                "mx_data.realtime.failed", query=query, error=str(e)
-            )
+            logger.error("mx_data.realtime.failed", query=query, error=str(e))
             raise DataUnavailableError(f"mx-data realtime: {e}") from e
 
         if error:
@@ -144,9 +145,7 @@ class MxDataProvider(DataProvider):
 
         return results
 
-    def _query_historical(
-        self, query: str, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def _query_historical(self, query: str, symbol: str, start: date, end: date) -> HistoricalData:
         """查询历史行情并映射到 HistoricalData"""
         import pandas as pd
 
@@ -166,9 +165,7 @@ class MxDataProvider(DataProvider):
             logger.warning("mx_data.historical.parse_error", error=error)
 
         if not tables:
-            raise DataUnavailableError(
-                f"mx-data: no historical data for {symbol}"
-            )
+            raise DataUnavailableError(f"mx-data: no historical data for {symbol}")
 
         # 取第一个表
         table = tables[0]
@@ -176,9 +173,7 @@ class MxDataProvider(DataProvider):
         fieldnames = table.get("fieldnames", [])
 
         if not rows:
-            raise DataUnavailableError(
-                f"mx-data: empty historical data for {symbol}"
-            )
+            raise DataUnavailableError(f"mx-data: empty historical data for {symbol}")
 
         # 构建 DataFrame
         data: dict[str, list] = {}
@@ -196,8 +191,11 @@ class MxDataProvider(DataProvider):
         num_cols = [c for c in df.columns if c != "date"]
         df[num_cols] = df[num_cols].astype(object)
         unit_map = {
-            "亿股": 1e8, "万股": 1e4, "股": 1,
-            "亿元": 1e8, "万元": 1e4,
+            "亿股": 1e8,
+            "万股": 1e4,
+            "股": 1,
+            "亿元": 1e8,
+            "万元": 1e4,
         }
         for col in df.columns:
             if col == "date":
@@ -218,8 +216,7 @@ class MxDataProvider(DataProvider):
                         df.loc[mask, col] = pd.to_numeric(cleaned, errors="coerce") * mult
             else:
                 df[col] = pd.to_numeric(
-                    series.str.replace("元", "", regex=False)
-                    .str.replace(",", "", regex=False),
+                    series.str.replace("元", "", regex=False).str.replace(",", "", regex=False),
                     errors="coerce",
                 )
 

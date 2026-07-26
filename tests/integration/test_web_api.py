@@ -16,6 +16,7 @@ def client() -> TestClient:
 
     with patch("src.diting.web.app.start_prefetch_worker"):
         from src.diting.web.app import app
+
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 

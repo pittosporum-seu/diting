@@ -13,16 +13,21 @@ from src.diting.signals.technical import TechnicalCalculator
 
 def make_historical(symbol="002475", close=None, high=None, low=None, volume=None, n=60):
     """构造测试用历史数据"""
-    df = pd.DataFrame({
-        "date": pd.date_range("2026-01-01", periods=n),
-        "close": close if close is not None else np.linspace(60, 70, n),
-        "high": high if high is not None else np.linspace(61, 72, n),
-        "low": low if low is not None else np.linspace(58, 68, n),
-        "volume": volume if volume is not None else np.full(n, 10000),
-    })
+    df = pd.DataFrame(
+        {
+            "date": pd.date_range("2026-01-01", periods=n),
+            "close": close if close is not None else np.linspace(60, 70, n),
+            "high": high if high is not None else np.linspace(61, 72, n),
+            "low": low if low is not None else np.linspace(58, 68, n),
+            "volume": volume if volume is not None else np.full(n, 10000),
+        }
+    )
     return HistoricalData(
-        symbol=symbol, df=df, columns=list(df.columns),
-        start_date=date(2026, 1, 1), end_date=date(2026, 1, 1),
+        symbol=symbol,
+        df=df,
+        columns=list(df.columns),
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 1),
     )
 
 
@@ -108,15 +113,20 @@ class TestCalculate:
 
     def test_chinese_column_names(self):
         """兼容中文列名（mx-data 格式）"""
-        df = pd.DataFrame({
-            "收盘价": np.linspace(60, 70, 30),
-            "最高价": np.linspace(62, 72, 30),
-            "最低价": np.linspace(58, 68, 30),
-            "成交量": np.full(30, 10000),
-        })
+        df = pd.DataFrame(
+            {
+                "收盘价": np.linspace(60, 70, 30),
+                "最高价": np.linspace(62, 72, 30),
+                "最低价": np.linspace(58, 68, 30),
+                "成交量": np.full(30, 10000),
+            }
+        )
         data = HistoricalData(
-            symbol="002475", df=df, columns=list(df.columns),
-            start_date=date(2026, 1, 1), end_date=date(2026, 1, 1),
+            symbol="002475",
+            df=df,
+            columns=list(df.columns),
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 1),
         )
         signals = TechnicalCalculator.calculate(data)
         assert signals.symbol == "002475"
@@ -124,10 +134,12 @@ class TestCalculate:
 
     def test_real_data_simulation(self):
         """模拟真实行情：先跌后涨"""
-        close = np.concatenate([
-            np.linspace(70, 60, 15),  # 下跌
-            np.linspace(60, 75, 15),  # 反弹
-        ])
+        close = np.concatenate(
+            [
+                np.linspace(70, 60, 15),  # 下跌
+                np.linspace(60, 75, 15),  # 反弹
+            ]
+        )
         data = make_historical(close=close, n=30)
         signals = TechnicalCalculator.calculate(data)
         # 反弹后 RSI 应该偏高

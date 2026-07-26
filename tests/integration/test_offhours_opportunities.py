@@ -24,11 +24,15 @@ def scan(cache_mgr) -> ScanService:
 
 def _seed_scan_db(cache_mgr, scan_date: str, items: list[dict]) -> None:
     """向 market_scan_cache 预置一条扫描记录。"""
-    cache_mgr.db_set("market_scan_cache", f"{scan_date}-1500", {
-        "scan_date": scan_date,
-        "scan_time": "afternoon",
-        "top20_json": json.dumps(items, ensure_ascii=False),
-    })
+    cache_mgr.db_set(
+        "market_scan_cache",
+        f"{scan_date}-1500",
+        {
+            "scan_date": scan_date,
+            "scan_time": "afternoon",
+            "top20_json": json.dumps(items, ensure_ascii=False),
+        },
+    )
 
 
 MARKET_ITEMS = [

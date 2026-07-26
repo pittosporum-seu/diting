@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 
 from . import _utils
 from ._utils import _BaseService, _get_logger, quick_score
@@ -64,8 +64,13 @@ class ScanService(_BaseService):
         except Exception:
             logger.warning("services.opportunities.failed")
             return {
-                "total": 0, "strong_buy": 0, "watch": 0, "avoid": 0,
-                "items": [], "from_watchlist": [], "from_market": [],
+                "total": 0,
+                "strong_buy": 0,
+                "watch": 0,
+                "avoid": 0,
+                "items": [],
+                "from_watchlist": [],
+                "from_market": [],
             }
 
     def _scan_watchlist(self) -> list[dict]:
@@ -83,7 +88,7 @@ class ScanService(_BaseService):
             repo = self._build_repo()
             all_quotes: dict = {}
             for i in range(0, len(codes), 4):
-                batch = codes[i:i + 4]
+                batch = codes[i : i + 4]
                 try:
                     all_quotes.update(repo.get_realtime(batch))
                 except Exception:
@@ -98,16 +103,18 @@ class ScanService(_BaseService):
                 if q is None:
                     continue
                 score, signals = quick_score(q)
-                results.append({
-                    "code": code,
-                    "name": q.name or code,
-                    "price": q.price,
-                    "change_pct": q.change_pct,
-                    "score": score,
-                    "signals": signals,
-                    "rating": score_to_rating(score),
-                    "source": "watchlist",
-                })
+                results.append(
+                    {
+                        "code": code,
+                        "name": q.name or code,
+                        "price": q.price,
+                        "change_pct": q.change_pct,
+                        "score": score,
+                        "signals": signals,
+                        "rating": score_to_rating(score),
+                        "source": "watchlist",
+                    }
+                )
 
             results.sort(key=lambda x: x["score"], reverse=True)
             return results
@@ -157,8 +164,12 @@ class ScanService(_BaseService):
         items, scan_date = self._read_latest_scan()
 
         # 缓存有效：扫描日 >= 最近交易日（没有更新的交易发生）
-        if items and scan_date is not None and last_trade_date is not None \
-                and scan_date >= last_trade_date:
+        if (
+            items
+            and scan_date is not None
+            and last_trade_date is not None
+            and scan_date >= last_trade_date
+        ):
             logger.debug(
                 "services.offhours.scan_reused",
                 scan_date=str(scan_date),
@@ -174,7 +185,7 @@ class ScanService(_BaseService):
         )
         return self._scan_market_top20(force=True)
 
-    def _read_latest_scan(self) -> tuple[list[dict], "date | None"]:
+    def _read_latest_scan(self) -> tuple[list[dict], date | None]:
         """读最近一次扫描结果及其扫描日期（SQLite 优先，内存兑底）。"""
         import json as _json
         from datetime import date as _date
@@ -227,17 +238,11 @@ class ScanService(_BaseService):
 
             # 过滤：排除 ST/*ST/退/N 股
             _st_patterns = ("ST", "*ST", "退", "N")
-            filtered_codes = [
-                c for c in codes
-                if not any(kw in c for kw in _st_patterns)
-            ]
+            filtered_codes = [c for c in codes if not any(kw in c for kw in _st_patterns)]
 
             # 仅保留沪深 A 股（免费源可抓），排除北交所（4/8/9 开头）
             # 否则抓不到北交所股票会触发 AllProvidersFailedError 导致整个扫描失败
-            filtered_codes = [
-                c for c in filtered_codes
-                if c and c[0] in "0236"
-            ]
+            filtered_codes = [c for c in filtered_codes if c and c[0] in "0236"]
 
             if not filtered_codes:
                 return []
@@ -280,31 +285,37 @@ class ScanService(_BaseService):
                 all_results.append(item)
 
                 # 写入 market_snapshot
-                snapshot_rows.append({
-                    "code": code,
-                    "name": q.name or code,
-                    "price": q.price,
-                    "change_pct": q.change_pct,
-                    "open": q.open,
-                    "high": q.high,
-                    "low": q.low,
-                    "volume": q.volume,
-                    "amount": q.turnover,
-                    "turnover": 0.0,
-                    "batch_id": batch_id,
-                })
+                snapshot_rows.append(
+                    {
+                        "code": code,
+                        "name": q.name or code,
+                        "price": q.price,
+                        "change_pct": q.change_pct,
+                        "open": q.open,
+                        "high": q.high,
+                        "low": q.low,
+                        "volume": q.volume,
+                        "amount": q.turnover,
+                        "turnover": 0.0,
+                        "batch_id": batch_id,
+                    }
+                )
 
                 # 写入 stock_dict
-                _market = "SZ" if code.startswith(("0", "2", "3")) else (
-                    "SH" if code.startswith("6") else "BJ"
+                _market = (
+                    "SZ"
+                    if code.startswith(("0", "2", "3"))
+                    else ("SH" if code.startswith("6") else "BJ")
                 )
-                stock_dict_rows.append({
-                    "code": code,
-                    "name": q.name or code,
-                    "pinyin": "",
-                    "market": _market,
-                    "status": "normal",
-                })
+                stock_dict_rows.append(
+                    {
+                        "code": code,
+                        "name": q.name or code,
+                        "pinyin": "",
+                        "market": _market,
+                        "status": "normal",
+                    }
+                )
 
             # 写入 SQLite
             if snapshot_rows:
@@ -327,11 +338,15 @@ class ScanService(_BaseService):
             try:
                 scan_date = datetime.now().strftime("%Y-%m-%d")
                 scan_time = "morning" if datetime.now().hour < 13 else "afternoon"
-                cm.db_set("market_scan_cache", batch_id, {
-                    "scan_date": scan_date,
-                    "scan_time": scan_time,
-                    "top20_json": json.dumps(top20, ensure_ascii=False, default=str),
-                })
+                cm.db_set(
+                    "market_scan_cache",
+                    batch_id,
+                    {
+                        "scan_date": scan_date,
+                        "scan_time": scan_time,
+                        "top20_json": json.dumps(top20, ensure_ascii=False, default=str),
+                    },
+                )
             except Exception:
                 logger.warning("services.scan_market.scan_cache_write_failed")
 

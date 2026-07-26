@@ -34,8 +34,7 @@ class AnalysisPipeline:
             engine_results: list[AnalysisResult] = []
             with ThreadPoolExecutor(max_workers=self._max_workers) as pool:
                 futures = {
-                    pool.submit(self._run_engine, name, ctx): name
-                    for name in self._engine_names
+                    pool.submit(self._run_engine, name, ctx): name for name in self._engine_names
                 }
                 for future in as_completed(futures):
                     ename = futures[future]
@@ -49,11 +48,13 @@ class AnalysisPipeline:
                             symbol=ctx.symbol,
                             timeout_s=self._ENGINE_TIMEOUT,
                         )
-                        errors.append({
-                            "engine": ename,
-                            "symbol": ctx.symbol,
-                            "error": f"Engine {ename} timed out after {self._ENGINE_TIMEOUT}s",
-                        })
+                        errors.append(
+                            {
+                                "engine": ename,
+                                "symbol": ctx.symbol,
+                                "error": f"Engine {ename} timed out after {self._ENGINE_TIMEOUT}s",
+                            }
+                        )
                     except Exception as e:
                         logger.warning("pipeline.engine_failed", engine=ename, error=str(e))
                         errors.append({"engine": ename, "symbol": ctx.symbol, "error": str(e)})

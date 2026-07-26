@@ -70,10 +70,12 @@ class ELtdxProvider(DataProvider):
         # Batch name lookup: try Sina for names (free, fast)
         def _sina_prefix(s: str) -> str:
             return f"sz{s}" if s.startswith(("0", "2", "3")) else f"sh{s}"
+
         sina_codes = ",".join(_sina_prefix(s) for s in symbols)
         name_map = {}
         try:
             import requests
+
             resp = requests.get(
                 f"https://hq.sinajs.cn/list={sina_codes}",
                 headers={"Referer": "https://finance.sina.com.cn"},
@@ -81,6 +83,7 @@ class ELtdxProvider(DataProvider):
             )
             for line in resp.text.strip().split("\n"):
                 import re
+
                 m = re.search(r'hq_str_([^=]+)="([^,]+)', line)
                 if m:
                     code_raw = m.group(1).replace("sz", "").replace("sh", "")
@@ -99,9 +102,7 @@ class ELtdxProvider(DataProvider):
             try:
                 last = float(getattr(q, "last_price", 0) or 0)
                 pre_close = float(getattr(q, "pre_close_price", 0) or 0)
-                change_pct = (
-                    ((last - pre_close) / pre_close * 100) if pre_close else 0.0
-                )
+                change_pct = ((last - pre_close) / pre_close * 100) if pre_close else 0.0
 
                 quote = RealtimeQuote(
                     symbol=code,
@@ -117,15 +118,11 @@ class ELtdxProvider(DataProvider):
                 )
                 results[code] = quote
             except (ValueError, TypeError) as e:
-                logger.warning(
-                    "eltdx.realtime.row_failed", symbol=code, error=str(e)
-                )
+                logger.warning("eltdx.realtime.row_failed", symbol=code, error=str(e))
 
         return results
 
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         try:
             from eltdx import TdxClient
         except ImportError as e:
@@ -138,17 +135,11 @@ class ELtdxProvider(DataProvider):
             client = TdxClient()
             ks = client.get_kline("1d", symbol, count=max(days, 1))
         except Exception as e:
-            logger.error(
-                "eltdx.historical.failed", symbol=symbol, error=str(e)
-            )
-            raise DataUnavailableError(
-                f"eltdx historical {symbol}: {e}"
-            ) from e
+            logger.error("eltdx.historical.failed", symbol=symbol, error=str(e))
+            raise DataUnavailableError(f"eltdx historical {symbol}: {e}") from e
 
         if not ks or not ks.bars:
-            raise DataUnavailableError(
-                f"eltdx: no historical data for {symbol}"
-            )
+            raise DataUnavailableError(f"eltdx: no historical data for {symbol}")
 
         import pandas as pd
 

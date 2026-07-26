@@ -53,13 +53,15 @@ def _make_historical(symbol: str = "002475") -> HistoricalData:
     rng = np.random.default_rng(42)
     base = 70.0
     prices = base + np.cumsum(rng.normal(0, 0.5, 60))
-    df = pd.DataFrame({
-        "close": prices,
-        "open": prices - rng.uniform(0, 0.5, 60),
-        "high": prices + rng.uniform(0, 0.8, 60),
-        "low": prices - rng.uniform(0, 0.8, 60),
-        "volume": (10000 + rng.integers(0, 5000, 60)),
-    })
+    df = pd.DataFrame(
+        {
+            "close": prices,
+            "open": prices - rng.uniform(0, 0.5, 60),
+            "high": prices + rng.uniform(0, 0.8, 60),
+            "low": prices - rng.uniform(0, 0.8, 60),
+            "volume": (10000 + rng.integers(0, 5000, 60)),
+        }
+    )
     return HistoricalData(
         symbol=symbol,
         df=df,
@@ -110,7 +112,9 @@ def _make_context(
             trend_slope=0.02,
             dominant_period=20,
             trend_broken=False,
-        ) if with_vmd else None,
+        )
+        if with_vmd
+        else None,
     )
 
 
@@ -228,17 +232,13 @@ class TestPipelineE2E:
         # volume_profile 无历史数据会返回 HOLD + error
         assert len(result.results["002475"]) == 2
 
-        volume_results = [
-            r for r in result.results["002475"] if r.engine_name == "volume_profile"
-        ]
+        volume_results = [r for r in result.results["002475"] if r.engine_name == "volume_profile"]
         assert len(volume_results) == 1
         # 无历史数据时 volume_profile 返回 error
         assert volume_results[0].rating == Rating.HOLD
 
         # vmd_rsi 仍然正常运行
-        vmd_results = [
-            r for r in result.results["002475"] if r.engine_name == "vmd_rsi"
-        ]
+        vmd_results = [r for r in result.results["002475"] if r.engine_name == "vmd_rsi"]
         assert len(vmd_results) == 1
         assert vmd_results[0].error is None
 

@@ -51,9 +51,11 @@ def _normalize_columns(df):
 def _normalize_historical(data: HistoricalData) -> HistoricalData:
     """Normalize one historical payload without mutating provider-owned data."""
     normalized_df = _normalize_columns(data.df)
-    columns = list(normalized_df.columns) if hasattr(normalized_df, "columns") else [
-        _COLUMN_MAP.get(column, column) for column in data.columns
-    ]
+    columns = (
+        list(normalized_df.columns)
+        if hasattr(normalized_df, "columns")
+        else [_COLUMN_MAP.get(column, column) for column in data.columns]
+    )
     return HistoricalData(
         symbol=data.symbol,
         df=normalized_df,
@@ -191,9 +193,7 @@ class MarketDataRepository:
             # 所有 provider 都试过了
             if uncached:
                 msg = "; ".join(errors) if errors else "all providers exhausted"
-                raise AllProvidersFailedError(
-                    f"Failed to get realtime data for {uncached}: {msg}"
-                )
+                raise AllProvidersFailedError(f"Failed to get realtime data for {uncached}: {msg}")
 
         return results
 
@@ -239,9 +239,7 @@ class MarketDataRepository:
                 continue
 
         msg = "; ".join(errors) if errors else "no providers available"
-        raise AllProvidersFailedError(
-            f"Failed to get historical data for {symbol}: {msg}"
-        )
+        raise AllProvidersFailedError(f"Failed to get historical data for {symbol}: {msg}")
 
     def health_check(self) -> dict[str, bool]:
         """检查所有数据源的可达性"""

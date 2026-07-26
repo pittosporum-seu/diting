@@ -1,6 +1,5 @@
 """谛听 · VMD+RSI 择时引擎（纯计算）"""
 
-
 from ..enums import DataType, Rating, Signal
 from ..schema import AnalysisContext, AnalysisResult
 from .base import AnalysisEngine
@@ -66,8 +65,11 @@ class VMDRSIEngine(AnalysisEngine):
         narrative = "; ".join(factors) if factors else "无明显择时信号"
 
         return AnalysisResult(
-            engine_name=self.name, engine_version=self.version,
-            symbol=context.symbol, score=score, rating=rating,
+            engine_name=self.name,
+            engine_version=self.version,
+            symbol=context.symbol,
+            score=score,
+            rating=rating,
             signals=tuple(signals),
             narrative=narrative,
             risks=tuple(risks),

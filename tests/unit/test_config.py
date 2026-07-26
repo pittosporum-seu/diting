@@ -10,6 +10,7 @@ from src.diting.infra.errors import ConfigError
 
 # ── 夹具：临时 SQLite DB ───────────────────────
 
+
 @pytest.fixture
 def temp_db_path():
     """创建临时 SQLite DB 路径，测试结束后清理。"""
@@ -20,6 +21,7 @@ def temp_db_path():
 
 
 # ── 加载测试 ────────────────────────────────────
+
 
 class TestWatchlistLoading:
     """watchlist 加载测试"""
@@ -38,9 +40,7 @@ class TestWatchlistLoading:
         assert rows == []
 
     def test_empty_watchlist(self, temp_db_path):
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".csv", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             f.write("code,name,market\n")
 
         try:

@@ -16,9 +16,12 @@ if TYPE_CHECKING:
 logger = _get_logger()
 
 _ALL_PROVIDER_KEYS = [
-    "provider_eastmoney", "provider_ashare", "provider_mxdata", "provider_akshare"]
-_ALL_ENGINE_NAMES = [
-    "wyckoff", "buffett", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
+    "provider_eastmoney",
+    "provider_ashare",
+    "provider_mxdata",
+    "provider_akshare",
+]
+_ALL_ENGINE_NAMES = ["wyckoff", "buffett", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
 
 
 class DashboardService(_BaseService):
@@ -33,14 +36,19 @@ class DashboardService(_BaseService):
         settings: dict | None = None,
         repo_factory=None,
     ) -> None:
-        super().__init__(cache_mgr=cache_mgr, watchlist_db=watchlist_db,
-                         settings=settings, repo_factory=repo_factory)
+        super().__init__(
+            cache_mgr=cache_mgr,
+            watchlist_db=watchlist_db,
+            settings=settings,
+            repo_factory=repo_factory,
+        )
         self._scan_service = scan_service
 
     def _get_scan_service(self) -> ScanService:
         """懒加载 ScanService。"""
         if self._scan_service is None:
             from .scan import ScanService
+
             self._scan_service = ScanService()
         return self._scan_service
 
@@ -48,11 +56,13 @@ class DashboardService(_BaseService):
 
     def _async_refresh_dashboard(self) -> None:
         """后台异步刷新仪表盘数据。"""
+
         def _refresh():
             try:
                 self.get_dashboard_data(force_refresh=True)
             except Exception:
                 pass
+
         t = threading.Thread(target=_refresh, daemon=True, name="async-dashboard")
         t.start()
 
@@ -73,6 +83,7 @@ class DashboardService(_BaseService):
             确保前端展示的是市场数据的真实时间，而非缓存写入时间。
             始终返回 timezone-aware (UTC) datetime。
             """
+
             def _to_aware(dt: datetime) -> datetime:
                 return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
@@ -127,6 +138,7 @@ class DashboardService(_BaseService):
                 db_row = cm.db_get("dashboard_cache", "1")
                 if db_row and db_row.get("data_json"):
                     import json as _json
+
                     result = _json.loads(db_row["data_json"])
                     cached_at_str = result.pop("_cached_at", None)
                     if cached_at_str:
@@ -153,19 +165,6 @@ class DashboardService(_BaseService):
                     return result, freshness
             except Exception:
                 pass
-
-        # v0.6.5: CLOSED/WEEKEND 且无 force_refresh → 返回 DB 数据或空
-        empty_dashboard = {
-            "status": "ok",
-            "watchlist_count": 0,
-            "buy_signals": 0,
-            "watch_signals": 0,
-            "hold_signals": 0,
-            "avoid_signals": 0,
-            "market_indices": [],
-            "vmd_cycle": None,
-            "top_opportunities": [],
-        }
 
         def _fallback_freshness(source: str = "unavailable") -> FreshnessInfo:
             return FreshnessInfo(
@@ -220,12 +219,14 @@ class DashboardService(_BaseService):
                 for code in ["000001.SH", "399001", "399006"]:
                     q = index_quotes.get(code)
                     if q:
-                        market_indices.append({
-                            "name": index_names.get(code, code),
-                            "code": code,
-                            "price": q.price,
-                            "change_pct": q.change_pct,
-                        })
+                        market_indices.append(
+                            {
+                                "name": index_names.get(code, code),
+                                "code": code,
+                                "price": q.price,
+                                "change_pct": q.change_pct,
+                            }
+                        )
             except Exception:
                 logger.warning("services.dashboard.indices_failed")
 
@@ -252,8 +253,10 @@ class DashboardService(_BaseService):
                             close_arr = close_arr.astype(float)
                         try:
                             from ...signals.vmd import VMDDecomposer
+
                             vmd_result = VMDDecomposer.decompose(
-                                close_arr, symbol="000001.SH",
+                                close_arr,
+                                symbol="000001.SH",
                             )
                             vmd_cycle = {
                                 "cycle_position": round(vmd_result.cycle_position * 100, 1),
@@ -282,16 +285,32 @@ class DashboardService(_BaseService):
             }
             # 提取真实数据时间（用于 freshness 和缓存透传）
             data_time = _extract_data_time(result)
-            self._get_cache_mgr().mem_set("dashboard", {**result, "_cached_at": now, "_data_time": data_time.isoformat()})
+            self._get_cache_mgr().mem_set(
+                "dashboard",
+                {
+                    **result,
+                    "_cached_at": now,
+                    "_data_time": data_time.isoformat(),
+                },
+            )
             # 写入 SQLite
             try:
                 cm = self._get_cache_mgr()
                 import json as _json
-                result_for_db = {**result, "_cached_at": now.isoformat(), "_data_time": data_time.isoformat()}
-                cm.db_set("dashboard_cache", "1", {
-                    "id": 1,
-                    "data_json": _json.dumps(result_for_db, default=str, ensure_ascii=False),
-                })
+
+                result_for_db = {
+                    **result,
+                    "_cached_at": now.isoformat(),
+                    "_data_time": data_time.isoformat(),
+                }
+                cm.db_set(
+                    "dashboard_cache",
+                    "1",
+                    {
+                        "id": 1,
+                        "data_json": _json.dumps(result_for_db, default=str, ensure_ascii=False),
+                    },
+                )
             except Exception:
                 pass
             freshness = FreshnessInfo(
@@ -395,18 +414,20 @@ class DashboardService(_BaseService):
             provider_toggles = []
             for pk in _ALL_PROVIDER_KEYS:
                 label = pk.replace("provider_", "").replace("mxdata", "mx-data").upper()
-                provider_toggles.append({
-                    "key": pk,
-                    "label": {
-                        "ashare": "ashare (新浪/腾讯)",
-                        "mxdata": "mx-data (东方财富)",
-                        "eastmoney": "east_money (免费直连)",
-                        "akshare": "akshare (免费兜底)",
-                    }.get(pk.replace("provider_", ""), label),
-                    "enabled": saved.get(pk, "1") == "1",
-                    "requires_api_key": pk == "provider_mxdata",
-                    "api_key_available": bool(mx_key),
-                })
+                provider_toggles.append(
+                    {
+                        "key": pk,
+                        "label": {
+                            "ashare": "ashare (新浪/腾讯)",
+                            "mxdata": "mx-data (东方财富)",
+                            "eastmoney": "east_money (免费直连)",
+                            "akshare": "akshare (免费兜底)",
+                        }.get(pk.replace("provider_", ""), label),
+                        "enabled": saved.get(pk, "1") == "1",
+                        "requires_api_key": pk == "provider_mxdata",
+                        "api_key_available": bool(mx_key),
+                    }
+                )
 
             # ── AI Model ──
             saved_model = saved.get("ai_model", "")
@@ -422,19 +443,21 @@ class DashboardService(_BaseService):
             # ── Engine Toggles ──
             engine_toggles = []
             for en in _ALL_ENGINE_NAMES:
-                engine_toggles.append({
-                    "key": f"engine_{en}",
-                    "name": en,
-                    "label": {
-                        "wyckoff": "Wyckoff 威克夫分析",
-                        "buffett": "Buffett/Munger 综合评分",
-                        "can_slim": "CANSLIM 成长股",
-                        "volume_profile": "Volume Profile 量价分布",
-                        "vmd_rsi": "VMD+RSI 择时信号",
-                        "verdict": "Verdict 结论翻译",
-                    }.get(en, en),
-                    "enabled": saved.get(f"engine_{en}", "1") == "1",
-                })
+                engine_toggles.append(
+                    {
+                        "key": f"engine_{en}",
+                        "name": en,
+                        "label": {
+                            "wyckoff": "Wyckoff 威克夫分析",
+                            "buffett": "Buffett/Munger 综合评分",
+                            "can_slim": "CANSLIM 成长股",
+                            "volume_profile": "Volume Profile 量价分布",
+                            "vmd_rsi": "VMD+RSI 择时信号",
+                            "verdict": "Verdict 结论翻译",
+                        }.get(en, en),
+                        "enabled": saved.get(f"engine_{en}", "1") == "1",
+                    }
+                )
 
             return {
                 "status": "ok",

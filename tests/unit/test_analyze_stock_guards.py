@@ -25,6 +25,7 @@ from src.diting.web.services.stock import StockService
 
 class _FakeHistorical:
     """模拟 HistoricalData。"""
+
     def __init__(self):
         self.symbol = "002475"
         self.df = None
@@ -210,14 +211,25 @@ class TestAnalyzeStockGuards:
 
         import json as _json
 
-        db_data = _json.dumps({
-            "code": "002475", "name": "立讯精密", "price": 38.5,
-            "score": 72, "rating": "accumulate", "rating_label": "建议关注",
-            "rating_emoji": "🟡", "confidence": 0.6, "engine_scores": [],
-            "bull_reasons": [], "bear_reasons": [],
-            "rsi_display": "55.2", "macd_display": "0.123",
-            "chart_data": {}, "error": None,
-        })
+        db_data = _json.dumps(
+            {
+                "code": "002475",
+                "name": "立讯精密",
+                "price": 38.5,
+                "score": 72,
+                "rating": "accumulate",
+                "rating_label": "建议关注",
+                "rating_emoji": "🟡",
+                "confidence": 0.6,
+                "engine_scores": [],
+                "bull_reasons": [],
+                "bear_reasons": [],
+                "rsi_display": "55.2",
+                "macd_display": "0.123",
+                "chart_data": {},
+                "error": None,
+            }
+        )
 
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
             mock_cm.return_value.mem_get_adaptive.return_value = None
@@ -264,6 +276,7 @@ class TestAnalyzeStockGuards:
         # get_realtime 在周末返回兜底 quote
         with patch.object(self.service, "get_realtime") as mock_rt:
             from src.diting.schema import RealtimeQuote
+
             fallback = RealtimeQuote(
                 symbol="002475",
                 name="002475",
@@ -296,14 +309,16 @@ class TestAnalyzeStockGuards:
 
 rng = np.random.default_rng(42)
 _CLOSE = 70.0 + np.cumsum(rng.normal(0, 0.5, 60))
-_FAKE_DF = pd.DataFrame({
-    "close": _CLOSE,
-    "open": _CLOSE - rng.uniform(0, 0.5, 60),
-    "high": _CLOSE + rng.uniform(0, 0.8, 60),
-    "low": _CLOSE - rng.uniform(0.3, 0.8, 60),
-    "volume": 10000 + rng.integers(0, 5000, 60),
-    "date": pd.date_range("2026-05-01", periods=60),
-})
+_FAKE_DF = pd.DataFrame(
+    {
+        "close": _CLOSE,
+        "open": _CLOSE - rng.uniform(0, 0.5, 60),
+        "high": _CLOSE + rng.uniform(0, 0.8, 60),
+        "low": _CLOSE - rng.uniform(0.3, 0.8, 60),
+        "volume": 10000 + rng.integers(0, 5000, 60),
+        "date": pd.date_range("2026-05-01", periods=60),
+    }
+)
 _FAKE_HIST = HistoricalData(
     symbol="002475",
     df=_FAKE_DF,
@@ -355,19 +370,20 @@ class TestBugfixEngineCountAndSignals:
                         symbols=("002475",),
                         results={"002475": []},
                     )
+
                     # Intercept pipeline constructor to capture engine_names
                     def _init_side_effect(engine_names=None):
                         captured_engine_names.append(list(engine_names or []))
                         return mock_instance
-                    mock_pipeline_cls.side_effect = (
-                        lambda engine_names=None: (
-                            _init_side_effect(engine_names) or mock_instance
-                        )
+
+                    mock_pipeline_cls.side_effect = lambda engine_names=None: (
+                        _init_side_effect(engine_names) or mock_instance
                     )
 
                     with patch("src.diting.pipeline.consensus.ConsensusEngine") as mock_ce:
                         mock_ce.return_value.fuse.return_value = ConsensusScore(
-                            symbol="002475", weighted_score=50.0,
+                            symbol="002475",
+                            weighted_score=50.0,
                             rating=Rating.HOLD,
                         )
                         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
@@ -377,7 +393,8 @@ class TestBugfixEngineCountAndSignals:
                                 self.service, "get_realtime", return_value=fake_quote
                             ):
                                 with patch.object(
-                                    self.service, "get_historical",
+                                    self.service,
+                                    "get_historical",
                                     return_value=_FAKE_HIST,
                                 ):
                                     result = self.service.analyze_stock("002475")
@@ -477,6 +494,7 @@ class TestBugfixEngineCountAndSignals:
                 symbols=("002475",),
                 results={"002475": []},
             )
+
             # Capture the context passed to pipeline.run
             def capture_run(ctx_list):
                 captured_ctx.extend(ctx_list)
@@ -484,11 +502,13 @@ class TestBugfixEngineCountAndSignals:
                     symbols=tuple(c.symbol for c in ctx_list),
                     results={c.symbol: [] for c in ctx_list},
                 )
+
             mock_run.side_effect = capture_run
 
             with patch("src.diting.pipeline.consensus.ConsensusEngine") as mock_ce:
                 mock_ce.return_value.fuse.return_value = ConsensusScore(
-                    symbol="002475", weighted_score=50.0,
+                    symbol="002475",
+                    weighted_score=50.0,
                     rating=Rating.HOLD,
                 )
                 with patch.object(self.service, "_get_cache_mgr") as mock_cm:
@@ -558,12 +578,8 @@ class TestBugfixEngineCountAndSignals:
                 with patch.object(self.service, "_get_cache_mgr") as mock_cm:
                     mock_cm.return_value.mem_get_adaptive.return_value = None
                     mock_cm.return_value.db_get.return_value = None
-                    with patch.object(
-                        self.service, "get_realtime", return_value=fake_quote
-                    ):
-                        with patch.object(
-                            self.service, "get_historical", return_value=_FAKE_HIST
-                        ):
+                    with patch.object(self.service, "get_realtime", return_value=fake_quote):
+                        with patch.object(self.service, "get_historical", return_value=_FAKE_HIST):
                             result = self.service.analyze_stock("002475")
 
         assert result.bull_reasons == ["RSI=28，处于超卖区"]

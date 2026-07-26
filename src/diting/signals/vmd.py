@@ -59,9 +59,7 @@ class VMDDecomposer:
             alpha = cfg.get("alpha", cls.DEFAULT_ALPHA)
 
         if len(close) < k * 10:
-            raise DataUnavailableError(
-                f"VMD needs >= {k * 10} rows, got {len(close)}"
-            )
+            raise DataUnavailableError(f"VMD needs >= {k * 10} rows, got {len(close)}")
 
         try:
             from vmdpy import VMD

@@ -15,6 +15,7 @@ from src.diting.schema import AnalysisContext, AnalysisResult
 
 class _LongRunningEngine:
     """模拟超时的引擎。"""
+
     name = "slow_engine"
     version = "1.0.0"
 
@@ -23,6 +24,7 @@ class _LongRunningEngine:
 
     def analyze(self, ctx):
         import time
+
         time.sleep(self._delay)
         return AnalysisResult(
             engine_name=self.name,
@@ -38,6 +40,7 @@ class _LongRunningEngine:
 
 class _QuickEngine:
     """正常快速的引擎。"""
+
     name = "fast_engine"
     version = "1.0.0"
 
@@ -87,9 +90,7 @@ class TestAITimeout:
 
                 # slow_engine never completes (simulate timeout)
                 slow_future = Future()
-                slow_future.set_exception(
-                    TimeoutError("Engine slow_engine timed out after 25s")
-                )
+                slow_future.set_exception(TimeoutError("Engine slow_engine timed out after 25s"))
 
                 mock_executor = MagicMock()
                 mock_pool_cls.return_value.__enter__.return_value = mock_executor

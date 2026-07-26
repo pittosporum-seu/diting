@@ -30,6 +30,29 @@
 
 ---
 
+## 0.5 提交前硬性约束（强制，人与 AI 同样适用）
+
+> 以下检查由 pre-commit 钩子和 CI 强制执行。**任何一项不通过，禁止提交/合并。**
+
+1. **安装钩子**（首次克隆后执行一次）：
+   ```bash
+   uv sync --extra dev
+   pre-commit install
+   ```
+2. **提交前自动运行**：`git commit` 时 pre-commit 会自动跑：
+   - `ruff check --fix`（lint：未使用导入、import 排序、错误检查）
+   - `ruff format`（统一格式）
+   - 基础检查（去尾空格、文件末尾换行、YAML/TOML 合法性、合并冲突标记）
+3. **手动全量验证**（推送前）：
+   ```bash
+   pre-commit run --all-files      # lint + format + 基础检查
+   uv run pytest tests/ -m "not network" -q   # 核心测试必须全过
+   ```
+4. **CI 门禁**：push/PR 触发 CI，`lint`（ruff check + format check）与核心测试（非网络）为必过门禁；网络测试单独跑、允许偶发失败。
+5. **约束对象包含 AI**：AI 开发者（CodeWhale 等）提交代码同样受这些钩子约束，不得绕过未通过 lint/测试的提交。
+
+---
+
 ## 1. 设计铁律（不可违反）
 
 ### 1.1 依赖方向

@@ -60,9 +60,7 @@ class DataProvider(ABC):
         ...
 
     @abstractmethod
-    def fetch_historical(
-        self, symbol: str, start: date, end: date
-    ) -> HistoricalData:
+    def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         """获取历史日线行情。
 
         Args:
@@ -86,9 +84,7 @@ class DataProvider(ABC):
         Raises:
             NotImplementedError: 该数据源不支持财务数据
         """
-        raise NotImplementedError(
-            f"{self.name} does not support financials"
-        )
+        raise NotImplementedError(f"{self.name} does not support financials")
 
     def fetch_fund_flow(self, symbol: str, day: date) -> FundFlow:
         """获取资金流向（可选）。
@@ -96,9 +92,7 @@ class DataProvider(ABC):
         Raises:
             NotImplementedError: 该数据源不支持资金流向
         """
-        raise NotImplementedError(
-            f"{self.name} does not support fund flow"
-        )
+        raise NotImplementedError(f"{self.name} does not support fund flow")
 
     def fetch_minute(self, symbol: str, day: date) -> HistoricalData:
         """获取分钟级数据（可选）。
@@ -106,9 +100,7 @@ class DataProvider(ABC):
         Raises:
             NotImplementedError: 该数据源不支持分钟数据
         """
-        raise NotImplementedError(
-            f"{self.name} does not support minute data"
-        )
+        raise NotImplementedError(f"{self.name} does not support minute data")
 
     @classmethod
     def from_config(cls, name: str, settings: dict | None = None):
@@ -137,6 +129,7 @@ class DataProvider(ABC):
 
         mod_path, _, cls_name = class_path.rpartition(".")
         import importlib
+
         mod = importlib.import_module(mod_path)
         provider_cls = getattr(mod, cls_name)
 

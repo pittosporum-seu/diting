@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import threading
-import time
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
@@ -142,10 +141,14 @@ class AnalysisPrefetchWorker:
         """记录今天已跑过。"""
         today = today or date.today()
         try:
-            self._cache_mgr.db_set("cache_meta", _LAST_DATE_KEY, {
-                "key": _LAST_DATE_KEY,
-                "value": today.isoformat(),
-            })
+            self._cache_mgr.db_set(
+                "cache_meta",
+                _LAST_DATE_KEY,
+                {
+                    "key": _LAST_DATE_KEY,
+                    "value": today.isoformat(),
+                },
+            )
         except Exception:
             logger.warning("analysis_prefetch.mark_failed")
 
@@ -173,6 +176,7 @@ class AnalysisPrefetchWorker:
     def _get_watchlist_codes(self) -> list[str]:
         try:
             from ..config import Config
+
             stocks = Config().load_watchlist(validate=False)
             return [s.get("code") for s in stocks if s.get("code")]
         except Exception:
@@ -252,7 +256,7 @@ class AnalysisPrefetchWorker:
             if self._stop_event.is_set():
                 logger.info("analysis_prefetch.interrupted")
                 break
-            batch = queue[batch_start: batch_start + self._batch_size]
+            batch = queue[batch_start : batch_start + self._batch_size]
             for code in batch:
                 if self._stop_event.is_set():
                     break

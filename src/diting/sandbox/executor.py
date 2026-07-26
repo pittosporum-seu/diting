@@ -75,9 +75,7 @@ class SandboxExecutor:
             logger.error("sandbox.failed", error=str(e))
             raise SandboxError(code[:200], str(e)) from e
 
-    def run_with_retry(
-        self, code: str, fix_prompt: str, llm, max_retries: int = 1
-    ) -> dict:
+    def run_with_retry(self, code: str, fix_prompt: str, llm, max_retries: int = 1) -> dict:
         """执行代码，失败时 AI 自动修复重试。
 
         Args:
@@ -106,7 +104,7 @@ class SandboxExecutor:
                 code = llm.complete(
                     system=fix_prompt,
                     user=f"Code that failed:\n```python\n{code}\n```\n\n"
-                         f"Errors:\n{errors}\n\nFix the code.",
+                    f"Errors:\n{errors}\n\nFix the code.",
                 )
                 # 提取代码块
                 if "```python" in code:

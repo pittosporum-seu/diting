@@ -55,6 +55,7 @@ class TestSandbox:
 class TestEngineABC:
     def test_cannot_instantiate_abc(self):
         import pytest
+
         with pytest.raises(TypeError):
             AnalysisEngine()
 
@@ -109,6 +110,7 @@ class TestWyckoffEngine:
         """无历史数据返回 HOLD"""
         engine = WyckoffEngine()
         from src.diting.schema import AnalysisContext
+
         ctx = AnalysisContext(symbol="002475")
         result = engine.analyze(ctx)
         assert result.rating == Rating.HOLD
@@ -121,13 +123,21 @@ class TestWyckoffEngine:
     def test_context_validation(self):
         """validate_context 检查数据"""
         from src.diting.schema import AnalysisContext, RealtimeQuote
+
         engine = WyckoffEngine()
         # 只有 realtime 没有 historical → 应该 False
         ctx = AnalysisContext(
             symbol="002475",
             realtime=RealtimeQuote(
-                symbol="002475", name="test", price=10, change_pct=0,
-                open=10, high=10, low=10, volume=1000, turnover=10000,
-            )
+                symbol="002475",
+                name="test",
+                price=10,
+                change_pct=0,
+                open=10,
+                high=10,
+                low=10,
+                volume=1000,
+                turnover=10000,
+            ),
         )
         assert engine.validate_context(ctx) is False

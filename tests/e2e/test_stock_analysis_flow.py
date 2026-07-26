@@ -16,6 +16,7 @@ from src.diting.web.services import AnalysisService
 
 class _FakeHistorical:
     """模拟 HistoricalData。"""
+
     def __init__(self):
         self.symbol = "002475"
         self.df = None
@@ -118,7 +119,8 @@ class TestStockAnalysisFlow:
         assert result.code == "002475"
         assert result.score is not None
         ai_engines = [
-            e.engine_name for e in result.engine_scores
+            e.engine_name
+            for e in result.engine_scores
             if e.engine_name in ("wyckoff", "buffett", "can_slim")
         ]
         assert len(ai_engines) == 0, f"周末不应运行 AI 引擎: {ai_engines}"
@@ -126,24 +128,26 @@ class TestStockAnalysisFlow:
     def test_l2_cache_hit_returns_data(self):
         """L1 miss + L2 缓存命中 → 返回缓存数据。"""
 
-        cached_json = json.dumps({
-            "code": "002475",
-            "name": "立讯精密",
-            "price": 38.5,
-            "change_pct": 1.5,
-            "score": 72,
-            "rating": "accumulate",
-            "rating_label": "建议关注",
-            "rating_emoji": "🟡",
-            "confidence": 0.6,
-            "engine_scores": [],
-            "bull_reasons": [],
-            "bear_reasons": [],
-            "rsi_display": "55.2",
-            "macd_display": "0.123",
-            "chart_data": {},
-            "error": None,
-        })
+        cached_json = json.dumps(
+            {
+                "code": "002475",
+                "name": "立讯精密",
+                "price": 38.5,
+                "change_pct": 1.5,
+                "score": 72,
+                "rating": "accumulate",
+                "rating_label": "建议关注",
+                "rating_emoji": "🟡",
+                "confidence": 0.6,
+                "engine_scores": [],
+                "bull_reasons": [],
+                "bear_reasons": [],
+                "rsi_display": "55.2",
+                "macd_display": "0.123",
+                "chart_data": {},
+                "error": None,
+            }
+        )
 
         with patch.object(self.service._stock, "_get_cache_mgr") as mock_cm:
             mock_cm.return_value.mem_get_adaptive.return_value = None
@@ -226,9 +230,7 @@ class TestStockAnalysisFlow:
             with patch.object(self.service._stock, "_get_cache_mgr") as mock_cm:
                 mock_cm.return_value.mem_get_adaptive.return_value = None
                 mock_cm.return_value.db_get.return_value = None
-                with patch.object(
-                    self.service._stock, "get_realtime", return_value=fake_quote
-                ):
+                with patch.object(self.service._stock, "get_realtime", return_value=fake_quote):
                     with patch.object(
                         self.service._stock, "get_historical", return_value=fake_hist
                     ):
