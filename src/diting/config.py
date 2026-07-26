@@ -43,6 +43,7 @@ class Config:
                 val = val.strip().strip('"').strip("'")
                 if key not in os.environ:
                     self._data[key] = val
+                    os.environ[key] = val  # 同步到 os.environ，让直接读 environ 的代码也能拿到
 
     def get(self, key: str, default: str = "") -> str:
         return os.environ.get(key) or self._data.get(key, default)

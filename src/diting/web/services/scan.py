@@ -81,8 +81,9 @@ class ScanService(_BaseService):
             result = {
                 "total": len(analyzed),
                 "strong_buy": sum(1 for r in analyzed if r["score"] >= 80),
-                "watch": sum(1 for r in analyzed if 65 <= r["score"] < 80),
-                "avoid": sum(1 for r in analyzed if r["score"] < 20),
+                "buy": sum(1 for r in analyzed if 65 <= r["score"] < 80),
+                "watch": sum(1 for r in analyzed if 50 <= r["score"] < 65),
+                "avoid": sum(1 for r in analyzed if r["score"] < 35),
                 "items": top20,
                 "from_watchlist": from_watchlist,
                 "from_market": from_market,
@@ -97,6 +98,7 @@ class ScanService(_BaseService):
             return {
                 "total": 0,
                 "strong_buy": 0,
+                "buy": 0,
                 "watch": 0,
                 "avoid": 0,
                 "items": [],

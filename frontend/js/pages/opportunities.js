@@ -105,7 +105,7 @@ export async function renderOpportunities() {
       <h1 class="page-title">选股机会</h1>
       <p class="page-desc">自选股 + 全市场热点扫描</p>
 
-      ${ui.statGrid(4)}${ui.statCard(oppData?.total ?? '--', '总机会')}${ui.statCard(oppData?.strong_buy ?? '--', '强烈买入', 'var(--color-buy)')}${ui.statCard(oppData?.watch ?? '--', '建议关注', 'var(--color-watch)')}${ui.statCard(oppData?.avoid ?? '--', '需回避', 'var(--color-avoid)')}</div>
+      ${ui.statGrid(5)}${ui.statCard(oppData?.total ?? '--', '总机会')}${ui.statCard(oppData?.strong_buy ?? '--', '强烈买入', 'var(--color-buy)')}${ui.statCard(oppData?.buy ?? '--', '建议买入', 'var(--color-buy)')}${ui.statCard(oppData?.watch ?? '--', '建议关注', 'var(--color-watch)')}${ui.statCard(oppData?.avoid ?? '--', '需回避', 'var(--color-avoid)')}</div>
 
       ${progressSection}
 

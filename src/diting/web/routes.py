@@ -145,8 +145,8 @@ async def api_stock_name(code: str):
 
 
 @router.get("/api/stock/{code}")
-async def api_stock(code: str):
-    resp = stock_service.analyze_stock(code)
+async def api_stock(code: str, force: bool = False):
+    resp = stock_service.analyze_stock(code, force=force)
     if resp.error:
         raise DataUnavailableError(message=resp.error)
     data = asdict(resp)
