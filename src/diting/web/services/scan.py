@@ -163,11 +163,20 @@ class ScanService(_BaseService):
                 continue  # 尚未完成全量分析，不入榜
             if analysis.get("error"):
                 continue
+            # 名称解析：分析缓存的 name 可能是代码（实时价为 0 时），
+            # 优先取“非代码”的真实名称（分析缓存 → 候选）
+            name = code
+            for n in (analysis.get("name"), cand.get("name")):
+                if n and n != code:
+                    name = n
+                    break
+            # 价格：分析缓存可能为 0（无实时数据），优先取非零价
+            price = analysis.get("price") or cand.get("price")
             analyzed.append(
                 {
                     "code": code,
-                    "name": analysis.get("name") or cand.get("name") or code,
-                    "price": analysis.get("price") or cand.get("price"),
+                    "name": name,
+                    "price": price,
                     "change_pct": analysis.get("change_pct", cand.get("change_pct")),
                     "score": analysis["score"],  # 引擎共识分（与详情页同源）
                     "rating": analysis.get("rating"),
