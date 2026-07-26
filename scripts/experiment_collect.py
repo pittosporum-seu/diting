@@ -59,7 +59,7 @@ def select_samples(stock_service: StockService, limit: int) -> list[str]:
         cm = stock_service._get_cache_mgr()
         import sqlite3
 
-        conn = sqlite3.connect(cm.db_path)
+        conn = sqlite3.connect(str(cm._path))
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT code, change_pct FROM market_snapshot WHERE price > 2"
@@ -211,38 +211,53 @@ def main():
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    rows = []
-    for i, code in enumerate(samples):
-        print(f"[{i + 1}/{len(samples)}] {code} ...", end=" ", flush=True)
-        row = collect_one(stock_service, code)
-        if row:
-            rows.append(row)
-            print(
-                f"consensus={row['consensus_score']} engines={row['n_engines']} "
-                f"has_ai={row['has_ai']}"
-            )
-        else:
-            print("skipped")
-        time.sleep(args.sleep)
+    # 断点续跑：读已采集的 code，跳过
+    done_codes: set[str] = set()
+    fieldnames: list[str] = []
+    if out_path.exists():
+        with open(out_path, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames or []
+            for r in reader:
+                done_codes.add(r.get("code", ""))
+        print(f"已采集 {len(done_codes)} 只，续跑跳过")
 
-    if not rows:
-        print("无有效样本")
-        return
+    # 追加模式打开（增量保存，中断不丢数据）
+    need_header = not out_path.exists() or not fieldnames
+    f = open(out_path, "a", encoding="utf-8", newline="")
+    writer = None
 
-    # 写 CSV（所有列的并集）
-    fieldnames = list(rows[0].keys())
-    for r in rows:
-        for k in r.keys():
-            if k not in fieldnames:
-                fieldnames.append(k)
-    with open(out_path, "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
-        w.writeheader()
-        w.writerows(rows)
+    collected = 0
+    n_with_ai = 0
+    try:
+        for i, code in enumerate(samples):
+            if code in done_codes:
+                continue
+            print(f"[{i + 1}/{len(samples)}] {code} ...", end=" ", flush=True)
+            row = collect_one(stock_service, code)
+            if row:
+                if writer is None:
+                    if not fieldnames:
+                        fieldnames = list(row.keys())
+                    writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+                    if need_header:
+                        writer.writeheader()
+                        need_header = False
+                writer.writerow(row)
+                f.flush()  # 立即落盘
+                collected += 1
+                n_with_ai += row.get("has_ai", 0)
+                print(
+                    f"consensus={row['consensus_score']} engines={row['n_engines']} "
+                    f"has_ai={row['has_ai']}"
+                )
+            else:
+                print("skipped")
+            time.sleep(args.sleep)
+    finally:
+        f.close()
 
-    n_with_ai = sum(1 for r in rows if r.get("has_ai"))
-    print(f"\n完成: {len(rows)} 只样本 → {out_path}")
-    print(f"含 AI 引擎分析的: {n_with_ai}/{len(rows)}")
+    print(f"\n本次新增: {collected} 只（含 AI: {n_with_ai}）→ {out_path}")
 
 
 if __name__ == "__main__":
