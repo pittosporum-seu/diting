@@ -24,7 +24,6 @@ engines:
     - vmd_rsi            # VMD+RSI 择时
     - volume_profile     # 成交量分布
     - wyckoff            # 以下需 AI，无 API key 或非交易时段自动 graceful skip
-    - buffett
     - can_slim
 
   weights:
@@ -32,7 +31,6 @@ engines:
     verdict: 1.0
     volume_profile: 0.8
     wyckoff: 0.6
-    buffett: 0.6
     can_slim: 0.5
 
   scoring:
@@ -54,6 +52,7 @@ pipeline:
   max_workers: 4
   timeout_per_engine: 60   # 秒
   fail_fast: false
+  ai_batch_size: 15        # 批量 AI 分析每批股票数（wyckoff/can_slim 直出 JSON）
 
   cache:
     realtime_ttl: 300      # 实时行情缓存 5 分钟

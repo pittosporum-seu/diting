@@ -170,13 +170,21 @@ class StockService(_BaseService):
 
     # ── Full Analysis ───────────────────────────────
 
-    def analyze_stock(self, code: str, force: bool = False, run_ai: bool = False) -> StockAnalysisResponse:
+    def analyze_stock(
+        self,
+        code: str,
+        force: bool = False,
+        run_ai: bool = False,
+        ai_results_override: list | None = None,
+    ) -> StockAnalysisResponse:
         """个股全流程分析，返回模板/API 通用数据结构。
 
         Args:
             code: 股票代码。
             force: True 时跳过缓存、且休市也跑全量引擎（显式重跑）。
-            run_ai: True 时休市也跑 AI 引擎（用于候选深度分析，保证 6 引擎完整）。
+            run_ai: True 时休市也跑 AI 引擎（用于候选深度分析，保证引擎完整）。
+            ai_results_override: 预取的 AI 引擎结果（AnalysisResult 列表）。
+                深度分析批量预取后传入，避免逐只重复调 AI；None 时走 batch-of-1。
 
         Returns:
             StockAnalysisResponse dataclass（非裸 dict）。
@@ -296,7 +304,7 @@ class StockService(_BaseService):
         from ...pipeline.runner import AnalysisPipeline
 
         saved = self._load_saved_settings()
-        all_engines = ["wyckoff", "buffett", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
+        all_engines = ["wyckoff", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
         discovered = discover_engines()
         available_engines = set(discovered or all_engines)
         engine_names = [
@@ -322,7 +330,7 @@ class StockService(_BaseService):
                 existing[engine_name] = item
 
         # AI 引擎降级：无 API key 时跳过 AI 引擎
-        _ai_engines = {"wyckoff", "buffett", "can_slim"}
+        _ai_engines = {"wyckoff", "can_slim"}
         api_key = os.environ.get("AI_API_KEY", "") or os.environ.get("DEEPSEEK_API_KEY", "")
         if not api_key:
             skipped = [en for en in engine_names if en in _ai_engines]
@@ -387,13 +395,60 @@ class StockService(_BaseService):
         bull_reasons: list[str] = []
         bear_reasons: list[str] = []
 
-        try:
-            pipeline = AnalysisPipeline(engine_names=engine_names)
-            pipe_result: PipelineResult = pipeline.run([ctx_obj])
-            ce = ConsensusEngine()
-            consensus = ce.fuse(code, pipe_result.results.get(code, []))
+        # 拆分 quick 引擎（走 pipeline 并行）与 AI 引擎（走批量直出 JSON）
+        quick_engine_names = [en for en in engine_names if en not in _ai_engines]
+        ai_engine_names = [en for en in engine_names if en in _ai_engines]
+        all_results: list = []
 
-            for r in pipe_result.results.get(code, []):
+        # ── quick 引擎：pipeline ──
+        try:
+            if quick_engine_names:
+                pipeline = AnalysisPipeline(engine_names=quick_engine_names)
+                pipe_result: PipelineResult = pipeline.run([ctx_obj])
+                all_results.extend(pipe_result.results.get(code, []))
+                for error in pipe_result.errors:
+                    engine_name = str(error.get("engine", ""))
+                    error_text = str(error.get("error", "")).lower()
+                    reason = (
+                        "timeout"
+                        if "timeout" in error_text or "timed out" in error_text
+                        else "error"
+                    )
+                    record_skipped([engine_name], reason)
+        except Exception as exc:
+            record_skipped(quick_engine_names, "error")
+            logger.warning("services.pipeline.failed", code=code, error=str(exc))
+
+        # ── AI 引擎：批量直出 JSON（单股即 batch-of-1，去沙箱脆弱）──
+        if ai_engine_names:
+            if ai_results_override is not None:
+                # 深度分析已批量预取，直接复用
+                got = [r for r in ai_results_override if r.engine_name in ai_engine_names]
+                all_results.extend(got)
+                got_names = {r.engine_name for r in got}
+                missing = [en for en in ai_engine_names if en not in got_names]
+                if missing:
+                    record_skipped(missing, "error")
+            else:
+                try:
+                    from ...engines.batch_ai import BatchAIAnalyzer
+
+                    batch_results = BatchAIAnalyzer(self).analyze([code], ai_engine_names)
+                    got = batch_results.get(code, [])
+                    all_results.extend(got)
+                    got_names = {r.engine_name for r in got}
+                    missing = [en for en in ai_engine_names if en not in got_names]
+                    if missing:
+                        record_skipped(missing, "error")
+                except Exception as exc:
+                    record_skipped(ai_engine_names, "error")
+                    logger.warning("services.batch_ai.failed", code=code, error=str(exc))
+
+        # ── 共识融合 + 组装 engine_scores ──
+        try:
+            ce = ConsensusEngine()
+            consensus = ce.fuse(code, all_results)
+            for r in all_results:
                 if r.error:
                     record_skipped([r.engine_name], "error")
                     continue
@@ -415,16 +470,9 @@ class StockService(_BaseService):
                     text = str(reason).strip()
                     if text and text not in bear_reasons:
                         bear_reasons.append(text)
-            for error in pipe_result.errors:
-                engine_name = str(error.get("engine", ""))
-                error_text = str(error.get("error", "")).lower()
-                reason = (
-                    "timeout" if "timeout" in error_text or "timed out" in error_text else "error"
-                )
-                record_skipped([engine_name], reason)
         except Exception as exc:
             record_skipped(engine_names, "error")
-            logger.warning("services.pipeline.failed", code=code, error=str(exc))
+            logger.warning("services.consensus.failed", code=code, error=str(exc))
             consensus = None
 
         if consensus is None:

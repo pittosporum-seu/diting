@@ -92,48 +92,64 @@ class DeepAnalysisManager:
         self._stop_event.set()
 
     def _run(self, codes: list[str], force: bool) -> None:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from ...engines.batch_ai import BatchAIAnalyzer
+        from ...infra.config_loader import ConfigLoader
 
-        ai_engines = {"wyckoff", "buffett", "can_slim"}
+        ai_engines = {"wyckoff", "can_slim"}
+        batch_size = max(1, int(ConfigLoader.get_section("pipeline").get("ai_batch_size", 15)))
+        analyzer = BatchAIAnalyzer(self._stock_service)
         analyzed = 0
         completed = 0
 
-        def process_one(code: str) -> bool:
-            """分析单只股票。已完整且非 force 则跳过。返回是否成功。"""
-            if self._stop_event.is_set():
-                return False
-            try:
-                if not force and self._has_complete_analysis(code, ai_engines):
-                    return True  # 已完整，跳过也算完成
-                self._stock_service.analyze_stock(code, force=True, run_ai=True)
-                return True
-            except Exception:
-                logger.warning("deep_analysis.stock_failed", code=code)
-                return False
-
         logger.info(
-            "deep_analysis.parallel", concurrent=self._max_concurrent, total=len(codes)
+            "deep_analysis.batch", batch_size=batch_size, total=len(codes)
         )
-        with ThreadPoolExecutor(
-            max_workers=self._max_concurrent, thread_name_prefix="deep"
-        ) as pool:
-            futures = {pool.submit(process_one, code): code for code in codes}
-            for future in as_completed(futures):
-                code = futures[future]
+        # 按 batch_size 分批：每批先一次性批量取 AI 结果（wyckoff+can_slim 各 1 次调用），
+        # 再逐只跑 quick 引擎 + 共识融合 + 写缓存（复用预取的 AI 结果）
+        for batch_start in range(0, len(codes), batch_size):
+            if self._stop_event.is_set():
+                break
+            batch = codes[batch_start : batch_start + batch_size]
+
+            # 过滤已完整的（非 force）
+            to_analyze: list[str] = []
+            for code in batch:
+                if not force and self._has_complete_analysis(code, ai_engines):
+                    with self._lock:
+                        completed += 1
+                        analyzed += 1
+                        self._state["done"] = completed
+                else:
+                    to_analyze.append(code)
+            if not to_analyze:
+                continue
+
+            # 批量 AI：整批一次 wyckoff + 一次 can_slim
+            try:
+                ai_results = analyzer.analyze(to_analyze, list(ai_engines))
+            except Exception as e:
+                logger.warning("deep_analysis.batch_ai_failed", error=str(e))
+                ai_results = {}
+
+            # 逐只：quick 引擎 + 融合 + 缓存（传入预取 AI 结果）
+            for code in to_analyze:
+                if self._stop_event.is_set():
+                    break
+                with self._lock:
+                    self._state["current_code"] = code
                 try:
-                    ok = future.result()
+                    self._stock_service.analyze_stock(
+                        code,
+                        force=True,
+                        run_ai=True,
+                        ai_results_override=ai_results.get(code, []),
+                    )
+                    analyzed += 1
                 except Exception:
-                    ok = False
+                    logger.warning("deep_analysis.stock_failed", code=code)
                 with self._lock:
                     completed += 1
-                    if ok:
-                        analyzed += 1
                     self._state["done"] = completed
-                    self._state["current_code"] = code
-                if self._stop_event.is_set():
-                    for f in futures:
-                        f.cancel()
-                    break
 
         with self._lock:
             self._state["status"] = "done"

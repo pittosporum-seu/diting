@@ -21,7 +21,7 @@ _ALL_PROVIDER_KEYS = [
     "provider_mxdata",
     "provider_akshare",
 ]
-_ALL_ENGINE_NAMES = ["wyckoff", "buffett", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
+_ALL_ENGINE_NAMES = ["wyckoff", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
 
 
 class DashboardService(_BaseService):
@@ -449,7 +449,6 @@ class DashboardService(_BaseService):
                         "name": en,
                         "label": {
                             "wyckoff": "Wyckoff 威克夫分析",
-                            "buffett": "Buffett/Munger 综合评分",
                             "can_slim": "CANSLIM 成长股",
                             "volume_profile": "Volume Profile 量价分布",
                             "vmd_rsi": "VMD+RSI 择时信号",
