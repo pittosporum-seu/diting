@@ -353,7 +353,7 @@ def load_stock_list() -> list[dict]:
 
         path = _Path(__file__).resolve().parents[4] / "frontend" / "data" / "stock-list.json"
         if path.exists():
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 _stock_list_cache = _json.load(f)
             return _stock_list_cache
     except Exception:

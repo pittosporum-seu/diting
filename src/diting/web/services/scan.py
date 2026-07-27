@@ -7,6 +7,7 @@ from datetime import date, datetime
 
 from . import _utils
 from ._utils import _BaseService, _get_logger, quick_score
+from ...cache.market_state import get_market_state
 
 logger = _get_logger()
 
@@ -53,10 +54,19 @@ class ScanService(_BaseService):
                 return cached
 
         try:
+            state = get_market_state()
+
             # 1. quick 初筛：全市场 Top N + 自选股
-            market_candidates = self._scan_market_top20(
-                force=force_refresh, top_n=self.CANDIDATE_POOL_SIZE
-            )
+            if state.should_call_api:
+                # 交易时段：实时扫描
+                market_candidates = self._scan_market_top20(
+                    force=force_refresh, top_n=self.CANDIDATE_POOL_SIZE
+                )
+            else:
+                # 非交易时段：复用上次扫描缓存（含上个交易日收盘价）
+                market_candidates = self._get_valid_market_top20(
+                    state.last_trade_date
+                )
             watchlist_items = self._scan_watchlist()
 
             # 2. 候选集（去重，自选股优先）
@@ -172,14 +182,22 @@ class ScanService(_BaseService):
                 if n and n != code:
                     name = n
                     break
-            # 价格：分析缓存可能为 0（无实时数据），优先取非零价
+            # 价格：分析缓存可能为 0（无实时数据），优先取非零价，
+            # 最终回退 market_snapshot 的上个交易日收盘价
             price = analysis.get("price") or cand.get("price")
+            if not price:
+                try:
+                    snap = self._get_cache_mgr().db_get("market_snapshot", code)
+                    if snap and snap.get("price"):
+                        price = snap["price"]
+                except Exception:
+                    pass
             analyzed.append(
                 {
                     "code": code,
                     "name": name,
                     "price": price,
-                    "change_pct": analysis.get("change_pct", cand.get("change_pct")),
+                    "change_pct": analysis.get("change_pct") or cand.get("change_pct") or 0.0,
                     "score": analysis["score"],  # 引擎共识分（与详情页同源）
                     "rating": analysis.get("rating"),
                     "rating_label": analysis.get("rating_label"),
@@ -194,7 +212,7 @@ class ScanService(_BaseService):
         return analyzed
 
     def _scan_watchlist(self) -> list[dict]:
-        """扫描自选股评分。"""
+        """扫描自选股评分。非交易时段回退 market_snapshot 收盘价。"""
         from ...config import Config
         from ...engines.rating import score_to_rating
 
@@ -204,7 +222,50 @@ class ScanService(_BaseService):
             if not stocks:
                 return []
 
+            state = get_market_state()
             codes = [s.get("code") for s in stocks if s.get("code")]
+
+            # 非交易时段：从 market_snapshot 取上个交易日收盘价
+            if not state.should_call_api:
+                cm = self._get_cache_mgr()
+                results = []
+                for s in stocks:
+                    code = s.get("code")
+                    if not code:
+                        continue
+                    cached = cm.db_get("market_snapshot", code)
+                    if not cached or not cached.get("price"):
+                        continue
+                    price = cached["price"]
+                    change_pct = cached.get("change_pct") or 0.0
+                    # 用 snapshot 数据构造简易 quote 进行 quick_score
+                    score, signals = quick_score(type("Q", (), {
+                        "price": price,
+                        "change_pct": change_pct,
+                        "open": cached.get("open") or price,
+                        "high": cached.get("high") or price,
+                        "low": cached.get("low") or price,
+                        "volume": cached.get("volume") or 0,
+                        "turnover": cached.get("amount") or 0,
+                        "pe": None,
+                        "name": cached.get("name") or code,
+                    })())
+                    results.append(
+                        {
+                            "code": code,
+                            "name": cached.get("name") or s.get("name") or code,
+                            "price": price,
+                            "change_pct": change_pct,
+                            "score": score,
+                            "signals": signals,
+                            "rating": score_to_rating(score),
+                            "source": "watchlist",
+                        }
+                    )
+                results.sort(key=lambda x: x["score"], reverse=True)
+                return results
+
+            # 交易时段：实时抓取
             repo = self._build_repo()
             all_quotes: dict = {}
             for i in range(0, len(codes), 4):
@@ -246,7 +307,7 @@ class ScanService(_BaseService):
         """获取有效的市场 Top20。
 
         缓存扫描结果不早于最近交易日（即之后没有新开盘）→ 复用；
-        否则（缺失或过期）→ 全量重扫。
+        否则（缺失或过期）→ 全量重扫；重扫失败→ market_snapshot 兜底。
         """
         items, scan_date = self._read_latest_scan()
 
@@ -264,13 +325,18 @@ class ScanService(_BaseService):
             )
             return items
 
-        # 缓存缺失或过期 → 全量重扫
+        # 缓存缺失或过期 → 尝试全量重扫
         logger.info(
             "services.offhours.rescan",
             scan_date=str(scan_date),
             last_trade=str(last_trade_date),
         )
-        return self._scan_market_top20(force=True)
+        result = self._scan_market_top20(force=True)
+        if result:
+            return result
+
+        # 重扫失败（非交易时段 API 无数据）→ 从 market_snapshot 兜底
+        return self._fallback_from_snapshot()
 
     def _read_latest_scan(self) -> tuple[list[dict], date | None]:
         """读最近一次扫描结果及其扫描日期（SQLite 优先，内存兑底）。"""
@@ -301,6 +367,63 @@ class ScanService(_BaseService):
         except Exception:
             pass
         return [], None
+
+    def _fallback_from_snapshot(self, top_n: int = 30) -> list[dict]:
+        """非交易时段兜底：从 market_snapshot 读取上个交易日数据，计算 quick_score 并返回 Top N。"""
+        import sqlite3
+
+        from ...engines.rating import score_to_rating
+
+        try:
+            cm = self._get_cache_mgr()
+            conn = sqlite3.connect(str(cm._path))
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT code, name, price, change_pct, open, high, low, volume, amount "
+                "FROM market_snapshot WHERE price > 2 ORDER BY price DESC LIMIT 200"
+            ).fetchall()
+            conn.close()
+
+            if not rows:
+                return []
+
+            results: list[dict] = []
+            for r in rows:
+                code = r["code"]
+                if not code or code[0] not in "0236":
+                    continue
+                price = r["price"]
+                change_pct = r["change_pct"] or 0.0
+                # 构造简易 quote 对象给 quick_score
+                q = type("Q", (), {
+                    "price": price,
+                    "change_pct": change_pct,
+                    "open": r["open"] or price,
+                    "high": r["high"] or price,
+                    "low": r["low"] or price,
+                    "volume": r["volume"] or 0,
+                    "turnover": r["amount"] or 0,
+                    "pe": None,
+                    "name": r["name"] or code,
+                })()
+                score, signals = quick_score(q)
+                results.append({
+                    "code": code,
+                    "name": r["name"] or code,
+                    "price": price,
+                    "change_pct": change_pct,
+                    "score": score,
+                    "signals": signals,
+                    "rating": score_to_rating(score),
+                    "source": "market",
+                })
+
+            results.sort(key=lambda x: x["score"], reverse=True)
+            logger.info("services.offhours.snapshot_fallback", count=len(results))
+            return results[:top_n]
+        except Exception:
+            logger.warning("services.offhours.snapshot_fallback_failed")
+            return []
 
     def _scan_market_top20(self, force: bool = False, top_n: int = 20) -> list[dict]:
         """全市场扫描：ashare 分批获取行情 → 过滤 → quick_score 评分 → 写入 SQLite + 内存。
