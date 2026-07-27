@@ -27,12 +27,20 @@ class DeepAnalysisManager:
         mgr.get_progress()                              # 查询进度
     """
 
-    def __init__(self, stock_service: StockService):
+    def __init__(self, stock_service: StockService, max_concurrent: int | None = None):
         self._stock_service = stock_service
         self._lock = threading.Lock()
         self._state: dict = self._idle_state()
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        # 股票间并发数（默认 4，避免打爆 mimo 限流）
+        if max_concurrent is None:
+            from ...infra.config_loader import ConfigLoader
+
+            max_concurrent = (
+                ConfigLoader.get_section("pipeline").get("deep_concurrent", 4)
+            )
+        self._max_concurrent = max(1, int(max_concurrent))
 
     @staticmethod
     def _idle_state() -> dict:
@@ -84,31 +92,54 @@ class DeepAnalysisManager:
         self._stop_event.set()
 
     def _run(self, codes: list[str], force: bool) -> None:
-        done = 0
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         ai_engines = {"wyckoff", "buffett", "can_slim"}
-        for i, code in enumerate(codes):
+        analyzed = 0
+        completed = 0
+
+        def process_one(code: str) -> bool:
+            """分析单只股票。已完整且非 force 则跳过。返回是否成功。"""
             if self._stop_event.is_set():
-                break
-            with self._lock:
-                self._state["current_code"] = code
+                return False
             try:
-                # 非 force 时：已有完整 6 引擎（含 AI）的分析就跳过，避免重复计算
                 if not force and self._has_complete_analysis(code, ai_engines):
-                    done += 1
-                else:
-                    # force 或不完整：跑全量（run_ai 保证休市也跑 AI 引擎）
-                    self._stock_service.analyze_stock(code, force=True, run_ai=True)
-                    done += 1
+                    return True  # 已完整，跳过也算完成
+                self._stock_service.analyze_stock(code, force=True, run_ai=True)
+                return True
             except Exception:
                 logger.warning("deep_analysis.stock_failed", code=code)
-            with self._lock:
-                self._state["done"] = i + 1
+                return False
+
+        logger.info(
+            "deep_analysis.parallel", concurrent=self._max_concurrent, total=len(codes)
+        )
+        with ThreadPoolExecutor(
+            max_workers=self._max_concurrent, thread_name_prefix="deep"
+        ) as pool:
+            futures = {pool.submit(process_one, code): code for code in codes}
+            for future in as_completed(futures):
+                code = futures[future]
+                try:
+                    ok = future.result()
+                except Exception:
+                    ok = False
+                with self._lock:
+                    completed += 1
+                    if ok:
+                        analyzed += 1
+                    self._state["done"] = completed
+                    self._state["current_code"] = code
+                if self._stop_event.is_set():
+                    for f in futures:
+                        f.cancel()
+                    break
 
         with self._lock:
             self._state["status"] = "done"
             self._state["current_code"] = None
             self._state["finished_at"] = datetime.now(UTC).isoformat()
-        logger.info("deep_analysis.done", total=len(codes), analyzed=done)
+        logger.info("deep_analysis.done", total=len(codes), analyzed=analyzed)
 
     def _has_complete_analysis(self, code: str, ai_engines: set) -> bool:
         """检查某只股票是否已有含全部 AI 引擎的完整分析缓存。"""
