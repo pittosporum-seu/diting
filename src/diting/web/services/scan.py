@@ -16,7 +16,7 @@ class ScanService(_BaseService):
     """选股扫描服务。"""
 
     # 深度分析候选池大小：quick 初筛后取前 N 名跑全量分析
-    CANDIDATE_POOL_SIZE = 30
+    CANDIDATE_POOL_SIZE = 100
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -37,13 +37,11 @@ class ScanService(_BaseService):
         return self._deep_analysis_mgr.get_progress()
 
     def get_opportunities(self, force_refresh: bool = False) -> dict:
-        """选股机会：quick 初筛 → 候选跑全量分析 → 优中选优 Top20。
+        """选股机会：两层防击穿缓存模型。
 
-        排行榜上的每一只都经过全量引擎分析，评分与详情页一致。
-        流程：
-        1. quick_score 初筛全市场 + 自选股 → 候选池
-        2. 后台对候选跑全量 analyze_stock（带进度）
-        3. 取已有全量分析结果的候选，按引擎共识分排序取 Top20
+        L1: 有全量分析结果 → 用引擎共识分（与详情页一致）
+        L2: 无分析结果 → 用 quick_score 占位（页面永不空）
+        后台渐进式升级：深度分析完成后自动替换为引擎分。
         """
         # L1 缓存
         if not force_refresh:
@@ -57,8 +55,8 @@ class ScanService(_BaseService):
             state = get_market_state()
 
             # 1. quick 初筛：全市场 Top N + 自选股
-            if state.should_call_api:
-                # 交易时段：实时扫描
+            if state.should_call_api or force_refresh:
+                # 交易时段或强制刷新：实时扫描 Top N
                 market_candidates = self._scan_market_top20(
                     force=force_refresh, top_n=self.CANDIDATE_POOL_SIZE
                 )
@@ -81,15 +79,17 @@ class ScanService(_BaseService):
             # 4. 收集已有全量分析结果的候选（引擎共识分）
             analyzed = self._collect_analyzed(candidates)
 
-            # 5. 优中选优：按引擎分排序取 Top20
-            analyzed.sort(key=lambda x: x["score"], reverse=True)
+            # 5. 排序取 Top20（已分析的优先，同分内已分析排前）
+            analyzed.sort(key=lambda x: (x["score"], x["analyzed"]), reverse=True)
             top20 = analyzed[:20]
 
             from_watchlist = [it for it in top20 if it.get("source") == "watchlist"]
             from_market = [it for it in top20 if it.get("source") != "watchlist"]
+            analyzed_count = sum(1 for r in analyzed if r["analyzed"])
 
             result = {
                 "total": len(analyzed),
+                "analyzed_count": analyzed_count,  # 已完成全量分析的数量
                 "strong_buy": sum(1 for r in analyzed if r["score"] >= 80),
                 "buy": sum(1 for r in analyzed if 65 <= r["score"] < 80),
                 "watch": sum(1 for r in analyzed if 50 <= r["score"] < 65),
@@ -164,27 +164,37 @@ class ScanService(_BaseService):
         return None
 
     def _collect_analyzed(self, candidates: list[dict]) -> list[dict]:
-        """收集已有全量分析结果的候选，用引擎共识分替换 quick 分。"""
-        analyzed: list[dict] = []
+        """两层防击穿：有全量分析用引擎分，没有的用 quick_score 占位。
+
+        页面永远不会空——数据渐进式填充。
+        """
+        from ...engines.rating import score_to_rating
+
+        results: list[dict] = []
         for cand in candidates:
             code = cand.get("code")
             if not code:
                 continue
+
             analysis = self._get_cached_analysis(code)
-            if not analysis or analysis.get("score") is None:
-                continue  # 尚未完成全量分析，不入榜
-            if analysis.get("error"):
-                continue
-            # 名称解析：分析缓存的 name 可能是代码（实时价为 0 时），
-            # 优先取“非代码”的真实名称（分析缓存 → 候选）
+            has_analysis = (
+                analysis
+                and analysis.get("score") is not None
+                and not analysis.get("error")
+            )
+
+            # 名称：分析缓存 → 候选 → code
             name = code
-            for n in (analysis.get("name"), cand.get("name")):
-                if n and n != code:
-                    name = n
-                    break
-            # 价格：分析缓存可能为 0（无实时数据），优先取非零价，
-            # 最终回退 market_snapshot 的上个交易日收盘价
-            price = analysis.get("price") or cand.get("price")
+            if has_analysis:
+                for n in (analysis.get("name"), cand.get("name")):
+                    if n and n != code:
+                        name = n
+                        break
+            else:
+                name = cand.get("name") or code
+
+            # 价格：分析缓存 → 候选 → market_snapshot
+            price = (analysis.get("price") if has_analysis else None) or cand.get("price")
             if not price:
                 try:
                     snap = self._get_cache_mgr().db_get("market_snapshot", code)
@@ -192,24 +202,43 @@ class ScanService(_BaseService):
                         price = snap["price"]
                 except Exception:
                     pass
-            analyzed.append(
+
+            # 评分：有分析用引擎共识分，否则用 quick_score 占位
+            if has_analysis:
+                score = analysis["score"]
+                rating = analysis.get("rating")
+                rating_label = analysis.get("rating_label")
+                rating_emoji = analysis.get("rating_emoji")
+                confidence = analysis.get("confidence")
+            else:
+                score = cand.get("score") or 0.0
+                rating_obj = score_to_rating(score)
+                rating = rating_obj.value if hasattr(rating_obj, "value") else str(rating_obj)
+                from ._utils import _RATING_CN, _RATING_EMOJI
+                rating_label = _RATING_CN.get(rating, rating)
+                rating_emoji = _RATING_EMOJI.get(rating, "")
+                confidence = 0.3  # 低置信度标记“未全量分析”
+
+            results.append(
                 {
                     "code": code,
                     "name": name,
                     "price": price,
-                    "change_pct": analysis.get("change_pct") or cand.get("change_pct") or 0.0,
-                    "score": analysis["score"],  # 引擎共识分（与详情页同源）
-                    "rating": analysis.get("rating"),
-                    "rating_label": analysis.get("rating_label"),
-                    "rating_emoji": analysis.get("rating_emoji"),
-                    "confidence": analysis.get("confidence"),
-                    "signals": cand.get("signals", []),  # quick 信号标签
-                    "quick_score": cand.get("score"),  # 保留初筛分供参考
+                    "change_pct": (analysis.get("change_pct") if has_analysis else None)
+                    or cand.get("change_pct")
+                    or 0.0,
+                    "score": score,
+                    "rating": rating,
+                    "rating_label": rating_label,
+                    "rating_emoji": rating_emoji,
+                    "confidence": confidence,
+                    "signals": cand.get("signals", []),
+                    "quick_score": cand.get("score"),
                     "source": cand.get("source", "market"),
-                    "analyzed": True,
+                    "analyzed": has_analysis,
                 }
             )
-        return analyzed
+        return results
 
     def _scan_watchlist(self) -> list[dict]:
         """扫描自选股评分。非交易时段回退 market_snapshot 收盘价。"""
