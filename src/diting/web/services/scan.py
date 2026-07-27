@@ -79,21 +79,28 @@ class ScanService(_BaseService):
             # 4. 收集已有全量分析结果的候选（引擎共识分）
             analyzed = self._collect_analyzed(candidates)
 
-            # 5. 排序取 Top20（已分析的优先，同分内已分析排前）
-            analyzed.sort(key=lambda x: (x["score"], x["analyzed"]), reverse=True)
-            top20 = analyzed[:20]
+            # 5. 分离已分析/未分析，主榜只用引擎分（保证里外一致）
+            confirmed = [r for r in analyzed if r["analyzed"]]
+            pending = [r for r in analyzed if not r["analyzed"]]
+            confirmed.sort(key=lambda x: x["score"], reverse=True)
+            pending.sort(key=lambda x: x["quick_score"] or 0, reverse=True)
+
+            # 主榜：已分析的排前面，不足 20 时用 pending 补位
+            top20 = confirmed[:20]
+            if len(top20) < 20:
+                top20 += pending[: 20 - len(top20)]
 
             from_watchlist = [it for it in top20 if it.get("source") == "watchlist"]
             from_market = [it for it in top20 if it.get("source") != "watchlist"]
-            analyzed_count = sum(1 for r in analyzed if r["analyzed"])
 
+            # 统计卡片只统计已分析的（引擎分才有评级意义）
             result = {
                 "total": len(analyzed),
-                "analyzed_count": analyzed_count,  # 已完成全量分析的数量
-                "strong_buy": sum(1 for r in analyzed if r["score"] >= 80),
-                "buy": sum(1 for r in analyzed if 65 <= r["score"] < 80),
-                "watch": sum(1 for r in analyzed if 50 <= r["score"] < 65),
-                "avoid": sum(1 for r in analyzed if r["score"] < 35),
+                "analyzed_count": len(confirmed),
+                "strong_buy": sum(1 for r in confirmed if r["score"] >= 80),
+                "buy": sum(1 for r in confirmed if 65 <= r["score"] < 80),
+                "watch": sum(1 for r in confirmed if 50 <= r["score"] < 65),
+                "avoid": sum(1 for r in confirmed if r["score"] < 35),
                 "items": top20,
                 "from_watchlist": from_watchlist,
                 "from_market": from_market,
