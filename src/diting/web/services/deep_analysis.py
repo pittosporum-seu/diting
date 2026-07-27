@@ -85,14 +85,20 @@ class DeepAnalysisManager:
 
     def _run(self, codes: list[str], force: bool) -> None:
         done = 0
+        ai_engines = {"wyckoff", "buffett", "can_slim"}
         for i, code in enumerate(codes):
             if self._stop_event.is_set():
                 break
             with self._lock:
                 self._state["current_code"] = code
             try:
-                self._stock_service.analyze_stock(code, force=force)
-                done += 1
+                # 非 force 时：已有完整 6 引擎（含 AI）的分析就跳过，避免重复计算
+                if not force and self._has_complete_analysis(code, ai_engines):
+                    done += 1
+                else:
+                    # force 或不完整：跑全量（run_ai 保证休市也跑 AI 引擎）
+                    self._stock_service.analyze_stock(code, force=True, run_ai=True)
+                    done += 1
             except Exception:
                 logger.warning("deep_analysis.stock_failed", code=code)
             with self._lock:
@@ -103,3 +109,29 @@ class DeepAnalysisManager:
             self._state["current_code"] = None
             self._state["finished_at"] = datetime.now(UTC).isoformat()
         logger.info("deep_analysis.done", total=len(codes), analyzed=done)
+
+    def _has_complete_analysis(self, code: str, ai_engines: set) -> bool:
+        """检查某只股票是否已有含全部 AI 引擎的完整分析缓存。"""
+        try:
+            cm = self._stock_service._get_cache_mgr()
+            cached = cm.mem_get(f"analysis:{code}")
+            result = None
+            if cached is not None:
+                from dataclasses import asdict, is_dataclass
+
+                result = asdict(cached) if is_dataclass(cached) else cached
+            if not result:
+                import json as _json
+
+                row = cm.db_get("stock_analysis_cache", code)
+                if row and row.get("result_json"):
+                    result = _json.loads(row["result_json"])
+            if not result:
+                return False
+            names = {
+                (e.get("engine_name") or e.get("name"))
+                for e in result.get("engine_scores", [])
+            }
+            return ai_engines.issubset(names)
+        except Exception:
+            return False

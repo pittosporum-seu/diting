@@ -170,12 +170,13 @@ class StockService(_BaseService):
 
     # ── Full Analysis ───────────────────────────────
 
-    def analyze_stock(self, code: str, force: bool = False) -> StockAnalysisResponse:
+    def analyze_stock(self, code: str, force: bool = False, run_ai: bool = False) -> StockAnalysisResponse:
         """个股全流程分析，返回模板/API 通用数据结构。
 
         Args:
             code: 股票代码。
             force: True 时跳过缓存、且休市也跑全量引擎（显式重跑）。
+            run_ai: True 时休市也跑 AI 引擎（用于候选深度分析，保证 6 引擎完整）。
 
         Returns:
             StockAnalysisResponse dataclass（非裸 dict）。
@@ -335,9 +336,9 @@ class StockService(_BaseService):
                     remaining=engine_names,
                 )
 
-        # v0.6.6: 非交易时段跳过 AI 引擎（force=True 时休市也跑全量）
+        # v0.6.6: 非交易时段跳过 AI 引擎（force=True 或 run_ai=True 时休市也跑全量）
         state = get_market_state()
-        if not state.should_call_api and not force:
+        if not state.should_call_api and not force and not run_ai:
             _skipped_ai = [en for en in engine_names if en in _ai_engines]
             engine_names = [en for en in engine_names if en not in _ai_engines]
             record_skipped(_skipped_ai, "non_trading_hours")
