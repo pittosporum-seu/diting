@@ -520,11 +520,14 @@ class StockService(_BaseService):
         cm = self._get_cache_mgr()
         response = _dict_to_response(result)
         cm.mem_set(f"analysis:{code}", response)
-        # 写入 SQLite
+        # 写入 SQLite（signals 转 dict，避免 dataclass 被 default=str 序列化为字符串）
         try:
             import json as _json
+            from dataclasses import asdict as _asdict
 
             serializable = clean_numpy(result)
+            if _sig is not None:
+                serializable["signals"] = _asdict(_sig) if hasattr(_sig, "__dataclass_fields__") else _sig
             l2_ttl = 30 if (state and state.should_call_api) else 1440
             cm.db_set(
                 "stock_analysis_cache",
@@ -617,7 +620,10 @@ def _dict_to_response(d: dict) -> StockAnalysisResponse:
     # 处理 signals → signals_summary
     sig = d.get("signals")
     signals_summary: dict | None = None
-    if sig is not None and not isinstance(sig, dict):
+    if isinstance(sig, dict):
+        signals_summary = sig
+    elif sig is not None and hasattr(sig, "rsi_14"):
+        # dataclass 对象（新鲜分析）
         signals_summary = {
             "rsi_14": sig.rsi_14,
             "macd": sig.macd,
@@ -637,8 +643,7 @@ def _dict_to_response(d: dict) -> StockAnalysisResponse:
             "vwap_deviation": sig.vwap_deviation,
             "volume_ratio": sig.volume_ratio,
         }
-    elif isinstance(sig, dict):
-        signals_summary = sig
+    # 其他情况（字符串/None）: signals_summary 保持 None，前端显示“暂无”
 
     return StockAnalysisResponse(
         code=d.get("code", ""),

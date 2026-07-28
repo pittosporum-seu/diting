@@ -249,7 +249,7 @@ const charts = {
       },
       yAxis: {
         type: 'category',
-        data: engineScores.map(s => s.name),
+        data: engineScores.map(s => s.engine_name || s.name),
         axisLine: { lineStyle: { color: TEXT_COLOR } },
       },
       series: [{
