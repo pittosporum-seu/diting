@@ -96,6 +96,19 @@ CREATE TABLE IF NOT EXISTS cache_meta (
     expires_at  TIMESTAMP,
     tier        TEXT
 );
+
+CREATE TABLE IF NOT EXISTS historical_cache (
+    cache_key   TEXT PRIMARY KEY,
+    df_json     TEXT,
+    last_bar    TEXT,
+    cached_at   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS factors_cache (
+    code        TEXT PRIMARY KEY,
+    factors_json TEXT,
+    cached_date TEXT
+);
 """
 
 

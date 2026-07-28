@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from . import _utils
-from ._utils import _BaseService, _get_logger, quick_score
+from ._utils import _BaseService, _get_logger, coarse_score, quick_score
 from ...cache.market_state import get_market_state
 
 logger = _get_logger()
@@ -17,6 +17,151 @@ class ScanService(_BaseService):
 
     # 深度分析候选池大小：quick 初筛后取前 N 名跑全量分析
     CANDIDATE_POOL_SIZE = 100
+    # 两段式初筛粗筛池：实时快筛取前 N 只，再取历史精算技术因子
+    COARSE_POOL_SIZE = 1200
+
+    def _get_historical(self, code: str, days: int = 120):
+        """取历史日线（三级缓存：内存→SQLite→网络）。
+
+        日线数据一天只变一次（收盘后），用 SQLite 持久缓存大幅减少网络请求。
+        首次扫描后，后续扫描 1200 只全命中 DB（ms 级）。
+        """
+        cache_key = f"{code}:{days}"
+        cm = self._get_cache_mgr()
+
+        # L1: 内存 TTL（最快，进程内复用）
+        cached = cm.mem_get_adaptive(f"historical:{cache_key}", trading_ttl=600)
+        if cached is not None:
+            return cached
+
+        # L2: SQLite 持久缓存（跨重启、跨扫描复用）
+        hist = self._db_get_historical(cm, code, days)
+        if hist is not None:
+            cm.mem_set(f"historical:{cache_key}", hist)
+            return hist
+
+        # L3: 网络取数 + 回写 DB
+        try:
+            repo = self._build_repo()
+            end = date.today()
+            start = end - timedelta(days=days)
+            result = repo.get_historical(code, start, end)
+            cm.mem_set(f"historical:{cache_key}", result)
+            self._db_set_historical(cm, code, days, result)
+            return result
+        except Exception:
+            return None
+
+    def _db_get_historical(self, cm, code: str, days: int):
+        """从 SQLite 读历史缓存，校验新鲜度。"""
+        try:
+            db_key = f"{code}:{days}"
+            with cm._lock:
+                conn = cm._connect()
+                try:
+                    row = conn.execute(
+                        "SELECT df_json, last_bar, cached_at FROM historical_cache "
+                        "WHERE cache_key=?",
+                        (db_key,),
+                    ).fetchone()
+                finally:
+                    conn.close()
+            if row is None:
+                return None
+            df_json, last_bar, cached_at = row
+            # 新鲜度：最后一根 K 线日期距今 ≤4 天（覆盖周末/小长假）
+            if last_bar:
+                lb = date.fromisoformat(last_bar)
+                if (date.today() - lb).days > 4:
+                    return None  # 过期，需网络刷新
+            # 反序列化 DataFrame
+            import pandas as pd
+            from io import StringIO
+
+            df = pd.read_json(StringIO(df_json), orient="split")
+            from ...schema import HistoricalData
+
+            return HistoricalData(
+                symbol=code,
+                df=df,
+                columns=list(df.columns),
+                start_date=date.today() - timedelta(days=days),
+                end_date=date.today(),
+            )
+        except Exception:
+            return None
+
+    def _db_set_historical(self, cm, code: str, days: int, hist) -> None:
+        """将历史数据持久化到 SQLite。"""
+        try:
+            if hist is None or hist.df is None or len(hist.df) == 0:
+                return
+            df = hist.df
+            df_json = df.to_json(orient="split", force_ascii=False)
+            # 推断最后一根 K 线日期
+            last_bar = ""
+            date_col = df.get("date", df.get("日期"))
+            if date_col is not None and len(date_col) > 0:
+                last_bar = str(date_col.iloc[-1])[:10]
+            db_key = f"{code}:{days}"
+            with cm._lock:
+                conn = cm._connect()
+                try:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO historical_cache "
+                        "(cache_key, df_json, last_bar, cached_at) VALUES (?,?,?,?)",
+                        (db_key, df_json, last_bar, datetime.now().isoformat()),
+                    )
+                    conn.commit()
+                finally:
+                    conn.close()
+        except Exception:
+            pass  # 持久化失败不影响主流程
+
+    # ── 因子缓存（避免每次扫描重复解析 DataFrame）───────────
+
+    def _get_cached_factors(self, cm, code: str) -> dict | None:
+        """从 DB 读取缓存因子（当天有效）。"""
+        import json as _json
+
+        try:
+            with cm._lock:
+                conn = cm._connect()
+                try:
+                    row = conn.execute(
+                        "SELECT factors_json, cached_date FROM factors_cache WHERE code=?",
+                        (code,),
+                    ).fetchone()
+                finally:
+                    conn.close()
+            if row is None:
+                return None
+            fj, cd = row
+            # 当天缓存有效（日线一天一变）
+            if cd != date.today().isoformat():
+                return None
+            return _json.loads(fj)
+        except Exception:
+            return None
+
+    def _set_cached_factors(self, cm, code: str, factors: dict) -> None:
+        """将因子缓存到 DB。"""
+        import json as _json
+
+        try:
+            with cm._lock:
+                conn = cm._connect()
+                try:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO factors_cache "
+                        "(code, factors_json, cached_date) VALUES (?,?,?)",
+                        (code, _json.dumps(factors), date.today().isoformat()),
+                    )
+                    conn.commit()
+                finally:
+                    conn.close()
+        except Exception:
+            pass
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -518,15 +663,17 @@ class ScanService(_BaseService):
                 if q.price < 2.0:
                     continue
 
-                score, signals = quick_score(q)
+                # 粗筛分（方向中性，仅用于选精筛池）；quick_score 只取信号标签供展示
+                coarse = coarse_score(q)
+                _, signals = quick_score(q)
                 item = {
                     "code": code,
                     "name": q.name or code,
                     "price": q.price,
                     "change_pct": q.change_pct,
-                    "score": score,
+                    "score": coarse,
                     "signals": signals,
-                    "rating": score_to_rating(score),
+                    "rating": score_to_rating(coarse),
                     "source": "market",
                 }
                 all_results.append(item)
@@ -577,9 +724,46 @@ class ScanService(_BaseService):
                 except Exception:
                     logger.warning("services.scan_market.stock_dict_write_failed")
 
-            # 评分排序，取前 top_n 名作为深度分析候选池
+            # ── 两段式数据驱动初筛 ──
+            # Stage 1: 实时粗筛，按 quick_score 取前 COARSE_POOL_SIZE
             all_results.sort(key=lambda x: x["score"], reverse=True)
-            top20 = all_results[:top_n]
+            coarse = all_results[: self.COARSE_POOL_SIZE]
+
+            # Stage 2: 并发取粗筛池的技术因子（优先用 DB 缓存因子，避免重复解析 DataFrame）
+            from concurrent.futures import ThreadPoolExecutor
+
+            cm = self._get_cache_mgr()
+
+            def _factors_for(code: str):
+                # 先查因子缓存（极快，纯 JSON）
+                f = self._get_cached_factors(cm, code)
+                if f is not None:
+                    return code, f if f else None  # 空 dict = 已知失败
+                # 未命中：取历史算因子 + 回写因子缓存
+                hist = self._get_historical(code)
+                f = _utils.technical_factors(hist)
+                # 无论成功失败都缓存（失败存空 dict，当天不重试）
+                self._set_cached_factors(cm, code, f or {})
+                return code, f
+
+            factor_map: dict[str, dict] = {}
+            with ThreadPoolExecutor(max_workers=8, thread_name_prefix="scan_hist") as pool:
+                for code, f in pool.map(_factors_for, [it["code"] for it in coarse]):
+                    if f:
+                        factor_map[code] = f
+            if factor_map:
+                dd_scores = _utils.rank_score_pool(factor_map)
+                ranked = []
+                for item in coarse:
+                    if item["code"] in dd_scores:
+                        item["score"] = dd_scores[item["code"]]
+                        item["source"] = "market_dd"
+                        ranked.append(item)
+                ranked.sort(key=lambda x: x["score"], reverse=True)
+                top20 = ranked[:top_n]
+            else:
+                logger.warning("services.scan_market.dd_fallback")
+                top20 = coarse[:top_n]
 
             # 写入 market_scan_cache
             try:
