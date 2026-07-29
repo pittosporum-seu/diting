@@ -141,6 +141,7 @@ class VMDDecomposer:
         k: int | None = None,
         alpha: int | None = None,
         window: int = 250,
+        tol: float = 1e-5,
     ) -> dict | None:
         """提取多尺度周期状态（用于 AI 上下文）。
 
@@ -172,7 +173,7 @@ class VMDDecomposer:
         try:
             from vmdpy import VMD
 
-            u, _, _ = VMD(seg, alpha, 0.0, k, 0, 1, 1e-5)
+            u, _, _ = VMD(seg, alpha, 0.0, k, 0, 1, tol)
         except Exception:
             return None
         finally:
