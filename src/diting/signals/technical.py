@@ -120,7 +120,8 @@ class TechnicalCalculator:
         ema_slow = TechnicalCalculator._ema_series(close, slow)
         macd_series = ema_fast - ema_slow
         sig_series = TechnicalCalculator._ema_series(macd_series, signal)
-        return float(macd_series[-1]), float(sig_series[-1]), float(macd_series[-1] - sig_series[-1])
+        histogram = float(macd_series[-1] - sig_series[-1])
+        return float(macd_series[-1]), float(sig_series[-1]), histogram
 
     @staticmethod
     def _kdj(
@@ -219,7 +220,7 @@ class TechnicalCalculator:
         for i in range(period, n):
             out[i] = alpha * data[i] + (1 - alpha) * out[i - 1]
         # 前 period-1 个点用初始值填充
-        out[:period - 1] = out[period - 1]
+        out[: period - 1] = out[period - 1]
         return out
 
     # ── 辅助 ──────────────────────────────────────

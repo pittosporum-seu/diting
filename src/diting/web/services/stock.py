@@ -527,7 +527,9 @@ class StockService(_BaseService):
 
             serializable = clean_numpy(result)
             if _sig is not None:
-                serializable["signals"] = _asdict(_sig) if hasattr(_sig, "__dataclass_fields__") else _sig
+                serializable["signals"] = (
+                    _asdict(_sig) if hasattr(_sig, "__dataclass_fields__") else _sig
+                )
             l2_ttl = 30 if (state and state.should_call_api) else 1440
             cm.db_set(
                 "stock_analysis_cache",

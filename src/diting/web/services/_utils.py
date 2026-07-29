@@ -337,7 +337,7 @@ def quick_score(q: RealtimeQuote) -> tuple[int, list[str]]:
     return score, signals
 
 
-def coarse_score(q: "RealtimeQuote") -> float:
+def coarse_score(q: RealtimeQuote) -> float:
     """粗筛分（方向中性）：执筛全市场选出“值得精筛”的活跃可交易股。
 
     设计要点：**不以今日涨跌排序**（实验证今日涨幅与最终分负相关），

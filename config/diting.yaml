@@ -36,6 +36,22 @@ engines:
   scoring:
     threshold: [80, 65, 50, 35, 20]  # strong_buy/buy/accumulate/hold/reduce
 
+# ── 上下文提供者（可拆卸）────────────────────
+# AI 引擎输入摘要由哪些 provider 拼接，注释掉 = 禁用
+
+context:
+  providers:
+    - price_basic          # 基础价格/估值/量价
+    - vmd_cycle_state      # VMD 多尺度周期状态
+    # - fund_flow           # 未来：资金流向
+    # - margin_trading      # 未来：融资融券
+
+  vmd_cycle_state:         # VMD 周期状态参数
+    k: 8                   # 模态数（分量越多频率分解越细）
+    alpha: 2000            # 带宽约束
+    window: 250            # 输入窗口（交易日，≈ 1 年）
+    tol: 1e-5              # 收敛精度
+
 # ── 技术指标参数 ──────────────────────────────────
 
 indicators:

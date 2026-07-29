@@ -39,6 +39,7 @@ os.environ.setdefault("LITELLM_LOG", "ERROR")
 
 # ── 加载 .env 到 os.environ（确保 AI_API_KEY 等对所有模块可见）──
 from ..config import Config as _Config  # noqa: E402
+
 _Config()  # 触发 _load_env()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent

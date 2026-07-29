@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta
 
+from ...cache.market_state import get_market_state
 from . import _utils
 from ._utils import _BaseService, _get_logger, coarse_score, quick_score
-from ...cache.market_state import get_market_state
 
 logger = _get_logger()
 
@@ -75,8 +75,9 @@ class ScanService(_BaseService):
                 if (date.today() - lb).days > 4:
                     return None  # 过期，需网络刷新
             # 反序列化 DataFrame
-            import pandas as pd
             from io import StringIO
+
+            import pandas as pd
 
             df = pd.read_json(StringIO(df_json), orient="split")
             from ...schema import HistoricalData
@@ -207,9 +208,7 @@ class ScanService(_BaseService):
                 )
             else:
                 # 非交易时段：复用上次扫描缓存（含上个交易日收盘价）
-                market_candidates = self._get_valid_market_top20(
-                    state.last_trade_date
-                )
+                market_candidates = self._get_valid_market_top20(state.last_trade_date)
             watchlist_items = self._scan_watchlist()
 
             # 2. 候选集（去重，自选股优先）
@@ -217,9 +216,7 @@ class ScanService(_BaseService):
 
             # 3. 触发后台深度分析（对候选跑全量 analyze_stock）
             if self._deep_analysis_mgr is not None and candidates:
-                self._deep_analysis_mgr.start(
-                    [c["code"] for c in candidates], force=force_refresh
-                )
+                self._deep_analysis_mgr.start([c["code"] for c in candidates], force=force_refresh)
 
             # 4. 收集已有全量分析结果的候选（引擎共识分）
             analyzed = self._collect_analyzed(candidates)
@@ -330,9 +327,7 @@ class ScanService(_BaseService):
 
             analysis = self._get_cached_analysis(code)
             has_analysis = (
-                analysis
-                and analysis.get("score") is not None
-                and not analysis.get("error")
+                analysis and analysis.get("score") is not None and not analysis.get("error")
             )
 
             # 名称：分析缓存 → 候选 → code
@@ -367,6 +362,7 @@ class ScanService(_BaseService):
                 rating_obj = score_to_rating(score)
                 rating = rating_obj.value if hasattr(rating_obj, "value") else str(rating_obj)
                 from ._utils import _RATING_CN, _RATING_EMOJI
+
                 rating_label = _RATING_CN.get(rating, rating)
                 rating_emoji = _RATING_EMOJI.get(rating, "")
                 confidence = 0.3  # 低置信度标记“未全量分析”
@@ -420,17 +416,23 @@ class ScanService(_BaseService):
                     price = cached["price"]
                     change_pct = cached.get("change_pct") or 0.0
                     # 用 snapshot 数据构造简易 quote 进行 quick_score
-                    score, signals = quick_score(type("Q", (), {
-                        "price": price,
-                        "change_pct": change_pct,
-                        "open": cached.get("open") or price,
-                        "high": cached.get("high") or price,
-                        "low": cached.get("low") or price,
-                        "volume": cached.get("volume") or 0,
-                        "turnover": cached.get("amount") or 0,
-                        "pe": None,
-                        "name": cached.get("name") or code,
-                    })())
+                    score, signals = quick_score(
+                        type(
+                            "Q",
+                            (),
+                            {
+                                "price": price,
+                                "change_pct": change_pct,
+                                "open": cached.get("open") or price,
+                                "high": cached.get("high") or price,
+                                "low": cached.get("low") or price,
+                                "volume": cached.get("volume") or 0,
+                                "turnover": cached.get("amount") or 0,
+                                "pe": None,
+                                "name": cached.get("name") or code,
+                            },
+                        )()
+                    )
                     results.append(
                         {
                             "code": code,
@@ -576,28 +578,34 @@ class ScanService(_BaseService):
                 price = r["price"]
                 change_pct = r["change_pct"] or 0.0
                 # 构造简易 quote 对象给 quick_score
-                q = type("Q", (), {
-                    "price": price,
-                    "change_pct": change_pct,
-                    "open": r["open"] or price,
-                    "high": r["high"] or price,
-                    "low": r["low"] or price,
-                    "volume": r["volume"] or 0,
-                    "turnover": r["amount"] or 0,
-                    "pe": None,
-                    "name": r["name"] or code,
-                })()
+                q = type(
+                    "Q",
+                    (),
+                    {
+                        "price": price,
+                        "change_pct": change_pct,
+                        "open": r["open"] or price,
+                        "high": r["high"] or price,
+                        "low": r["low"] or price,
+                        "volume": r["volume"] or 0,
+                        "turnover": r["amount"] or 0,
+                        "pe": None,
+                        "name": r["name"] or code,
+                    },
+                )()
                 score, signals = quick_score(q)
-                results.append({
-                    "code": code,
-                    "name": r["name"] or code,
-                    "price": price,
-                    "change_pct": change_pct,
-                    "score": score,
-                    "signals": signals,
-                    "rating": score_to_rating(score),
-                    "source": "market",
-                })
+                results.append(
+                    {
+                        "code": code,
+                        "name": r["name"] or code,
+                        "price": price,
+                        "change_pct": change_pct,
+                        "score": score,
+                        "signals": signals,
+                        "rating": score_to_rating(score),
+                        "source": "market",
+                    }
+                )
 
             results.sort(key=lambda x: x["score"], reverse=True)
             logger.info("services.offhours.snapshot_fallback", count=len(results))

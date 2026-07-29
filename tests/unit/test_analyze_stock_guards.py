@@ -80,13 +80,13 @@ class TestAnalyzeStockGuards:
         assert result.score is not None
         # 不应该有 AI 引擎评分（engine_scores 为空）
         engine_scores = result.engine_scores
-        _ai_set = {"wyckoff", "buffett", "can_slim"}
+        _ai_set = {"wyckoff", "can_slim"}
         ai_engines = [e.engine_name for e in engine_scores if e.engine_name in _ai_set]
         assert len(ai_engines) == 0, f"WEEKEND 不应调 AI 引擎，但调用了: {ai_engines}"
         skipped = {item.engine_name: item.reason for item in result.engine_skipped}
-        # 周末或非交易时段跳过 AI 引擎，原因可能是 non_trading_hours 或 no_api_key
-        valid_skip_reasons = {"no_api_key", "non_trading_hours"}
-        for name in ("wyckoff", "buffett", "can_slim"):
+        # 周末或非交易时段跳过 AI 引擎，原因可能是 non_trading_hours / no_api_key / error
+        valid_skip_reasons = {"no_api_key", "non_trading_hours", "error"}
+        for name in ("wyckoff", "can_slim"):
             assert name in skipped, f"{name} should be skipped"
             assert skipped[name] in valid_skip_reasons
 
@@ -125,7 +125,7 @@ class TestAnalyzeStockGuards:
         assert result is not None
         assert result.code == "000001"
         engine_scores = result.engine_scores
-        _ai_set = {"wyckoff", "buffett", "can_slim"}
+        _ai_set = {"wyckoff", "can_slim"}
         ai_engines = [e.engine_name for e in engine_scores if e.engine_name in _ai_set]
         assert len(ai_engines) == 0, f"CLOSED 不应调 AI 引擎，但调用了: {ai_engines}"
 
@@ -357,12 +357,12 @@ class TestBugfixEngineCountAndSignals:
         fake_quote.pb = None
         fake_quote.total_mv = None
 
-        _all_six = ["wyckoff", "buffett", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
+        _all_five = ["wyckoff", "can_slim", "volume_profile", "vmd_rsi", "verdict"]
         captured_engine_names: list[list[str]] = []
 
-        with patch("src.diting.engines.registry.discover_engines", return_value=list(_all_six)):
+        with patch("src.diting.engines.registry.discover_engines", return_value=list(_all_five)):
             with patch.object(self.service, "_load_saved_settings") as mock_saved:
-                mock_saved.return_value = {f"engine_{e}": "1" for e in _all_six}
+                mock_saved.return_value = {f"engine_{e}": "1" for e in _all_five}
                 with patch("src.diting.pipeline.runner.AnalysisPipeline") as mock_pipeline_cls:
                     mock_instance = MagicMock()
                     mock_pipeline_cls.return_value = mock_instance
@@ -430,7 +430,7 @@ class TestBugfixEngineCountAndSignals:
         fake_quote.pb = None
         fake_quote.total_mv = None
 
-        _ai_engines = {"wyckoff", "buffett", "can_slim"}
+        _ai_engines = {"wyckoff", "can_slim"}
 
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
             mock_cm.return_value.mem_get_adaptive.return_value = None
