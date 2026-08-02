@@ -25,6 +25,7 @@ from .ports import (
     ReportPort,
     SandboxPort,
 )
+from .security.auth import AuthService
 
 logger = get_logger(__name__)
 
@@ -59,6 +60,7 @@ class ApplicationDependencies:
     notifier: Notifier | None = None
     analysis: AnalysisOrchestrator | None = None
     jobs: JobService | None = None
+    auth: AuthService | None = None
     legacy_repository: Any | None = None
 
 
@@ -77,6 +79,7 @@ class ApplicationContainer:
     notifier: Notifier | None = None
     analysis: AnalysisOrchestrator | None = None
     jobs: JobService | None = None
+    auth: AuthService | None = None
     legacy_repository: Any | None = None
 
     def close(self) -> None:
@@ -121,6 +124,7 @@ def create_container(
         notifier=deps.notifier,
         analysis=deps.analysis,
         jobs=deps.jobs,
+        auth=deps.auth,
         legacy_repository=deps.legacy_repository,
     )
 
@@ -230,6 +234,13 @@ def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDep
     calendar = ExchangeCalendarState()
     gateway = CachedMarketDataGateway(tuple(providers), cache, clock, calendar=calendar)
     durable = SQLiteDurableStore(business_path)
+    auth = AuthService(
+        durable,
+        clock,
+        owner_token_hash=Config._secret_value(settings.security.owner_token_hash),
+        session_secret=Config._secret_value(settings.security.session_secret),
+        session_hours=settings.security.session_hours,
+    )
     llm = None
     engines = [TechnicalEngine(), SnapshotVolumeProfileEngine()]
     api_key = Config._secret_value(settings.ai.api_key)
@@ -275,6 +286,7 @@ def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDep
         report=report,
         analysis=analysis,
         jobs=jobs,
+        auth=auth,
     )
 
 

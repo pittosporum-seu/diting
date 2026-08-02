@@ -23,7 +23,7 @@
 - [x] Task 15 — persistent bounded JobService
 - [x] Task 16 — post-persist report and notification tasks
 - [x] Checkpoint C2
-- [ ] Task 17 — owner session, CSRF and origin protection
+- [x] Task 17 — owner session, CSRF and origin protection
 - [ ] Task 18 — versioned envelope and public v1 API
 - [ ] Task 19 — owner v1 API and rate limiting
 - [ ] Task 20 — stable Python facade

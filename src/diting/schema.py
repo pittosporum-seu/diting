@@ -664,6 +664,15 @@ class JobRecord:
 
 
 @dataclass(frozen=True)
+class OwnerSession:
+    session_id: str
+    csrf_hash: str
+    created_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class ScanItem:
     symbol: str
     name: str

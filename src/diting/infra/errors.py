@@ -121,6 +121,31 @@ class JobQueueFullError(AnalysisError):
         super().__init__(message, error_code="JOB_QUEUE_FULL", http_status_code=503)
 
 
+class AuthenticationError(AnalysisError):
+    """Owner credentials or session are absent or invalid."""
+
+    def __init__(self, message: str = "需要 owner 会话"):
+        super().__init__(message, error_code="AUTH_REQUIRED", http_status_code=401)
+
+
+class AuthorizationError(AnalysisError):
+    """An authenticated or browser request failed an authorization control."""
+
+    def __init__(self, message: str = "请求未通过安全校验", *, error_code: str = "FORBIDDEN"):
+        super().__init__(message, error_code=error_code, http_status_code=403)
+
+
+class AuthNotConfiguredError(AnalysisError):
+    """Owner authentication secrets were not configured at startup."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "owner 认证尚未配置",
+            error_code="AUTH_NOT_CONFIGURED",
+            http_status_code=503,
+        )
+
+
 class ConfigError(AnalysisError):
     """配置错误"""
 

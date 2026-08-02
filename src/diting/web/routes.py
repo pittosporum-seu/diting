@@ -16,10 +16,13 @@ from ..bootstrap import bootstrap_runtime
 from ..cache import CacheManager
 from ..infra.errors import AnalysisError, DataUnavailableError
 from ..schema import FreshnessInfo
+from .security import build_auth_router
 from .services import DashboardService, ScanService, StockService, WatchlistService
 
 router = APIRouter()
 container = bootstrap_runtime()
+assert container.auth is not None
+router.include_router(build_auth_router(container.auth, container.settings))
 _cache_mgr = CacheManager()
 stock_service = StockService(cache_mgr=_cache_mgr, data_gateway=container.data_gateway)
 scan_service = ScanService(cache_mgr=_cache_mgr, data_gateway=container.data_gateway)

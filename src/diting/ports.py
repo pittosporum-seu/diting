@@ -24,6 +24,7 @@ from .schema import (
     LLMRequest,
     LLMResponse,
     Notification,
+    OwnerSession,
     ProviderHealthRecord,
     QuoteRequest,
     RealtimeQuote,
@@ -108,6 +109,12 @@ class DurableStore(Protocol):
     def update_job(self, job: JobRecord) -> None: ...
 
     def interrupt_running_jobs(self, finished_at: datetime) -> int: ...
+
+    def create_owner_session(self, session: OwnerSession) -> None: ...
+
+    def get_owner_session(self, session_id: str) -> OwnerSession | None: ...
+
+    def revoke_owner_session(self, session_id: str, revoked_at: datetime) -> bool: ...
 
     def save_scan_result(self, result: ScanResult) -> None: ...
 

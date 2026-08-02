@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import numpy as np
@@ -43,18 +45,12 @@ TEMPLATES = Path(__file__).resolve().parent / "templates"
 STATIC = Path(__file__).resolve().parent / "static"
 FRONTEND = PROJECT_ROOT / "frontend"
 
-app = FastAPI(title="谛听", version=__version__)
-app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
-app.mount("/app", StaticFiles(directory=str(FRONTEND), html=True), name="frontend")
-templates = Jinja2Templates(directory=str(TEMPLATES))
-
 # ── v0.6.5: 启动后台预刷新 Worker ──
 _prefetch_worker = None
 _analysis_prefetch_worker = None
 
 
-@app.on_event("startup")
-async def start_prefetch_worker():
+def start_prefetch_worker() -> None:
     """启动后台预刷新线程。"""
     global _prefetch_worker, _analysis_prefetch_worker
     try:
@@ -82,8 +78,7 @@ async def start_prefetch_worker():
         logging.getLogger(__name__).warning("analysis_prefetch.startup_failed")
 
 
-@app.on_event("shutdown")
-async def stop_prefetch_worker():
+def stop_prefetch_worker() -> None:
     """停止后台预刷新线程。"""
     global _prefetch_worker, _analysis_prefetch_worker
     if _prefetch_worker is not None:
@@ -91,6 +86,23 @@ async def stop_prefetch_worker():
     if _analysis_prefetch_worker is not None:
         _analysis_prefetch_worker.stop()
     container.close()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Own worker and application-container resources for the process lifetime."""
+
+    start_prefetch_worker()
+    try:
+        yield
+    finally:
+        stop_prefetch_worker()
+
+
+app = FastAPI(title="谛听", version=__version__, lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
+app.mount("/app", StaticFiles(directory=str(FRONTEND), html=True), name="frontend")
+templates = Jinja2Templates(directory=str(TEMPLATES))
 
 
 # ── 全局异常处理器 ──────────────────────────────────────────

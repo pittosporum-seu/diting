@@ -31,6 +31,7 @@ from ..schema import (
     EngineRun,
     Evidence,
     JobRecord,
+    OwnerSession,
     Risk,
     ScanResult,
     StrategyVersion,
@@ -226,6 +227,45 @@ class SQLiteDurableStore:
                 (finished_at.isoformat(),),
             )
             return cursor.rowcount
+
+    def create_owner_session(self, session: OwnerSession) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """INSERT INTO owner_sessions(
+                       session_id, csrf_hash, created_at, expires_at, revoked_at
+                   ) VALUES(?,?,?,?,?)""",
+                (
+                    session.session_id,
+                    session.csrf_hash,
+                    session.created_at.isoformat(),
+                    session.expires_at.isoformat(),
+                    session.revoked_at.isoformat() if session.revoked_at else None,
+                ),
+            )
+
+    def get_owner_session(self, session_id: str) -> OwnerSession | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM owner_sessions WHERE session_id=?", (session_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        return OwnerSession(
+            session_id=row["session_id"],
+            csrf_hash=row["csrf_hash"],
+            created_at=_datetime(row["created_at"]),
+            expires_at=_datetime(row["expires_at"]),
+            revoked_at=_datetime(row["revoked_at"]) if row["revoked_at"] else None,
+        )
+
+    def revoke_owner_session(self, session_id: str, revoked_at: datetime) -> bool:
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                """UPDATE owner_sessions SET revoked_at=?
+                   WHERE session_id=? AND revoked_at IS NULL""",
+                (revoked_at.isoformat(), session_id),
+            )
+            return cursor.rowcount == 1
 
     def save_scan_result(self, result: ScanResult) -> None:
         with self._lock, self._connect() as connection:

@@ -184,6 +184,20 @@ BUSINESS_MIGRATIONS = (
                WHERE dedupe_key IS NOT NULL AND status IN ('queued', 'running')""",
         ),
     ),
+    MigrationStep(
+        version=4,
+        name="v080_owner_sessions",
+        statements=(
+            """CREATE TABLE IF NOT EXISTS owner_sessions (
+                session_id TEXT PRIMARY KEY,
+                csrf_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                revoked_at TEXT
+            )""",
+            "CREATE INDEX IF NOT EXISTS idx_owner_sessions_expiry ON owner_sessions(expires_at)",
+        ),
+    ),
 )
 
 
