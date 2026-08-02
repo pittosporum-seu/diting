@@ -137,6 +137,13 @@ def test_remote_driver_requires_candidate_verification_and_preserves_rollback() 
     assert "caddy validate" in source
     assert 'rollback "$commit"' in source
     assert "observe_seconds" in source
+    assert "wait_gateway_ready" in source
+    assert "DITING_SMOKE_PUBLIC_ONLY=true" in source
+    assert 'die "new service start failed; rollback completed"' in source
+    assert 'die "gateway reload failed; rollback completed"' in source
+    assert 'previous_release=""' in source
+    assert '[[ -e "$CURRENT_LINK" || -L "$CURRENT_LINK" ]]' in source
+    assert 'rm -f -- "$CURRENT_LINK"' in source
     assert "sha256sum --check" in source
     assert "incoming.backup(outgoing)" in source
     assert "PRAGMA integrity_check" in source
@@ -152,8 +159,19 @@ def test_service_and_caddy_reference_match_v080_topology() -> None:
     assert "ProtectSystem=strict" in service
     assert "ReadWritePaths=/var/lib/diting" in service
     assert "/api/diting/*" in caddy
-    assert "rewrite * /api{uri}" in caddy
+    assert "uri replace /api/diting/ /api/" in caddy
+    assert "strip_prefix /api/diting" not in caddy
     assert "/opt/diting/current/frontend" in caddy
+
+
+def test_smoke_test_supports_internal_and_gateway_api_bases() -> None:
+    source = (ROOT / "scripts" / "smoke_test.sh").read_text(encoding="utf-8")
+
+    assert "*/api/diting/v1)" in source
+    assert 'LEGACY_URL="${API_BASE%/v1}/health"' in source
+    assert "*/api/v1)" in source
+    assert 'LEGACY_URL="${API_BASE%/api/v1}/api/health"' in source
+    assert "*'/v1/'*" in source
 
 
 def test_production_report_path_is_a_strict_environment_override() -> None:

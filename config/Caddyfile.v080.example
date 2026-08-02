@@ -8,8 +8,7 @@ pittosporum.cloud {
 	encode zstd gzip
 
 	handle /api/diting/* {
-		uri strip_prefix /api/diting
-		rewrite * /api{uri}
+		uri replace /api/diting/ /api/
 		reverse_proxy 127.0.0.1:8100
 	}
 
