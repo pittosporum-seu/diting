@@ -27,7 +27,7 @@
 | 项目 | 状态 |
 |---|---|
 | 历史实验归档 | 已完成；原始 106 MB 文件位于仓库外归档 |
-| ExperimentManifest/策略注册表 | v0.8 实现中 |
+| ExperimentManifest/策略注册表 | v0.8 已实现并由迁移、审计和 Owner API 保护 |
 | point-in-time 研究数据集 | 待通过 Data Gateway 重建 |
 | `mean_reversion_v1` | draft，尚未 validated/approved/active |
 | 生产机会榜 | 新策略激活前必须返回 `NO_ACTIVE_STRATEGY` |
@@ -46,3 +46,4 @@
 | 2026-07-28 | 旧因子 IC/回测 | 均值回归候选优于旧追涨权重，但样本不足 |
 | 2026-08-01 | VMD 全量验证 | 预测力弱，只保留为上下文 |
 | 2026-08-02 | v0.8 设计 Accepted | 建立严格研究生命周期和生产激活门槛 |
+| 2026-08-02 | v0.8 治理代码完成 | manifest、门槛、候选因子、active-only 扫描已实现；未伪造研究通过或 active 状态 |

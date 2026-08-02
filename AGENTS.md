@@ -128,16 +128,18 @@ Checkpoint 报告 -> docs/01-design/test-results/v080-checkpoint-*.md
 ```powershell
 uv sync --extra dev
 uv run pre-commit run --all-files
-uv run ruff check src/ tests/
-uv run ruff format --check src/ tests/
+uv run ruff check src/ tests/ browser_tests/ scripts/validate-api.py
+uv run ruff format --check src/ tests/ browser_tests/ scripts/validate-api.py
 uv run pytest tests/ -m "not network" -q
+uv run python scripts/validate-api.py --check
+uv run pytest browser_tests/ -q
 ```
 
 还必须执行：
 
 - 对全部 `frontend/**/*.js` 运行 `node --check`。
 - 运行 API/OpenAPI、严格配置和 AST 依赖检查。
-- 启动本地 uvicorn，以真实 Playwright Chromium 验证五个页面及关键交互。
+- Playwright fixture 启动本地 uvicorn，以真实 Chromium 验证五个页面及关键交互。
 - 浏览器不得有 console error、page error、未处理 promise 或失败资源。
 - 网络测试和完整研究回测单独运行；网络偶发失败不阻塞核心测试，但策略激活必须依赖
   完整、可复现的研究报告。
