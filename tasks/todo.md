@@ -25,7 +25,7 @@
 - [x] Checkpoint C2
 - [x] Task 17 — owner session, CSRF and origin protection
 - [x] Task 18 — versioned envelope and public v1 API
-- [ ] Task 19 — owner v1 API and rate limiting
+- [x] Task 19 — owner v1 API and rate limiting
 - [ ] Task 20 — stable Python facade
 - [ ] Task 21 — v0.8 CLI
 - [ ] Task 22 — frontend API client, auth and state machine

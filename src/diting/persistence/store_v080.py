@@ -23,6 +23,7 @@ from ..enums import (
 from ..schema import (
     AnalysisRequest,
     AnalysisRun,
+    AuditEvent,
     ConsensusConflict,
     ConsensusResult,
     DataSnapshot,
@@ -32,10 +33,12 @@ from ..schema import (
     Evidence,
     JobRecord,
     OwnerSession,
+    PreferenceRecord,
     Risk,
     ScanResult,
     StrategyVersion,
     Verdict,
+    WatchlistEntry,
 )
 
 
@@ -267,6 +270,104 @@ class SQLiteDurableStore:
             )
             return cursor.rowcount == 1
 
+    def upsert_watchlist(self, entry: WatchlistEntry) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """INSERT INTO watchlist(
+                       code, name, market, tags, user_id, created_at, updated_at
+                   ) VALUES(?,?,?,?,?,?,?)
+                   ON CONFLICT(code, user_id) DO UPDATE SET
+                       name=excluded.name,
+                       market=excluded.market,
+                       tags=excluded.tags,
+                       updated_at=excluded.updated_at""",
+                (
+                    entry.symbol,
+                    entry.name,
+                    entry.market,
+                    _dump(entry.tags),
+                    entry.owner_id,
+                    entry.created_at.isoformat(),
+                    entry.updated_at.isoformat(),
+                ),
+            )
+
+    def list_watchlist(self, owner_id: str) -> tuple[WatchlistEntry, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT code, name, market, tags, user_id, created_at, updated_at
+                   FROM watchlist WHERE user_id=? ORDER BY created_at, code""",
+                (owner_id,),
+            ).fetchall()
+        return tuple(
+            WatchlistEntry(
+                symbol=row["code"],
+                name=row["name"],
+                market=row["market"],
+                owner_id=row["user_id"],
+                created_at=_datetime(row["created_at"]),
+                updated_at=_datetime(row["updated_at"]),
+                tags=_parse_tags(row["tags"]),
+            )
+            for row in rows
+        )
+
+    def delete_watchlist(self, owner_id: str, symbol: str) -> bool:
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM watchlist WHERE user_id=? AND code=?", (owner_id, symbol)
+            )
+            return cursor.rowcount == 1
+
+    def save_preference(self, preference: PreferenceRecord) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """INSERT INTO preferences(owner_id, key, value_json, updated_at)
+                   VALUES(?,?,?,?)
+                   ON CONFLICT(owner_id, key) DO UPDATE SET
+                       value_json=excluded.value_json,
+                       updated_at=excluded.updated_at""",
+                (
+                    preference.owner_id,
+                    preference.key,
+                    preference.value_json,
+                    preference.updated_at.isoformat(),
+                ),
+            )
+
+    def list_preferences(self, owner_id: str) -> tuple[PreferenceRecord, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT owner_id, key, value_json, updated_at
+                   FROM preferences WHERE owner_id=? ORDER BY key""",
+                (owner_id,),
+            ).fetchall()
+        return tuple(
+            PreferenceRecord(
+                owner_id=row["owner_id"],
+                key=row["key"],
+                value_json=row["value_json"],
+                updated_at=_datetime(row["updated_at"]),
+            )
+            for row in rows
+        )
+
+    def append_audit(self, event: AuditEvent) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """INSERT INTO audit_log(
+                       actor, action, target, request_id, detail_json, created_at
+                   ) VALUES(?,?,?,?,?,?)""",
+                (
+                    event.actor,
+                    event.action,
+                    event.target,
+                    event.request_id,
+                    event.detail_json,
+                    event.created_at.isoformat(),
+                ),
+            )
+
     def save_scan_result(self, result: ScanResult) -> None:
         with self._lock, self._connect() as connection:
             connection.execute(
@@ -333,6 +434,23 @@ def _json_default(value: Any) -> Any:
 
 def _datetime(value: str) -> datetime:
     return datetime.fromisoformat(value)
+
+
+def _parse_tags(value: str | None) -> tuple[str, ...]:
+    """Read v0.8 JSON tags while tolerating pre-v0.8 comma-separated rows."""
+
+    raw = (value or "").strip()
+    if not raw:
+        return ()
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return tuple(item.strip() for item in raw.split(",") if item.strip())
+    if isinstance(parsed, list):
+        return tuple(str(item) for item in parsed if str(item))
+    if isinstance(parsed, str):
+        return (parsed,) if parsed else ()
+    return ()
 
 
 def _parse_request(raw: dict[str, Any], *, fallback_symbol: str, fallback: str) -> AnalysisRequest:

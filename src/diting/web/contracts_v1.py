@@ -171,6 +171,70 @@ class OpportunitiesData(_HttpModel):
     strategy_version: str | None = None
 
 
+class JobView(_HttpModel):
+    job_id: str
+    job_type: str
+    status: str
+    progress: float
+    result_ref: str | None = None
+    error_code: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    deadline_at: datetime | None = None
+    cancel_requested: bool = False
+
+
+class WatchlistView(_HttpModel):
+    symbol: str
+    name: str
+    market: str
+    tags: tuple[str, ...] = ()
+    created_at: datetime
+    updated_at: datetime
+
+
+class WatchlistData(_HttpModel):
+    items: tuple[WatchlistView, ...]
+    total: int
+
+
+class PreferenceView(_HttpModel):
+    key: str
+    value: str | int | bool
+    updated_at: datetime
+
+
+class PreferencesData(_HttpModel):
+    items: tuple[PreferenceView, ...]
+
+
+class CacheClearData(_HttpModel):
+    cleared: int
+    prefix: str | None = None
+
+
+class StrategyStatusData(_HttpModel):
+    selected: str
+    active: bool
+    version: str | None = None
+    state: str | None = None
+    manifest_hash: str | None = None
+    activated_at: datetime | None = None
+
+
+class DiagnosticsData(_HttpModel):
+    version: str
+    environment: str
+    public_readonly: bool
+    owner_auth_configured: bool
+    analysis_available: bool
+    jobs_available: bool
+    cache_available: bool
+    strategy_selected: str
+    strategy_active: bool
+
+
 def success_envelope[T](
     request: Request,
     data: T,

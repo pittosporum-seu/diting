@@ -16,15 +16,19 @@ from ..bootstrap import bootstrap_runtime
 from ..cache import CacheManager
 from ..infra.errors import AnalysisError, DataUnavailableError
 from ..schema import FreshnessInfo
+from .rate_limit import SlidingWindowRateLimiter
 from .security import build_auth_router
 from .services import DashboardService, ScanService, StockService, WatchlistService
 from .v1 import build_v1_router
+from .v1_owner import build_owner_v1_router
 
 router = APIRouter()
 container = bootstrap_runtime()
 assert container.auth is not None
-router.include_router(build_auth_router(container.auth, container.settings))
-router.include_router(build_v1_router(container))
+_rate_limiter = SlidingWindowRateLimiter()
+router.include_router(build_auth_router(container.auth, container.settings, _rate_limiter))
+router.include_router(build_v1_router(container, _rate_limiter))
+router.include_router(build_owner_v1_router(container, _rate_limiter))
 _cache_mgr = CacheManager()
 stock_service = StockService(cache_mgr=_cache_mgr, data_gateway=container.data_gateway)
 scan_service = ScanService(cache_mgr=_cache_mgr, data_gateway=container.data_gateway)

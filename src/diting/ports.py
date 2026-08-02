@@ -8,6 +8,7 @@ from typing import Protocol, runtime_checkable
 
 from .schema import (
     AnalysisRun,
+    AuditEvent,
     CacheLookup,
     CacheRecord,
     DataResult,
@@ -25,6 +26,7 @@ from .schema import (
     LLMResponse,
     Notification,
     OwnerSession,
+    PreferenceRecord,
     ProviderHealthRecord,
     QuoteRequest,
     RealtimeQuote,
@@ -35,6 +37,7 @@ from .schema import (
     StrategyVersion,
     TradingCalendar,
     TradingCalendarRequest,
+    WatchlistEntry,
 )
 
 
@@ -115,6 +118,18 @@ class DurableStore(Protocol):
     def get_owner_session(self, session_id: str) -> OwnerSession | None: ...
 
     def revoke_owner_session(self, session_id: str, revoked_at: datetime) -> bool: ...
+
+    def upsert_watchlist(self, entry: WatchlistEntry) -> None: ...
+
+    def list_watchlist(self, owner_id: str) -> tuple[WatchlistEntry, ...]: ...
+
+    def delete_watchlist(self, owner_id: str, symbol: str) -> bool: ...
+
+    def save_preference(self, preference: PreferenceRecord) -> None: ...
+
+    def list_preferences(self, owner_id: str) -> tuple[PreferenceRecord, ...]: ...
+
+    def append_audit(self, event: AuditEvent) -> None: ...
 
     def save_scan_result(self, result: ScanResult) -> None: ...
 

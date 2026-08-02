@@ -31,10 +31,14 @@ from .contracts_v1 import (
     data_result_meta,
     success_envelope,
 )
+from .rate_limit import SlidingWindowRateLimiter
 from .security import OwnerSecurity
 
 
-def build_v1_router(container: ApplicationContainer) -> APIRouter:
+def build_v1_router(
+    container: ApplicationContainer,
+    limiter: SlidingWindowRateLimiter | None = None,
+) -> APIRouter:
     if container.auth is None or container.data_gateway is None or container.durable_store is None:
         raise RuntimeError("v1 runtime dependencies are incomplete")
     router = APIRouter(prefix="/api/v1", tags=["v1"])
@@ -42,10 +46,14 @@ def build_v1_router(container: ApplicationContainer) -> APIRouter:
 
     @router.get("/health", response_model=ApiEnvelope[HealthData])
     async def health(request: Request):
+        if limiter is not None:
+            limiter.check_public_read(request)
         return success_envelope(request, HealthData(status="ok", version=__version__))
 
     @router.get("/ready", response_model=ApiEnvelope[HealthData])
     async def ready(request: Request):
+        if limiter is not None:
+            limiter.check_public_read(request)
         return success_envelope(request, HealthData(status="ready", version=__version__))
 
     @router.get(
@@ -59,6 +67,8 @@ def build_v1_router(container: ApplicationContainer) -> APIRouter:
         cursor: Annotated[str | None, Query(max_length=200)] = None,
         _access: OwnerSession | None = Depends(security.require_read_access),
     ):
+        if limiter is not None:
+            limiter.check_public_read(request)
         result = container.data_gateway.search_instruments(
             InstrumentSearchRequest(query=q, limit=limit, cursor=cursor)
         )
@@ -97,6 +107,8 @@ def build_v1_router(container: ApplicationContainer) -> APIRouter:
         symbol: Annotated[str, Path(pattern=r"^\d{6}$")],
         _access: OwnerSession | None = Depends(security.require_read_access),
     ):
+        if limiter is not None:
+            limiter.check_public_read(request)
         result = container.data_gateway.get_quotes(QuoteRequest(symbols=(symbol,))).get(symbol)
         if result is None or not result.succeeded or result.data is None:
             raise DataUnavailableError(
@@ -139,6 +151,8 @@ def build_v1_router(container: ApplicationContainer) -> APIRouter:
         run_id: Annotated[str, Path(pattern=r"^run_[A-Za-z0-9_-]+$")],
         _access: OwnerSession | None = Depends(security.require_read_access),
     ):
+        if limiter is not None:
+            limiter.check_public_read(request)
         run = container.durable_store.get_analysis_run(run_id)
         if run is None:
             from ..infra.errors import AnalysisError
@@ -155,6 +169,8 @@ def build_v1_router(container: ApplicationContainer) -> APIRouter:
         request: Request,
         _access: OwnerSession | None = Depends(security.require_read_access),
     ):
+        if limiter is not None:
+            limiter.check_public_read(request)
         active = container.durable_store.get_active_strategy(container.settings.strategy.selected)
         return success_envelope(
             request,
@@ -171,6 +187,8 @@ def build_v1_router(container: ApplicationContainer) -> APIRouter:
         request: Request,
         _access: OwnerSession | None = Depends(security.require_read_access),
     ):
+        if limiter is not None:
+            limiter.check_public_read(request)
         active = container.durable_store.get_active_strategy(container.settings.strategy.selected)
         if active is None:
             return success_envelope(

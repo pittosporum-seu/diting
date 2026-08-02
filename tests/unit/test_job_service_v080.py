@@ -10,11 +10,11 @@ from pathlib import Path
 import pytest
 
 from src.diting.application.jobs import BoundedLLMPort, JobService
-from src.diting.enums import JobType, RunStatus
+from src.diting.enums import AnalysisProfile, JobType, RunStatus
 from src.diting.infra.errors import JobQueueFullError
 from src.diting.persistence.migrations import migrate_databases
 from src.diting.persistence.store_v080 import SQLiteDurableStore
-from src.diting.schema import JobRecord, LLMRequest, LLMResponse
+from src.diting.schema import AnalysisRequest, JobRecord, LLMRequest, LLMResponse
 
 NOW = datetime(2026, 8, 2, 10, 0, tzinfo=UTC)
 
@@ -129,6 +129,42 @@ def test_running_job_cancellation_is_cooperative(tmp_path: Path) -> None:
         assert cancelled.cancel_requested is True
         assert cancelled.error_code == "JOB_CANCELLED"
     finally:
+        service.close()
+
+
+def test_analysis_dedupe_ignores_request_correlation_id(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    service = JobService(store, FakeClock(), analysis_workers=1, queue_limit=2)
+    release = threading.Event()
+
+    class Orchestrator:
+        def analyze(self, _request):
+            release.wait(2)
+            return type("Result", (), {"run_id": "run-deduped"})()
+
+    try:
+        first = service.submit_analysis(
+            Orchestrator(),
+            AnalysisRequest(
+                "002475",
+                AnalysisProfile.STANDARD,
+                request_id="req_one",
+                deadline=NOW + timedelta(minutes=4),
+            ),
+        )
+        duplicate = service.submit_analysis(
+            Orchestrator(),
+            AnalysisRequest(
+                "002475",
+                AnalysisProfile.STANDARD,
+                request_id="req_two",
+                deadline=NOW + timedelta(minutes=5),
+            ),
+        )
+
+        assert duplicate.job_id == first.job_id
+    finally:
+        release.set()
         service.close()
 
 

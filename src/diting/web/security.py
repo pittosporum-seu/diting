@@ -13,6 +13,7 @@ from ..infra.errors import AuthenticationError, AuthorizationError
 from ..schema import OwnerSession
 from ..security.auth import AuthService
 from .contracts_v1 import ApiEnvelope, AuthSessionData, success_envelope
+from .rate_limit import SlidingWindowRateLimiter
 
 SESSION_COOKIE = "diting_owner_session"
 CSRF_HEADER = "X-CSRF-Token"
@@ -44,12 +45,18 @@ class OwnerSecurity:
         return self.require_owner(request)
 
 
-def build_auth_router(auth: AuthService, settings: AppConfig) -> APIRouter:
+def build_auth_router(
+    auth: AuthService,
+    settings: AppConfig,
+    limiter: SlidingWindowRateLimiter | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
     security = OwnerSecurity(auth, settings)
 
     @router.post("/session", response_model=ApiEnvelope[AuthSessionData])
     async def login(request: Request, credentials: LoginRequest) -> JSONResponse:
+        if limiter is not None:
+            limiter.check_login(request)
         validate_origin(request, settings.security.allowed_origins)
         issued = auth.issue(credentials.token)
         envelope = success_envelope(

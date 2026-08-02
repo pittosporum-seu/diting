@@ -159,7 +159,8 @@ class JobService:
         dedupe_key: str | None = None,
     ) -> JobRecord:
         request_json = _analysis_request_json(request)
-        key = dedupe_key or "analysis:" + hashlib.sha256(request_json.encode()).hexdigest()
+        dedupe_json = _analysis_request_json(request, include_request_id=False)
+        key = dedupe_key or "analysis:" + hashlib.sha256(dedupe_json.encode()).hexdigest()
 
         def run(control: JobControl) -> str:
             control.set_progress(0.1)
@@ -283,15 +284,16 @@ class JobService:
         self._slots.release()
 
 
-def _analysis_request_json(request: AnalysisRequest) -> str:
+def _analysis_request_json(request: AnalysisRequest, *, include_request_id: bool = True) -> str:
     payload = {
         "symbol": request.symbol,
         "profile": request.profile.value,
         "as_of": request.as_of.isoformat() if request.as_of else None,
         "force_refresh": request.force_refresh,
         "requested_engines": request.requested_engines,
-        "request_id": request.request_id,
-        "deadline": request.deadline.isoformat() if request.deadline else None,
         "enable_sandbox": request.enable_sandbox,
     }
+    if include_request_id:
+        payload["request_id"] = request.request_id
+        payload["deadline"] = request.deadline.isoformat() if request.deadline else None
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

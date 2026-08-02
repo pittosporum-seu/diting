@@ -673,6 +673,35 @@ class OwnerSession:
 
 
 @dataclass(frozen=True)
+class WatchlistEntry:
+    symbol: str
+    name: str
+    market: str
+    owner_id: str
+    created_at: datetime
+    updated_at: datetime
+    tags: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class PreferenceRecord:
+    owner_id: str
+    key: str
+    value_json: str
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class AuditEvent:
+    actor: str
+    action: str
+    target: str
+    created_at: datetime
+    request_id: str | None = None
+    detail_json: str = "{}"
+
+
+@dataclass(frozen=True)
 class ScanItem:
     symbol: str
     name: str
