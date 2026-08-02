@@ -1,216 +1,255 @@
-"""谛听 · CLI 冒烟测试 — v0.2.0 命令框架
-
-使用 Click CliRunner 测试所有 CLI 入口。
-"""
+"""v0.8 breaking CLI contract tests without provider/network access."""
 
 from __future__ import annotations
+
+from dataclasses import replace
+from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
 
 from src.diting import __version__
+from src.diting.config import AppConfig
+from src.diting.enums import DataSource, RunStatus, StrategyState
+from src.diting.facade import Diting
 from src.diting.main import cli
+from src.diting.schema import (
+    AnalysisRequest,
+    AnalysisRun,
+    DataResult,
+    RealtimeQuote,
+    ScanResult,
+    StrategyVersion,
+)
+
+NOW = datetime(2026, 8, 2, 10, 0, tzinfo=UTC)
 
 
-class TestCLISmoke:
-    """CLI 冒烟测试。"""
+class FakeClock:
+    def now(self):
+        return NOW
 
-    def test_help_exit_zero(self):
-        """diting --help 退出码 0。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["--help"])
-        assert result.exit_code == 0
-        assert "谛听" in result.output
+    def today(self):
+        return NOW.date()
 
-    def test_version_exit_zero(self):
-        """diting --version 退出码 0，输出版本号。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["--version"])
-        assert result.exit_code == 0
-        assert __version__ in result.output
 
-    def test_default_code_displays_help(self):
-        """diting（无参数）输出帮助信息。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, [])
-        assert result.exit_code == 0
-        assert "谛听" in result.output
-
-    @pytest.mark.network
-    def test_scan_single_symbol(self):
-        """diting scan 002475 退出码 0。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["scan", "002475"])
-        assert result.exit_code == 0
-        assert "002475" in result.output or "暂时无法获取" in result.output
-
-    @pytest.mark.network
-    def test_scan_multi_symbols(self):
-        """diting scan 002475,603659 输出包含多只标的。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["scan", "002475,603659"])
-        assert result.exit_code == 0
-        # When data fails, the error message should include one of the symbols
-        assert (
-            "002475" in result.output
-            or "603659" in result.output
-            or "数据获取失败" in result.output
+class FakeStore:
+    def __init__(self) -> None:
+        self.watchlist = {}
+        self.audits = []
+        self.active = StrategyVersion(
+            "mean_reversion_v1",
+            "1.0",
+            StrategyState.ACTIVE,
+            "manifest-hash",
+            NOW,
+            NOW,
         )
 
-    @pytest.mark.network
-    def test_scan_json(self):
-        """diting scan --json 输出。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["scan", "002475", "--json"])
-        assert result.exit_code == 0
+    def list_watchlist(self, _owner_id):
+        return tuple(self.watchlist.values())
 
-    @pytest.mark.network
-    def test_l0_alias(self):
-        """diting l0 002475（旧别名）退出码 0。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["l0", "002475"])
-        assert result.exit_code == 0
-        assert "002475" in result.output or "暂时无法获取" in result.output
+    def upsert_watchlist(self, entry):
+        self.watchlist[entry.symbol] = entry
 
-    @pytest.mark.network
-    def test_l0_alias_multi(self):
-        """diting l0 002475,603659 退出码 0。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["l0", "002475,603659"])
-        assert result.exit_code == 0
+    def delete_watchlist(self, _owner_id, symbol):
+        return self.watchlist.pop(symbol, None) is not None
 
-    @pytest.mark.network
-    def test_l1_alias(self):
-        """diting l1 002475 被接受（旧别名兼容）。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["l1", "002475"])
-        assert "002475" in result.output or not result.output
+    def append_audit(self, event):
+        self.audits.append(event)
 
-    @pytest.mark.network
-    def test_l1_alias_with_more(self):
-        """diting l1 002475 --more 显示技术分析。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["l1", "002475", "--more"], catch_exceptions=False)
-        assert result.exit_code in (0, 1) or "002475" in result.output
+    def get_active_strategy(self, _name):
+        return self.active
 
-    @pytest.mark.network
-    def test_l2_alias(self):
-        """diting l2 002475 --report 或输出报告。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["l2", "002475"])
-        assert result.exit_code in (0, 1) or "report" in result.output.lower()
 
-    def test_run_alias(self):
-        """diting run 废弃提示。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["run"])
-        assert result.exit_code == 0
-        assert "废弃" in result.output or "diting" in result.output
+class FakeDiting:
+    def __init__(self) -> None:
+        self.store = FakeStore()
+        self._container = SimpleNamespace(
+            durable_store=self.store,
+            clock=FakeClock(),
+            settings=AppConfig(),
+        )
+        self.analysis_calls = []
+        self.quote_calls = []
+        self.scan_limits = []
+        self.close_count = 0
 
-    @pytest.mark.network
-    def test_compare_smoke(self):
-        """diting compare 002475,600519 退出码 0，输出对比。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["compare", "002475,600519"])
-        assert result.exit_code == 0
-        # Should contain stock codes, names, or a data-unavailable message
-        assert any(
-            x in result.output
-            for x in [
-                "002475",
-                "600519",
-                "数据获取失败",
-                "无返回数据",
-                "评分",
-                "PE",
-                "RSI",
-            ]
+    def get_quote(self, symbol, freshness="cache_preferred", *, force_refresh=False):
+        self.quote_calls.append((symbol, freshness, force_refresh))
+        quote = RealtimeQuote(
+            symbol=symbol.strip(),
+            name=f"股票{symbol.strip()}",
+            price=42,
+            change_pct=1.5,
+            open=41,
+            high=43,
+            low=40,
+            volume=100,
+            turnover=4200,
+            pe=20,
+            pb=3,
+            timestamp=NOW,
+            source=DataSource.AKSHARE,
+        )
+        return DataResult(data=quote, data_time=NOW, request_hash="quote")
+
+    def analyze(self, symbol, profile="standard", *, force_refresh=False, engines=None):
+        self.analysis_calls.append((symbol, profile, force_refresh, engines))
+        request = AnalysisRequest(symbol, request_id="cli-test")
+        if profile == "deep":
+            from src.diting.enums import AnalysisProfile
+
+            request = replace(request, profile=AnalysisProfile.DEEP)
+        return AnalysisRun(
+            run_id="run_cli",
+            request=request,
+            status=RunStatus.SUCCEEDED,
+            snapshot_id="snapshot",
+            snapshot_hash="snapshot-hash",
+            config_hash="config-hash",
+            strategy_version="analysis-v1",
+            code_version="0.8.0",
+            started_at=NOW,
+            completed_at=NOW,
         )
 
-    @pytest.mark.network
-    def test_compare_json(self):
-        """diting compare --json 退出码 0。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["compare", "002475,603659", "--json"])
-        assert result.exit_code == 0
+    def scan(self, limit=20):
+        self.scan_limits.append(limit)
+        return ScanResult("scan_cli", RunStatus.SUCCEEDED, "mean_reversion_v1:1.0", NOW.date())
 
-    @pytest.mark.network
-    def test_compare_single(self):
-        """diting compare 002475（单只）退出码 0。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["compare", "002475"])
-        assert result.exit_code == 0
+    def close(self):
+        self.close_count += 1
 
-    def test_watchlist_no_file(self):
-        """diting watchlist（无 watchlist.csv）优雅降级为空列表。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["watchlist"])
-        # 文件缺失时优雅降级，不报错
-        assert result.exit_code == 0
 
-    def test_watchlist_with_example(self):
-        """diting watchlist -f config/watchlist.example.csv 退出码 0。"""
-        runner = CliRunner()
-        result = runner.invoke(
-            cli,
-            [
-                "watchlist",
-                "-f",
-                "config/watchlist.example.csv",
-            ],
-        )
-        assert result.exit_code == 0
+@pytest.fixture
+def cli_runtime(monkeypatch):
+    fake = FakeDiting()
+    monkeypatch.setattr(
+        Diting,
+        "from_config",
+        classmethod(lambda _cls, _path=None, _overrides=None: fake),
+    )
+    return CliRunner(), fake
 
-    def test_watchlist_json(self):
-        """diting watchlist -f config/watchlist.example.csv --json。"""
-        runner = CliRunner()
-        result = runner.invoke(
-            cli,
-            [
-                "watchlist",
-                "-f",
-                "config/watchlist.example.csv",
-                "--json",
-            ],
-        )
-        assert result.exit_code == 0
 
-    def test_init_help(self):
-        """diting init --help 显示帮助信息。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["init", "--help"])
-        assert result.exit_code == 0
-        assert "首次配置引导" in result.output
+def test_help_version_and_empty_invocation() -> None:
+    runner = CliRunner()
 
-    def test_init_noninteractive(self):
-        """diting init --yes 非交互模式退出码 0。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["init", "--yes"])
-        # --yes mode should complete without interaction
-        assert result.exit_code == 0
-        assert "谛听首次配置" in result.output
+    help_result = runner.invoke(cli, ["--help"])
+    version_result = runner.invoke(cli, ["--version"])
+    empty_result = runner.invoke(cli, [])
 
-    def test_serve_stub(self):
-        """diting serve 命令可导入且帮助信息正确。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["serve", "--help"])
-        assert result.exit_code == 0
-        assert "serve" in result.output.lower()
+    assert help_result.exit_code == 0
+    assert all(name in help_result.output for name in ("analyze", "quote", "scan", "strategy"))
+    assert version_result.exit_code == 0
+    assert __version__ in version_result.output
+    assert empty_result.exit_code == 0
+    assert "谛听" in empty_result.output
 
-    @pytest.mark.network
-    def test_default_code_with_more(self):
-        """diting 002475 --more 退出码 0 且包含技术面面板。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["002475", "--more"])
-        assert result.exit_code == 0
-        if "暂时无法获取" in result.output:
-            return  # no data source available
-        assert "技术面" in result.output
-        assert "RSI" in result.output
 
-    @pytest.mark.network
-    def test_default_code_json(self):
-        """diting 002475 --json 退出码 0，输出 JSON。"""
-        runner = CliRunner()
-        result = runner.invoke(cli, ["002475", "--json"])
-        assert result.exit_code == 0
+def test_code_shorthand_maps_only_to_standard_analysis(cli_runtime) -> None:
+    runner, fake = cli_runtime
+    result = runner.invoke(cli, ["002475"])
+
+    assert result.exit_code == 0
+    assert "run_cli" in result.output
+    assert fake.analysis_calls == [("002475", "standard", False, None)]
+    assert fake.close_count == 1
+
+
+def test_explicit_deep_analysis_propagates_options_and_json(cli_runtime) -> None:
+    runner, fake = cli_runtime
+    result = runner.invoke(
+        cli,
+        [
+            "analyze",
+            "002475",
+            "--profile",
+            "deep",
+            "--force-refresh",
+            "--engine",
+            "technical",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert '"run_id": "run_cli"' in result.output
+    assert fake.analysis_calls == [("002475", "deep", True, ("technical",))]
+
+
+def test_quote_uses_freshness_contract(cli_runtime) -> None:
+    runner, fake = cli_runtime
+    result = runner.invoke(
+        cli,
+        ["quote", "002475", "--freshness", "fresh_required", "--force-refresh", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert '"request_hash": "quote"' in result.output
+    assert fake.quote_calls == [("002475", "fresh_required", True)]
+
+
+def test_compare_requires_two_symbols_and_uses_quote_only(cli_runtime) -> None:
+    runner, fake = cli_runtime
+    invalid = runner.invoke(cli, ["compare", "002475"])
+    compared = runner.invoke(cli, ["compare", "002475,600519", "--json"])
+
+    assert invalid.exit_code == 2
+    assert "between 2 and 20" in invalid.output
+    assert compared.exit_code == 0
+    assert '"symbol": "600519"' in compared.output
+    assert [item[0] for item in fake.quote_calls] == ["002475", "600519"]
+
+
+def test_scan_uses_active_strategy_facade(cli_runtime) -> None:
+    runner, fake = cli_runtime
+    result = runner.invoke(cli, ["scan", "--limit", "5", "--json"])
+
+    assert result.exit_code == 0
+    assert '"scan_id": "scan_cli"' in result.output
+    assert fake.scan_limits == [5]
+
+
+def test_watchlist_crud_is_typed_persistent_and_audited(cli_runtime) -> None:
+    runner, fake = cli_runtime
+    added = runner.invoke(
+        cli,
+        ["watchlist", "--add", "002475", "--name", "立讯精密", "--tag", "核心"],
+    )
+    listed = runner.invoke(cli, ["watchlist", "--json"])
+    removed = runner.invoke(cli, ["watchlist", "--remove", "002475"])
+
+    assert added.exit_code == listed.exit_code == removed.exit_code == 0
+    assert '"symbol": "002475"' in listed.output
+    assert [event.action for event in fake.store.audits] == [
+        "watchlist.upsert",
+        "watchlist.delete",
+    ]
+    assert "自选列表为空" in removed.output
+
+
+def test_strategy_reports_active_registry_state(cli_runtime) -> None:
+    runner, _ = cli_runtime
+    result = runner.invoke(cli, ["strategy", "--json"])
+
+    assert result.exit_code == 0
+    assert '"active": true' in result.output
+    assert '"manifest_hash": "manifest-hash"' in result.output
+
+
+@pytest.mark.parametrize("command", ("l0", "l1", "l2", "run", "init"))
+def test_removed_commands_fail_clearly(command: str) -> None:
+    result = CliRunner().invoke(cli, [command])
+
+    assert result.exit_code == 2
+    assert "CLI_COMMAND_REMOVED" in result.output
+
+
+def test_serve_help_does_not_boot_runtime() -> None:
+    result = CliRunner().invoke(cli, ["serve", "--help"])
+
+    assert result.exit_code == 0
+    assert "单 worker" in result.output

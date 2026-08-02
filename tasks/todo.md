@@ -27,7 +27,7 @@
 - [x] Task 18 — versioned envelope and public v1 API
 - [x] Task 19 — owner v1 API and rate limiting
 - [x] Task 20 — stable Python facade
-- [ ] Task 21 — v0.8 CLI
+- [x] Task 21 — v0.8 CLI
 - [ ] Task 22 — frontend API client, auth and state machine
 - [ ] Task 23 — remove legacy HTTP/Jinja flow
 - [ ] Checkpoint C3

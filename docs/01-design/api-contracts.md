@@ -28,22 +28,26 @@ with Diting.from_config("config/diting.yaml") as client:
 ## CLI
 
 ```bash
-# L0: 快速行情
-diting l0 --symbols 002475,603659
-diting l0 --watchlist config/watchlist.csv
+# 标准/深度分析；第一条也可简写为 `diting 002475`
+diting analyze 002475 --profile standard
+diting analyze 002475 --profile deep
 
-# L1: 标准分析
-diting l1 --symbols 002475 --engines wyckoff,vmd_rsi
-diting l1 --watchlist config/watchlist.csv --notify feishu
+# 行情读取与同口径比较（只经过缓存数据网关，不触发分析）
+diting quote 002475 --freshness cache_preferred
+diting compare 002475,600519 --json
 
-# L2: 深度分析
-diting l2 --symbols 002475 --engines all
-diting l2 --watchlist config/watchlist.csv --notify feishu,email
-diting l2 --watchlist config/watchlist.csv --output ./reports/
+# 只运行人工激活的机会策略
+diting scan --limit 20
 
-# 自动选择层级（按 .env DITING_LEVEL）
-diting run --symbols 002475
+# 本机 owner 状态与服务
+diting watchlist
+diting watchlist --add 002475 --name 立讯精密 --market SZ --tag 核心
+diting strategy --json
+diting serve --host 127.0.0.1 --port 8100
 ```
+
+`l0`、`l1`、`l2`、`run` 和旧配置向导在 v0.8 已删除并返回
+`CLI_COMMAND_REMOVED`。所有命令可通过全局 `--config FILE` 指定严格 YAML 配置。
 
 ## 配置 (.env)
 

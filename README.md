@@ -26,13 +26,13 @@ uv sync
 uv run diting 002475
 
 # 行情快照（无需 AI）
-uv run diting scan 002475
+uv run diting quote 002475
 
-# 详细分析
-uv run diting 002475 --more
+# 深度分析
+uv run diting analyze 002475 --profile deep
 
-# HTML 报告
-uv run diting 002475 --report
+# 运行人工激活的机会策略（未激活时明确不可用）
+uv run diting scan --limit 20
 
 # 多股对比
 uv run diting compare 002475,603659
