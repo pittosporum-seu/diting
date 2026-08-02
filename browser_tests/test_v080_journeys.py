@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import socket
+import subprocess
 import threading
 import time
 import urllib.request
@@ -345,6 +347,36 @@ def guarded_page(browser: Browser, name: str):
         context.tracing.stop()
     finally:
         context.close()
+
+
+def test_candidate_smoke_covers_public_security_and_owner_contract(live_server: str) -> None:
+    environment = os.environ.copy()
+    environment["DITING_OWNER_TOKEN"] = OWNER_TOKEN
+    environment["DITING_SMOKE_ORIGIN"] = live_server
+    inherited_wslenv = environment.get("WSLENV", "")
+    environment["WSLENV"] = ":".join(
+        item
+        for item in (
+            inherited_wslenv,
+            "DITING_OWNER_TOKEN",
+            "DITING_SMOKE_ORIGIN",
+        )
+        if item
+    )
+    process = subprocess.run(
+        ["bash", "scripts/smoke_test.sh", f"{live_server}/api/v1"],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert process.returncode == 0, process.stdout + process.stderr
+    assert "11 passed, 0 failed" in process.stdout
+    assert OWNER_TOKEN not in process.stdout
+    assert OWNER_TOKEN not in process.stderr
 
 
 def test_anonymous_five_page_journey_has_explicit_states(

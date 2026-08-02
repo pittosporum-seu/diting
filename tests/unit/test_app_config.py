@@ -81,6 +81,15 @@ def test_secrets_can_be_injected_without_plaintext_repr(tmp_path: Path) -> None:
     assert "mx-value" not in repr(settings)
 
 
+def test_production_report_directory_can_be_injected_from_environment(tmp_path: Path) -> None:
+    settings = load_app_config(
+        tmp_path / "missing.yaml",
+        environ={"DITING_REPORT_OUTPUT_DIR": "/var/lib/diting/reports"},
+    )
+
+    assert settings.report.output_dir == Path("/var/lib/diting/reports")
+
+
 def test_configuration_is_deeply_frozen() -> None:
     settings = AppConfig()
     with pytest.raises(ValidationError):

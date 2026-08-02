@@ -237,6 +237,7 @@ _ENV_PATHS: dict[str, tuple[str, ...]] = {
     "DITING_LOG": ("runtime", "log_level"),
     "DITING_DB_PATH": ("database", "business_path"),
     "DITING_CACHE_DB_PATH": ("database", "cache_path"),
+    "DITING_REPORT_OUTPUT_DIR": ("report", "output_dir"),
     "DITING_OWNER_TOKEN_HASH": ("security", "owner_token_hash"),
     "DITING_SESSION_SECRET": ("security", "session_secret"),
     "DITING_ALLOWED_ORIGINS": ("security", "allowed_origins"),

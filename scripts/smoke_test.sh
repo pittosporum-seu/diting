@@ -1,89 +1,97 @@
 #!/usr/bin/env bash
-# 谛听 · 全页面端到端拨测
-# 测试所有 API 端点是否正常返回
+: "Diting v0.8 public/security/owner candidate smoke test."
 set -euo pipefail
 
-API_BASE="${1:-http://localhost:8100/api}"
+API_BASE="${1:-http://127.0.0.1:8101/api/v1}"
+ORIGIN="${DITING_SMOKE_ORIGIN:-https://pittosporum.cloud}"
+PYTHON_BIN="${DITING_SMOKE_PYTHON:-python3}"
+WORK_DIR="$(mktemp -d)"
+COOKIE_JAR="$WORK_DIR/cookies"
+RESPONSE="$WORK_DIR/response.json"
+HEADERS="$WORK_DIR/headers"
+trap 'rm -rf -- "$WORK_DIR"' EXIT INT TERM
+chmod 700 "$WORK_DIR"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+pass=0
+fail=0
 
-PASS=0
-FAIL=0
+check_envelope() {
+  "$PYTHON_BIN" - "$1" <<'PY'
+import json
+import sys
 
-check() {
-  local method="$1" url="$2" expected_code="${3:-200}" body="${4:-}"
-  local code
-  if [ -z "$body" ]; then
-    code=$(curl -s -o /dev/null -w "%{http_code}" -X "$method" "${API_BASE}${url}" 2>/dev/null || echo "000")
+with open(sys.argv[1], encoding="utf-8") as stream:
+    body = json.load(stream)
+required = {"api_version", "request_id", "server_time", "data", "meta", "error"}
+if set(body) != required or body["api_version"] != "1.0":
+    raise SystemExit("invalid v1 envelope")
+PY
+}
+
+request() {
+  local label="$1" expected="$2" method="$3" url="$4"
+  shift 4
+  local status
+  status="$(curl --silent --show-error --max-time 15 \
+    --output "$RESPONSE" --write-out '%{http_code}' --request "$method" "$url" "$@" \
+    || printf '000')"
+  if [[ "$status" == "$expected" ]]; then
+    if [[ "$url" == *'/api/v1/'* ]]; then
+      check_envelope "$RESPONSE"
+    fi
+    printf 'PASS %-28s %s\n' "$label" "$status"
+    pass=$((pass + 1))
   else
-    code=$(curl -s -o /dev/null -w "%{http_code}" -X "$method" -H "Content-Type: application/json" -d "$body" "${API_BASE}${url}" 2>/dev/null || echo "000")
-  fi
-  if [ "$code" = "$expected_code" ]; then
-    printf "${GREEN}PASS${NC} %s %s → %s\n" "$method" "$url" "$code"
-    PASS=$((PASS + 1))
-  else
-    printf "${RED}FAIL${NC} %s %s → %s (expected %s)\n" "$method" "$url" "$code" "$expected_code"
-    FAIL=$((FAIL + 1))
+    printf 'FAIL %-28s got=%s expected=%s\n' "$label" "$status" "$expected" >&2
+    fail=$((fail + 1))
   fi
 }
 
-echo "═══════════════════════════════════════"
-echo "  谛听 拨测 — $(date '+%Y-%m-%d %H:%M:%S')"
-echo "  API Base: ${API_BASE}"
-echo "═══════════════════════════════════════"
-echo ""
+request health 200 GET "$API_BASE/health"
+request readiness 200 GET "$API_BASE/ready"
+request dashboard 200 GET "$API_BASE/dashboard"
+request opportunities 200 GET "$API_BASE/opportunities"
+request anonymous-owner-boundary 401 GET "$API_BASE/watchlist"
 
-# ── Health ──
-echo "📋 Health Check"
-check GET "/health" 200
+ROOT_BASE="${API_BASE%/api/v1}"
+request removed-v0.7-contract 410 GET "$ROOT_BASE/api/health"
 
-# ── Dashboard ──
-echo ""
-echo "📋 Dashboard"
-check GET "/dashboard" 200
+if [[ -n "${DITING_OWNER_TOKEN:-}" ]]; then
+  chmod 600 "$COOKIE_JAR" "$RESPONSE" "$HEADERS" 2>/dev/null || true
+  "$PYTHON_BIN" - "$WORK_DIR/login.json" <<'PY'
+import json
+import os
+import sys
 
-# ── Market Sentiment ──
-echo ""
-echo "📋 Market Sentiment"
-check GET "/market-sentiment" 200
+with open(sys.argv[1], "w", encoding="utf-8") as stream:
+    json.dump({"token": os.environ["DITING_OWNER_TOKEN"]}, stream)
+PY
+  request owner-login 200 POST "$API_BASE/auth/session" \
+    --header "Origin: $ORIGIN" --header 'Content-Type: application/json' \
+    --cookie-jar "$COOKIE_JAR" --dump-header "$HEADERS" \
+    --data-binary "@$WORK_DIR/login.json"
+  csrf="$("$PYTHON_BIN" - "$RESPONSE" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    print(json.load(stream)["data"]["csrf_token"])
+PY
+)"
+  [[ -n "$csrf" ]] || { printf 'FAIL missing CSRF token\n' >&2; exit 1; }
+  request owner-watchlist 200 GET "$API_BASE/watchlist" --cookie "$COOKIE_JAR"
+  request owner-preference-write 200 PUT "$API_BASE/preferences" \
+    --header "Origin: $ORIGIN" --header "X-CSRF-Token: $csrf" \
+    --header 'Content-Type: application/json' --cookie "$COOKIE_JAR" \
+    --data '{"key":"page_size","value":20}'
+  request owner-diagnostics 200 GET "$API_BASE/admin/diagnostics" --cookie "$COOKIE_JAR"
+  request owner-logout 200 DELETE "$API_BASE/auth/session" \
+    --header "Origin: $ORIGIN" --header "X-CSRF-Token: $csrf" --cookie "$COOKIE_JAR"
+elif [[ "${DITING_SMOKE_PUBLIC_ONLY:-false}" == "true" ]]; then
+  printf 'SKIP owner flow (public-only candidate precheck)\n'
+else
+  printf 'FAIL DITING_OWNER_TOKEN is required for the full candidate smoke test\n' >&2
+  fail=$((fail + 1))
+fi
 
-# ── Opportunities ──
-echo ""
-echo "📋 Opportunities"
-check GET "/opportunities" 200
-
-# ── Settings ──
-echo ""
-echo "📋 Settings"
-check GET "/settings" 200
-check POST "/settings" 200 '{"provider_ashare":"1"}'
-
-# ── Watchlist ──
-echo ""
-echo "📋 Watchlist"
-check GET "/watchlist" 200
-check POST "/watchlist" 200 '{"code":"000001","name":"平安银行","market":"sz"}'
-check DELETE "/watchlist/000001" 200
-
-# ── Stock ──
-echo ""
-echo "📋 Stock"
-check GET "/stock/000001" 200
-check GET "/stock-name/000001" 200
-
-# ── Stock Search ──
-echo ""
-echo "📋 Stock Search"
-check GET "/stock-search?q=000001" 200
-check GET "/stock-search?q=%E5%B9%B3%E5%AE%89" 200
-
-# ── Summary ──
-echo ""
-echo "═══════════════════════════════════════"
-printf "  ${GREEN}Passed:${NC} %d  ${RED}Failed:${NC} %d\n" "$PASS" "$FAIL"
-echo "═══════════════════════════════════════"
-
-[ "$FAIL" -eq 0 ] && exit 0 || exit 1
+printf 'Smoke summary: %d passed, %d failed\n' "$pass" "$fail"
+((fail == 0))

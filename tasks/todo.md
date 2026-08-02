@@ -38,6 +38,6 @@
 - [x] Checkpoint C4
 - [x] Task 28 — OpenAPI and CI contract gates
 - [x] Task 29 — real Chromium journeys
-- [ ] Task 30 — release-safe VPS deployment
+- [x] Task 30 — release-safe VPS deployment
 - [ ] Task 31 — documentation and release review
 - [ ] Checkpoint C5 / release
