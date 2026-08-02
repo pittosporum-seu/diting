@@ -13,8 +13,8 @@
 - [x] Task 06 — quote gateway vertical slice
 - [x] Task 07 — historical/fundamental/fund-flow gateway slice
 - [x] Task 08 — catalog/trading-calendar/market-phase slice
-- [ ] Task 09 — remove data-access bypasses
-- [ ] Checkpoint C1
+- [x] Task 09 — remove data-access bypasses
+- [x] Checkpoint C1
 - [ ] Task 10 — DataSnapshotBuilder
 - [ ] Task 11 — explicit engine registry and technical engine
 - [ ] Task 12 — strict structured AI results

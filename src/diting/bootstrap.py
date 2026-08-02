@@ -212,40 +212,14 @@ def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDep
     )
 
 
-def build_legacy_repository(settings: AppConfig):
-    """Build the legacy provider chain during migration; remove after Task 09."""
+def build_mx_gateway(api_key: str):
+    """Build an isolated gateway for the init command's mx-data connectivity check."""
 
-    from .data.providers.akshare import AkShareProvider
-    from .data.providers.base import DataProvider
-    from .data.repository import MarketDataRepository
-
-    config = Config(settings=settings)
-    providers = []
-    for provider_config in settings.providers:
-        if provider_config.requires_key and not config.get(provider_config.requires_key):
-            continue
-        provider_settings = provider_config.settings.model_dump(mode="python")
-        try:
-            provider = DataProvider.from_config(provider_config.name, provider_settings)
-            if provider_config.auto_detect and not provider.health_check():
-                continue
-            providers.append(provider)
-        except Exception as exc:
-            logger.warning(
-                "provider.import_failed",
-                provider=provider_config.name,
-                reason=type(exc).__name__,
-            )
-
-    if not providers:
-        providers.append(AkShareProvider())
-    return MarketDataRepository(providers=providers)
-
-
-def build_mx_repository(api_key: str):
-    """Build the one-provider repository used by the legacy init connectivity check."""
-
+    from .cache.store_v080 import MemoryCacheStore
+    from .data.gateway_v080 import CachedMarketDataGateway
+    from .data.legacy_adapter_v080 import LegacyProviderAdapter
     from .data.providers.mx_data import MxDataProvider
-    from .data.repository import MarketDataRepository
 
-    return MarketDataRepository(providers=[MxDataProvider(api_key=api_key)])
+    clock = SystemClock()
+    provider = LegacyProviderAdapter(MxDataProvider(api_key=api_key), max_batch_size=4)
+    return CachedMarketDataGateway((provider,), MemoryCacheStore(clock), clock)

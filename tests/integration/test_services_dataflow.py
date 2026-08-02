@@ -4,11 +4,42 @@
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 from src.diting.cache.market_state import MarketState
+from src.diting.enums import CacheState, CacheTier
+from src.diting.schema import CacheInfo, DataResult, RealtimeQuote
 from src.diting.web.services import DashboardService, ScanService, StockService
+
+
+class FakeQuoteGateway:
+    def __init__(self, *, price: float = 12.5, state: CacheState = CacheState.FRESH):
+        self.price = price
+        self.state = state
+        self.requests = []
+
+    def get_quotes(self, request):
+        self.requests.append(request)
+        return {
+            symbol: DataResult(
+                data=RealtimeQuote(
+                    symbol=symbol,
+                    name="平安银行",
+                    price=self.price,
+                    change_pct=1.5,
+                    open=12.3,
+                    high=12.6,
+                    low=12.2,
+                    volume=1_000_000,
+                    turnover=10_000_000,
+                    timestamp=datetime(2026, 7, 14, tzinfo=UTC),
+                ),
+                data_time=datetime(2026, 7, 14, tzinfo=UTC),
+                cache_info=CacheInfo(state=self.state, tier=CacheTier.L2),
+            )
+            for symbol in request.symbols
+        }
 
 
 class TestForceRefreshStock:
@@ -92,51 +123,29 @@ class TestMarketStateIntegration:
 
     @patch("src.diting.web.services.stock.get_market_state")
     def test_realtime_skips_api_when_weekend(self, mock_state):
-        """周末不调 API。"""
-        mock_state.return_value = MarketState(
-            phase="weekend",
-            last_trade_date=datetime(2026, 7, 10).date(),
-            next_trade_date=datetime(2026, 7, 13).date(),
-            today_is_trade_day=False,
-        )
+        """Civil weekend state cannot bypass the Provider-derived gateway calendar."""
+        gateway = FakeQuoteGateway()
+        self.service = StockService(data_gateway=gateway)
 
-        with patch.object(self.service, "_get_cache_mgr") as mock_cm:
-            mock_cm.return_value.mem_get_adaptive.return_value = None
-            mock_cm.return_value.db_get.return_value = None
-            result = self.service.get_realtime("000001")
+        result = self.service.get_realtime("000001")
 
         assert result is not None
-        assert result.price == 0.0  # 兜底 RealtimeQuote
+        assert result.price == 12.5
+        assert len(gateway.requests) == 1
+        mock_state.assert_not_called()
 
     @patch("src.diting.web.services.stock.get_market_state")
     def test_realtime_returns_db_data_when_closed(self, mock_state):
-        """盘后返回 DB 数据。"""
-        mock_state.return_value = MarketState(
-            phase="closed",
-            last_trade_date=datetime(2026, 7, 14).date(),
-            next_trade_date=datetime(2026, 7, 15).date(),
-            today_is_trade_day=True,
-        )
-
-        db_data = {
-            "code": "000001",
-            "name": "平安银行",
-            "price": 12.5,
-            "change_pct": 1.5,
-            "open": 12.3,
-            "high": 12.6,
-            "low": 12.2,
-            "volume": 1000000,
-        }
-
+        """StockService does not read the legacy quote table after the gateway cutover."""
+        gateway = FakeQuoteGateway(state=CacheState.STALE)
+        self.service = StockService(data_gateway=gateway)
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
-            mock_cm.return_value.mem_get_adaptive.return_value = None
-            mock_cm.return_value.db_get.return_value = db_data
             result = self.service.get_realtime("000001")
 
         assert result is not None
-        assert result.name == "平安银行"
         assert result.price == 12.5
+        mock_cm.assert_not_called()
+        mock_state.assert_not_called()
 
 
 class TestMarketStateDashboard:
@@ -230,64 +239,28 @@ class TestL2FallbackWithAsyncRefresh:
 
     @patch("src.diting.web.services.stock.get_market_state")
     def test_realtime_l2_hit_triggers_async_refresh(self, mock_state):
-        """TRADING 状态、L1 miss、L2 hit → 后台异步刷新。"""
-        mock_state.return_value = MarketState(
-            phase="trading",
-            last_trade_date=datetime(2026, 7, 10).date(),
-            next_trade_date=datetime(2026, 7, 15).date(),
-            today_is_trade_day=True,
-        )
-
-        db_data = {
-            "code": "000001",
-            "name": "平安银行",
-            "price": 12.5,
-            "change_pct": 1.5,
-            "open": 12.3,
-            "high": 12.6,
-            "low": 12.2,
-            "volume": 1000000,
-        }
-
+        """A gateway L2 result is returned without a service-owned refresh thread."""
+        gateway = FakeQuoteGateway(state=CacheState.STALE)
+        self.service = StockService(data_gateway=gateway)
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
-            mock_cm.return_value.mem_get_adaptive.return_value = None
-            mock_cm.return_value.db_get.return_value = db_data
-            with patch.object(self.service, "_async_refresh_realtime") as mock_async:
-                result = self.service.get_realtime("000001")
+            result = self.service.get_realtime("000001")
 
         assert result is not None
-        assert result.name == "平安银行"
-        mock_async.assert_called_once_with("000001")
+        assert result.price == 12.5
+        mock_cm.assert_not_called()
+        mock_state.assert_not_called()
 
     @patch("src.diting.web.services.stock.get_market_state")
     def test_realtime_l2_hit_no_async_when_closed(self, mock_state):
-        """CLOSED 状态不触发异步刷新。"""
-        mock_state.return_value = MarketState(
-            phase="closed",
-            last_trade_date=datetime(2026, 7, 14).date(),
-            next_trade_date=datetime(2026, 7, 15).date(),
-            today_is_trade_day=True,
-        )
+        """Force refresh is expressed as a gateway request, not a service thread."""
+        gateway = FakeQuoteGateway()
+        self.service = StockService(data_gateway=gateway)
 
-        db_data = {
-            "code": "000001",
-            "name": "平安银行",
-            "price": 12.5,
-            "change_pct": 1.5,
-            "open": 12.3,
-            "high": 12.6,
-            "low": 12.2,
-            "volume": 1000000,
-        }
-
-        with patch.object(self.service, "_get_cache_mgr") as mock_cm:
-            mock_cm.return_value.mem_get_adaptive.return_value = None
-            mock_cm.return_value.db_get.return_value = db_data
-            with patch.object(self.service, "_async_refresh_realtime") as mock_async:
-                result = self.service.get_realtime("000001")
+        result = self.service.get_realtime("000001", force_refresh=True)
 
         assert result is not None
-        mock_async.assert_not_called()
+        assert gateway.requests[0].force_refresh is True
+        mock_state.assert_not_called()
 
 
 class TestL2DashboardAsyncRefresh:
@@ -359,70 +332,39 @@ class TestWeekendFallback:
 
     @patch("src.diting.web.services.stock.get_market_state")
     def test_weekend_returns_fallback_quote(self, mock_state):
-        """WEEKEND + 无缓存 → 返回兜底 quote（price=0）"""
-        mock_state.return_value = MarketState(
-            phase="weekend",
-            last_trade_date=datetime(2026, 7, 10).date(),
-            next_trade_date=datetime(2026, 7, 13).date(),
-            today_is_trade_day=False,
-        )
-
-        with patch.object(self.service, "_get_cache_mgr") as mock_cm:
-            mock_cm.return_value.mem_get_adaptive.return_value = None
-            mock_cm.return_value.db_get.return_value = None
-            result = self.service.get_realtime("000001")
+        """Weekend quote reads use gateway freshness instead of a fabricated zero quote."""
+        gateway = FakeQuoteGateway(state=CacheState.STALE)
+        self.service = StockService(data_gateway=gateway)
+        result = self.service.get_realtime("000001")
 
         assert result is not None
-        assert result.price == 0.0
-        assert result.change_pct == 0.0
+        assert result.price == 12.5
+        mock_state.assert_not_called()
 
     @patch("src.diting.web.services.stock.get_market_state")
     def test_closed_returns_fallback_quote(self, mock_state):
-        """CLOSED（午休）+ 无缓存 → 返回兜底 quote"""
-        mock_state.return_value = MarketState(
-            phase="closed",
-            last_trade_date=datetime(2026, 7, 10).date(),
-            next_trade_date=datetime(2026, 7, 13).date(),
-            today_is_trade_day=True,
-        )
-
-        with patch.object(self.service, "_get_cache_mgr") as mock_cm:
-            mock_cm.return_value.mem_get_adaptive.return_value = None
-            mock_cm.return_value.db_get.return_value = None
-            result = self.service.get_realtime("000001")
+        """Closed-market reads still use the same gateway request contract."""
+        gateway = FakeQuoteGateway()
+        self.service = StockService(data_gateway=gateway)
+        result = self.service.get_realtime("000001")
 
         assert result is not None
-        assert result.price == 0.0
+        assert result.price == 12.5
+        mock_state.assert_not_called()
 
     @patch("src.diting.web.services.stock.get_market_state")
     def test_weekend_with_l2_returns_l2_data(self, mock_state):
-        """WEEKEND + L2 有数据 → 返回 L2 数据（不返回兜底）"""
-        mock_state.return_value = MarketState(
-            phase="weekend",
-            last_trade_date=datetime(2026, 7, 10).date(),
-            next_trade_date=datetime(2026, 7, 13).date(),
-            today_is_trade_day=False,
-        )
-
-        db_data = {
-            "code": "000001",
-            "name": "平安银行",
-            "price": 12.5,
-            "change_pct": 1.5,
-            "open": 12.3,
-            "high": 12.6,
-            "low": 12.2,
-            "volume": 1000000,
-        }
-
+        """A stale gateway hit never consults the old service L2 table."""
+        gateway = FakeQuoteGateway(state=CacheState.STALE)
+        self.service = StockService(data_gateway=gateway)
         with patch.object(self.service, "_get_cache_mgr") as mock_cm:
-            mock_cm.return_value.mem_get_adaptive.return_value = None
-            mock_cm.return_value.db_get.return_value = db_data
             result = self.service.get_realtime("000001")
 
         assert result is not None
-        assert result.price == 12.5  # L2 的真实价格
+        assert result.price == 12.5
         assert result.name == "平安银行"
+        mock_cm.assert_not_called()
+        mock_state.assert_not_called()
 
     @patch("src.diting.web.services.stock.get_market_state")
     def test_analyze_stock_weekend_no_crash(self, mock_state):

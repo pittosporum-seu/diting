@@ -20,7 +20,8 @@ from pathlib import Path
 import click
 
 from . import __version__
-from .bootstrap import bootstrap_application, build_legacy_repository, build_mx_repository
+from .adapters.gateway_legacy_view import GatewayLegacyView
+from .bootstrap import ApplicationContainer, bootstrap_runtime, build_mx_gateway
 from .config import Config
 from .engines.registry import discover_engines
 from .infra.config_loader import ConfigLoader
@@ -28,9 +29,10 @@ from .infra.errors import AllProvidersFailedError
 from .infra.logging_config import get_logger, setup_logging
 from .pipeline.consensus import ConsensusEngine
 from .pipeline.runner import AnalysisPipeline
-from .schema import AnalysisContext, PipelineResult
+from .schema import AnalysisContext, PipelineResult, QuoteRequest
 
 logger = get_logger(__name__)
+_runtime_container: ApplicationContainer | None = None
 
 # ── suppress LiteLLM debug noise ──────────────────────────────
 
@@ -58,7 +60,10 @@ _RATING_EMOJI: dict[str, str] = {
 
 
 def _build_repo(cfg: Config):
-    return build_legacy_repository(cfg.settings)
+    del cfg
+    if _runtime_container is None or _runtime_container.data_gateway is None:
+        raise RuntimeError("CLI runtime DataGateway is not initialized")
+    return GatewayLegacyView(_runtime_container.data_gateway)
 
 
 def _log_level() -> int:
@@ -167,7 +172,10 @@ def cli(ctx):
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
         return
-    bootstrap_application()
+    global _runtime_container
+    _runtime_container = bootstrap_runtime()
+    ctx.obj = _runtime_container
+    ctx.call_on_close(_runtime_container.close)
     setup_logging(level=_log_level())
 
 
@@ -1245,10 +1253,13 @@ def _build_env_lines(mx_key: str | None, ai_key: str | None) -> list[str]:
 def _test_connection(mx_key: str) -> None:
     """Test data provider connectivity with a known symbol."""
     try:
-        repo = build_mx_repository(mx_key)
-        quotes = repo.get_realtime(["000001"])
-        if quotes and "000001" in quotes:
-            q = quotes["000001"]
+        gateway = build_mx_gateway(mx_key)
+        try:
+            result = gateway.get_quotes(QuoteRequest(symbols=("000001",)))["000001"]
+        finally:
+            gateway.close()
+        if result.data is not None:
+            q = result.data
             name = q.name or "000001"
             pct = q.change_pct or 0
             arrow = "↑" if pct > 0 else "↓" if pct < 0 else "→"

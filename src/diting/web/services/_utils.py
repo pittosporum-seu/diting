@@ -6,11 +6,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ...cache import CacheManager
-    from ...data.repository import MarketDataRepository
+    from ...ports import DataGateway
     from ...schema import RealtimeQuote
 
 logger = None  # 延迟导入，避免循环
@@ -57,13 +57,15 @@ class _BaseService:
         cache_mgr: CacheManager | None = None,
         watchlist_db=None,
         settings: dict | None = None,
-        repo_factory: Callable[[], MarketDataRepository] | None = None,
+        repo_factory: Callable[[], Any] | None = None,
+        data_gateway: DataGateway | None = None,
     ) -> None:
         self._settings = settings if settings is not None else {}
         self._watchlist_db = watchlist_db
         self._stock_list_cache: list[dict] | None = None
         self._cache_mgr = cache_mgr
         self._repo_factory = repo_factory
+        self._data_gateway = data_gateway
 
     def _get_cache_mgr(self) -> CacheManager:
         """获取缓存管理器实例（延迟初始化）。"""
@@ -88,64 +90,15 @@ class _BaseService:
         except Exception:
             return {}
 
-    def _build_repo(self) -> MarketDataRepository:
-        """构建数据仓库，尊重数据源开关设置。
-
-        降级链: east_money → ashare → mx_data → akshare
-        每个 provider 有 try/except 保护，单个失败不阻塞整体。
-        """
+    def _build_repo(self) -> Any:
+        """Return the injected gateway view; concrete Providers belong to bootstrap only."""
         if self._repo_factory is not None:
             return self._repo_factory()
+        if self._data_gateway is None:
+            raise RuntimeError("DataGateway was not injected at the composition root")
+        from ...adapters.gateway_legacy_view import GatewayLegacyView
 
-        from ...data.providers.akshare import AkShareProvider
-        from ...data.providers.ashare import AshareProvider
-        from ...data.providers.east_money import EastMoneyProvider
-
-        # MxDataProvider — 已全局关闭 (v0.7.2)，需要时取消注释
-        # from ...data.providers.mx_data import MxDataProvider
-        from ...data.repository import MarketDataRepository
-
-        saved = self._load_saved_settings()
-        log = _get_logger()
-
-        providers: list = []
-        # mx_key = cfg.get("MX_APIKEY")  # mx-data 已全局关闭 (v0.7.2)
-
-        # ashare（默认启用，新浪/腾讯免费接口）
-        if saved.get("provider_ashare", "1") == "1":
-            try:
-                providers.append(AshareProvider())
-            except Exception:
-                log.warning("services.build_repo.ashare_failed")
-
-        # east_money（默认启用，免费直连，提供 PE/PB/市值/资金流向）
-        if saved.get("provider_eastmoney", "1") == "1":
-            try:
-                providers.append(EastMoneyProvider())
-            except Exception:
-                log.warning("services.build_repo.east_money_failed")
-
-        # mx-data — 已全局关闭 (v0.7.2, 2026-07-16)
-        # 东方财富 mx-data 免费版每日仅 150 次配额，极易在 cron job 的
-        # 批量查询中耗尽。需要时手动取消注释下面这段：
-        # if saved.get("provider_mxdata", "1") == "1" and mx_key:
-        #     try:
-        #         providers.append(MxDataProvider(api_key=mx_key))
-        #     except Exception:
-        #         log.warning("services.build_repo.mx_data_failed")
-
-        # akshare（默认启用，免费兜底）
-        if saved.get("provider_akshare", "1") == "1":
-            try:
-                providers.append(AkShareProvider())
-            except Exception:
-                log.warning("services.build_repo.akshare_failed")
-
-        # 兜底：如果全部关闭/失败，至少保留 east_money（免费直连最可靠）
-        if not providers:
-            providers.append(EastMoneyProvider())
-
-        return MarketDataRepository(providers=providers)
+        return GatewayLegacyView(self._data_gateway)
 
 
 # ── Pure utility functions ─────────────────────────

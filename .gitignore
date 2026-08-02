@@ -48,6 +48,9 @@ experiment/*.log
 # Cache and serialized data
 *.pkl
 *.log
+/diting.db
+/diting_cache.db
+/backups/
 
 # Research artifacts: ignore raw data, allow manifest.json and summary.json
 research/artifacts/**

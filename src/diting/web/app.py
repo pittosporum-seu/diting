@@ -19,7 +19,6 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__
-from ..bootstrap import bootstrap_application
 from ..infra.errors import AnalysisError
 
 
@@ -38,9 +37,6 @@ class NumpyEncoder(json.JSONEncoder):
 
 # ── suppress LiteLLM debug noise ──
 os.environ.setdefault("LITELLM_LOG", "ERROR")
-
-# Validate raw configuration once at the HTTP composition boundary.
-container = bootstrap_application()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -94,6 +90,7 @@ async def stop_prefetch_worker():
         _prefetch_worker.stop()
     if _analysis_prefetch_worker is not None:
         _analysis_prefetch_worker.stop()
+    container.close()
 
 
 # ── 全局异常处理器 ──────────────────────────────────────────
@@ -161,6 +158,6 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     )
 
 
-from .routes import router  # noqa: E402, I001
+from .routes import container, router  # noqa: E402, I001
 
 app.include_router(router)

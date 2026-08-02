@@ -64,19 +64,16 @@ def test_settings_page_shows_real_degradation_chain() -> None:
     assert "降级链顺序：eltdx" not in source
 
 
-def test_repository_provider_order_is_unchanged() -> None:
-    """清理配置/UI 不改变运行时其他 provider 的排序。"""
-    service = DashboardService(
-        watchlist_db=_db_with_settings(),
-        settings={"MX_APIKEY": "test-key"},
-    )
-    service._load_saved_settings = lambda: {}
+def test_provider_order_is_declared_only_in_bootstrap_config() -> None:
+    """Interfaces no longer construct their own Provider degradation chain."""
+    config = yaml.safe_load((ROOT / "config/diting.yaml").read_text(encoding="utf-8"))
+    priorities = [item["priority"] for item in config["providers"]]
 
-    repo = service._build_repo()
-
-    # mx-data 已全局关闭 (v0.7.2)，降级链仅 east_money → ashare → akshare
-    assert [provider.name for provider in repo._providers] == [
-        "east_money",
-        "ashare",
-        "akshare",
-    ]
+    assert priorities == sorted(priorities)
+    service = DashboardService(watchlist_db=_db_with_settings())
+    try:
+        service._build_repo()
+    except RuntimeError as exc:
+        assert "DataGateway" in str(exc)
+    else:
+        raise AssertionError("Web service constructed a Provider without bootstrap injection")

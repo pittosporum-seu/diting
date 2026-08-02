@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
 from ...cache import CacheManager
-from ...data.repository import MarketDataRepository
+from ...ports import DataGateway
 from ...schema import FreshnessInfo, StockAnalysisResponse
 from ...storage import WatchlistDB
 from ._utils import _BaseService
@@ -43,19 +44,22 @@ class AnalysisService(_BaseService):
         cache_mgr: CacheManager | None = None,
         watchlist_db: WatchlistDB | None = None,
         settings: dict | None = None,
-        repo_factory: Callable[[], MarketDataRepository] | None = None,
+        repo_factory: Callable[[], Any] | None = None,
+        data_gateway: DataGateway | None = None,
     ):
         super().__init__(
             cache_mgr=cache_mgr,
             watchlist_db=watchlist_db,
             settings=settings,
             repo_factory=repo_factory,
+            data_gateway=data_gateway,
         )
         shared = {
             "cache_mgr": cache_mgr,
             "watchlist_db": watchlist_db,
             "settings": self._settings,
             "repo_factory": repo_factory,
+            "data_gateway": data_gateway,
         }
         self._stock = StockService(**shared)
         self._dashboard = DashboardService(**shared)

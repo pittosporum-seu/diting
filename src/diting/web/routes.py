@@ -12,18 +12,27 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
 
+from ..bootstrap import bootstrap_runtime
 from ..cache import CacheManager
 from ..infra.errors import AnalysisError, DataUnavailableError
 from ..schema import FreshnessInfo
 from .services import DashboardService, ScanService, StockService, WatchlistService
 
 router = APIRouter()
+container = bootstrap_runtime()
 _cache_mgr = CacheManager()
-stock_service = StockService(cache_mgr=_cache_mgr)
-scan_service = ScanService(cache_mgr=_cache_mgr)
+stock_service = StockService(cache_mgr=_cache_mgr, data_gateway=container.data_gateway)
+scan_service = ScanService(cache_mgr=_cache_mgr, data_gateway=container.data_gateway)
 scan_service.set_stock_service(stock_service)  # 支持候选股深度分析
-dashboard_service = DashboardService(cache_mgr=_cache_mgr, scan_service=scan_service)
-watchlist_service = WatchlistService(cache_mgr=_cache_mgr)
+dashboard_service = DashboardService(
+    cache_mgr=_cache_mgr,
+    scan_service=scan_service,
+    data_gateway=container.data_gateway,
+)
+watchlist_service = WatchlistService(
+    cache_mgr=_cache_mgr,
+    data_gateway=container.data_gateway,
+)
 # ── API response wrapper ────────────────────────
 
 
