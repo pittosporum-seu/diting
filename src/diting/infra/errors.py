@@ -62,6 +62,17 @@ class AllProvidersFailedError(DataUnavailableError):
         super().__init__(message)
 
 
+class ProviderTransientError(DataUnavailableError):
+    """A retryable upstream failure such as timeout or temporary rate limiting."""
+
+
+class ProviderNotFoundError(DataUnavailableError):
+    """The requested instrument or dataset definitively does not exist."""
+
+    def __init__(self, message: str = "证券或数据不存在"):
+        super().__init__(message, error_code="NOT_FOUND", http_status_code=404)
+
+
 class EngineTimeoutError(AnalysisError):
     """分析引擎执行超时"""
 
@@ -120,6 +131,15 @@ class ConfigError(AnalysisError):
             http_status_code=http_status_code,
             detail=detail,
         )
+
+
+class MigrationError(DitingError):
+    """A database migration failed or its recorded checksum changed."""
+
+    def __init__(self, database: str, reason: str):
+        self.database = database
+        self.reason = reason
+        super().__init__(f"Migration failed for {database}: {reason}")
 
 
 class EngineFailedError(DitingError):

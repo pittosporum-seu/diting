@@ -15,6 +15,8 @@ class Rating(Enum):
 class DataSource(Enum):
     MX_DATA = "mx_data"
     AKSHARE = "akshare"
+    ASHARE = "ashare"
+    EAST_MONEY = "east_money"
     SQLITE = "sqlite"
     CSV = "csv"
     CACHE = "cache"

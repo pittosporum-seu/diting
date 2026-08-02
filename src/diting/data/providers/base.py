@@ -8,7 +8,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import date
 
-from ...schema import FundFlow, HistoricalData, RealtimeQuote
+from ...schema import (
+    FundFlow,
+    HistoricalData,
+    InstrumentPage,
+    RealtimeQuote,
+    TradingCalendar,
+)
 
 
 class DataProvider(ABC):
@@ -101,6 +107,23 @@ class DataProvider(ABC):
             NotImplementedError: 该数据源不支持分钟数据
         """
         raise NotImplementedError(f"{self.name} does not support minute data")
+
+    def fetch_instruments(
+        self,
+        query: str,
+        market: str | None,
+        limit: int,
+        cursor: str | None,
+    ) -> InstrumentPage:
+        raise NotImplementedError(f"{self.name} does not support instrument search")
+
+    def fetch_trading_calendar(
+        self,
+        market: str,
+        start: date,
+        end: date,
+    ) -> TradingCalendar:
+        raise NotImplementedError(f"{self.name} does not support trading calendar")
 
     @classmethod
     def from_config(cls, name: str, settings: dict | None = None):

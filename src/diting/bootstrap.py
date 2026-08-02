@@ -130,6 +130,88 @@ def bootstrap_application(
     return create_container(settings, dependencies)
 
 
+def bootstrap_runtime(
+    config_path: Path | str | None = None,
+    *,
+    overrides: Mapping[str, Any] | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> ApplicationContainer:
+    """Build the production data runtime after validating and migrating both databases."""
+
+    settings = load_app_config(config_path, overrides=overrides, environ=environ)
+    ConfigLoader.configure(settings)
+    clock = SystemClock()
+    dependencies = build_data_dependencies(settings, clock)
+    return create_container(settings, dependencies)
+
+
+def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDependencies:
+    """Construct the sole cache and market-data path used by runtime interfaces."""
+
+    from .cache.store_v080 import MemoryCacheStore, SQLiteCacheStore, TieredCacheStore
+    from .data.calendar_v080 import ExchangeCalendarState
+    from .data.gateway_v080 import CachedMarketDataGateway
+    from .data.legacy_adapter_v080 import LegacyProviderAdapter
+    from .data.providers.akshare import AkShareProvider
+    from .data.providers.base import DataProvider
+    from .persistence.migrations import migrate_databases
+
+    business_path = settings.database.business_path
+    cache_path = settings.database.cache_path
+    backup_dir = business_path.parent / "backups" / "v080"
+    reports = migrate_databases(
+        business_path,
+        cache_path,
+        backup_dir=backup_dir,
+    )
+    if not all(report.ready for report in reports):
+        from .infra.errors import MigrationError
+
+        raise MigrationError("runtime", "database readiness check failed")
+
+    providers = []
+    config = Config(settings=settings)
+    for provider_config in sorted(settings.providers, key=lambda item: item.priority):
+        if provider_config.requires_key and not config.get(provider_config.requires_key):
+            continue
+        provider_settings = provider_config.settings.model_dump(mode="python")
+        try:
+            if provider_config.name == "mx_data":
+                from .data.providers.mx_data import MxDataProvider
+
+                provider = MxDataProvider(api_key=config.get("MX_APIKEY"))
+            else:
+                provider = DataProvider.from_config(provider_config.name, provider_settings)
+            if provider_config.auto_detect and not provider.health_check():
+                continue
+            providers.append(
+                LegacyProviderAdapter(
+                    provider,
+                    max_batch_size=provider_config.settings.max_batch,
+                )
+            )
+        except Exception as exc:
+            logger.warning(
+                "provider.import_failed",
+                provider=provider_config.name,
+                reason=type(exc).__name__,
+            )
+
+    if not providers:
+        providers.append(LegacyProviderAdapter(AkShareProvider()))
+
+    memory = MemoryCacheStore(clock, max_size=settings.pipeline.cache.max_size)
+    persistent = SQLiteCacheStore(cache_path, clock)
+    cache = TieredCacheStore(memory, persistent)
+    calendar = ExchangeCalendarState()
+    gateway = CachedMarketDataGateway(tuple(providers), cache, clock, calendar=calendar)
+    return ApplicationDependencies(
+        clock=clock,
+        data_gateway=gateway,
+        cache_store=cache,
+    )
+
+
 def build_legacy_repository(settings: AppConfig):
     """Build the legacy provider chain during migration; remove after Task 09."""
 

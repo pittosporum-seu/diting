@@ -8,6 +8,7 @@ from pathlib import Path
 from src.diting.bootstrap import (
     ApplicationDependencies,
     bootstrap_application,
+    bootstrap_runtime,
     create_container,
 )
 from src.diting.config import AppConfig
@@ -92,3 +93,26 @@ def test_container_closes_a_shared_resource_once() -> None:
 
     container.close()
     assert resource.close_count == 1
+
+
+def test_runtime_bootstrap_migrates_and_builds_gateway(tmp_path: Path) -> None:
+    config_path = tmp_path / "diting.yaml"
+    business = tmp_path / "diting.db"
+    cache = tmp_path / "diting_cache.db"
+    config_path.write_text(
+        "database:\n"
+        f"  business_path: {business.as_posix()}\n"
+        f"  cache_path: {cache.as_posix()}\n"
+        "providers: []\n",
+        encoding="utf-8",
+    )
+
+    container = bootstrap_runtime(config_path, environ={})
+    try:
+        assert business.exists()
+        assert cache.exists()
+        assert container.data_gateway is not None
+        assert container.cache_store is not None
+    finally:
+        container.close()
+        ConfigLoader.reset()

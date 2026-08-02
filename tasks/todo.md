@@ -8,11 +8,11 @@
 - [x] Task 02 — domain contracts and ports
 - [x] Task 03 — single bootstrap composition root
 - [x] Checkpoint C0
-- [ ] Task 04 — idempotent database migrations
-- [ ] Task 05 — L1/L2 cache store and canonical keys
-- [ ] Task 06 — quote gateway vertical slice
-- [ ] Task 07 — historical/fundamental/fund-flow gateway slice
-- [ ] Task 08 — catalog/trading-calendar/market-phase slice
+- [x] Task 04 — idempotent database migrations
+- [x] Task 05 — L1/L2 cache store and canonical keys
+- [x] Task 06 — quote gateway vertical slice
+- [x] Task 07 — historical/fundamental/fund-flow gateway slice
+- [x] Task 08 — catalog/trading-calendar/market-phase slice
 - [ ] Task 09 — remove data-access bypasses
 - [ ] Checkpoint C1
 - [ ] Task 10 — DataSnapshotBuilder

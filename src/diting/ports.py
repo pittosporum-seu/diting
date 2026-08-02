@@ -8,6 +8,7 @@ from typing import Protocol, runtime_checkable
 
 from .schema import (
     AnalysisRun,
+    CacheLookup,
     CacheRecord,
     DataResult,
     FinancialRequest,
@@ -21,6 +22,7 @@ from .schema import (
     LLMRequest,
     LLMResponse,
     Notification,
+    ProviderHealthRecord,
     QuoteRequest,
     RealtimeQuote,
     ReportArtifact,
@@ -72,13 +74,17 @@ class MarketDataProvider(Protocol):
 
 @runtime_checkable
 class CacheStore(Protocol):
-    def get(self, key: str) -> CacheRecord | None: ...
+    def lookup(self, key: str) -> CacheLookup: ...
 
     def set(self, record: CacheRecord) -> None: ...
 
     def delete(self, key: str) -> None: ...
 
     def clear(self, prefix: str | None = None) -> int: ...
+
+    def get_provider_health(self, provider: str) -> ProviderHealthRecord | None: ...
+
+    def set_provider_health(self, record: ProviderHealthRecord) -> None: ...
 
     def close(self) -> None: ...
 
@@ -122,6 +128,8 @@ class CalendarPort(Protocol):
     def get_calendar(self, request: TradingCalendarRequest) -> TradingCalendar: ...
 
     def market_phase(self, market: str, at: datetime) -> str: ...
+
+    def next_open(self, market: str, at: datetime) -> datetime | None: ...
 
 
 @runtime_checkable

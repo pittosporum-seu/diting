@@ -558,6 +558,7 @@ class StrategyVersion:
 @dataclass(frozen=True)
 class CacheRecord:
     key: str
+    data_type: str
     payload: bytes
     created_at: datetime
     expires_at: datetime
@@ -565,6 +566,23 @@ class CacheRecord:
     schema_version: str
     negative: bool = False
     error_code: str | None = None
+    metadata: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class ProviderHealthRecord:
+    provider: str
+    consecutive_failures: int = 0
+    circuit_open_until: datetime | None = None
+    last_failure_at: datetime | None = None
+    last_success_at: datetime | None = None
+    last_error_code: str | None = None
+
+
+@dataclass(frozen=True)
+class CacheLookup:
+    record: CacheRecord | None
+    tier: CacheTier = CacheTier.NONE
 
 
 @dataclass(frozen=True)
