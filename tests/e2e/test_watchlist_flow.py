@@ -4,11 +4,9 @@
 """
 
 import tempfile
-from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.diting.cache.market_state import MarketState
 from src.diting.storage import WatchlistDB
 from src.diting.web.services import AnalysisService
 
@@ -41,56 +39,40 @@ class TestWatchlistFlow:
         """添加后调 get_watchlist() → 返回包含 002475。"""
         self.db.add("002475", "立讯精密", "sz")
 
-        with patch("src.diting.web.services.watchlist.get_market_state") as mock_ms:
-            mock_ms.return_value = MarketState(
-                phase="trading",
-                last_trade_date=date(2026, 7, 10),
-                next_trade_date=date(2026, 7, 15),
-                today_is_trade_day=True,
-            )
+        with patch.object(self.service._watchlist, "_build_repo") as mock_repo:
+            mock_quote = MagicMock()
+            mock_quote.price = 38.5
+            mock_quote.name = "立讯精密"
+            mock_quote.change_pct = 1.5
+            mock_quote.volume = 1000000
+            mock_quote.pe = None
+            mock_repo.return_value.get_realtime.return_value = {
+                "002475": mock_quote,
+            }
 
-            with patch.object(self.service._watchlist, "_build_repo") as mock_repo:
-                mock_quote = MagicMock()
-                mock_quote.price = 38.5
-                mock_quote.name = "立讯精密"
-                mock_quote.change_pct = 1.5
-                mock_quote.volume = 1000000
-                mock_quote.pe = None
-                mock_repo.return_value.get_realtime.return_value = {
-                    "002475": mock_quote,
-                }
-
-                results = self.service.get_watchlist()
-                codes = [r["code"] for r in results]
-                assert "002475" in codes
+            results = self.service.get_watchlist()
+            codes = [r["code"] for r in results]
+            assert "002475" in codes
 
     def test_weekend_get_watchlist_has_price_from_cache(self):
-        """周末调 get_watchlist() → 有 code+name+price（price 来自缓存 DB）。"""
+        """非交易时段价格也来自网关的 stale-if-error 语义。"""
         self.db.add("002475", "立讯精密", "sz")
 
-        with patch("src.diting.web.services.watchlist.get_market_state") as mock_ms:
-            mock_ms.return_value = MarketState(
-                phase="weekend",
-                last_trade_date=date(2026, 7, 10),
-                next_trade_date=date(2026, 7, 13),
-                today_is_trade_day=False,
-            )
-
+        with patch.object(self.service._watchlist, "_build_repo") as mock_repo:
+            mock_quote = MagicMock()
+            mock_quote.name = "立讯精密"
+            mock_quote.price = 38.5
+            mock_quote.change_pct = 1.5
+            mock_quote.volume = 1_000_000
+            mock_quote.pe = None
+            mock_repo.return_value.get_realtime.return_value = {"002475": mock_quote}
             with patch.object(self.service._watchlist, "_get_cache_mgr") as mock_cm:
-                mock_cm.return_value.db_get.return_value = {
-                    "code": "002475",
-                    "name": "",
-                    "price": 38.5,
-                    "change_pct": 1.5,
-                    "volume": 1000000,
-                }
-
                 results = self.service.get_watchlist()
-                assert len(results) >= 1
-                stock = [r for r in results if r["code"] == "002475"][0]
-                assert stock["name"] == "立讯精密"
-                assert stock["price"] == 38.5, "周末应从 DB 缓存获取价格"
-                mock_cm.return_value.db_get.assert_called_once_with("market_snapshot", "002475")
+
+        stock = [item for item in results if item["code"] == "002475"][0]
+        assert stock["name"] == "立讯精密"
+        assert stock["price"] == 38.5
+        mock_cm.assert_not_called()
 
     def test_remove_watchlist_then_check_db(self):
         """删除 002475 → 查 DB 确认已删除。"""

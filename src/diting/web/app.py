@@ -1,165 +1,119 @@
-"""谛听 · Web 服务 — FastAPI 应用
-
-挂载静态文件、初始化 Jinja2 模板、注册路由。
-包含全局异常处理器，统一所有端点错误响应格式。
-"""
+"""FastAPI application factory for the Diting v0.8 HTTP surface."""
 
 from __future__ import annotations
 
-import json
 import os
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-import numpy as np
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .. import __version__
+from ..bootstrap import ApplicationContainer, bootstrap_runtime
 from ..infra.errors import AnalysisError
+from .contracts_v1 import error_envelope
+from .routes import build_router
 
-
-class NumpyEncoder(json.JSONEncoder):
-    """Handle numpy types in JSON serialization."""
-
-    def default(self, obj):
-        if isinstance(obj, (np.integer,)):
-            return int(obj)
-        if isinstance(obj, (np.floating,)):
-            return float(obj)
-        if isinstance(obj, (np.ndarray,)):
-            return obj.tolist()
-        return super().default(obj)
-
-
-# ── suppress LiteLLM debug noise ──
 os.environ.setdefault("LITELLM_LOG", "ERROR")
 
-# ── 加载 .env 到 os.environ（确保 AI_API_KEY 等对所有模块可见）──
-from ..config import Config as _Config  # noqa: E402
-_Config()  # 触发 _load_env()
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-TEMPLATES = Path(__file__).resolve().parent / "templates"
-STATIC = Path(__file__).resolve().parent / "static"
 FRONTEND = PROJECT_ROOT / "frontend"
 
-app = FastAPI(title="谛听", version="0.7.0")
-app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
-app.mount("/app", StaticFiles(directory=str(FRONTEND), html=True), name="frontend")
-templates = Jinja2Templates(directory=str(TEMPLATES))
 
-# ── v0.6.5: 启动后台预刷新 Worker ──
-_prefetch_worker = None
-_analysis_prefetch_worker = None
+def create_app(
+    container: ApplicationContainer,
+    *,
+    frontend_dir: Path = FRONTEND,
+) -> FastAPI:
+    """Create one HTTP application from an already assembled dependency graph."""
 
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            container.close()
 
-@app.on_event("startup")
-async def start_prefetch_worker():
-    """启动后台预刷新线程。"""
-    global _prefetch_worker, _analysis_prefetch_worker
-    try:
-        from ..cache.prefetch import PrefetchWorker
-        from .routes import stock_service as service
+    application = FastAPI(
+        title="谛听",
+        version=__version__,
+        lifespan=lifespan,
+    )
 
-        _prefetch_worker = PrefetchWorker(service)
-        _prefetch_worker.start()
-    except Exception:
-        import logging
+    @application.middleware("http")
+    async def attach_request_id(request: Request, call_next):
+        request.state.request_id = f"req_{uuid.uuid4().hex}"
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request.state.request_id
+        return response
 
-        logging.getLogger(__name__).warning("prefetch.startup_failed")
-    # v0.7.5: 后台优先级个股抓取
-    try:
-        from ..cache.analysis_prefetch import AnalysisPrefetchWorker
-        from .routes import dashboard_service, scan_service, stock_service
-
-        _analysis_prefetch_worker = AnalysisPrefetchWorker(
-            stock_service, scan_service, dashboard_service=dashboard_service
+    @application.exception_handler(AnalysisError)
+    async def analysis_error_handler(request: Request, exc: AnalysisError) -> JSONResponse:
+        message = str(exc) if exc.http_status_code < 500 else "服务暂时不可用"
+        return _error_response(
+            request,
+            exc.http_status_code,
+            exc.error_code,
+            message,
+            retryable=exc.http_status_code in {429, 502, 503, 504},
         )
-        _analysis_prefetch_worker.start()
-    except Exception:
-        import logging
 
-        logging.getLogger(__name__).warning("analysis_prefetch.startup_failed")
+    @application.exception_handler(ValueError)
+    async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+        return _error_response(request, 400, "INVALID_PARAMETER", str(exc))
+
+    @application.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(
+        request: Request,
+        exc: StarletteHTTPException,
+    ) -> JSONResponse:
+        error_code = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}.get(
+            exc.status_code,
+            "HTTP_ERROR",
+        )
+        return _error_response(
+            request,
+            exc.status_code,
+            error_code,
+            str(exc.detail) if exc.detail else "请求失败",
+        )
+
+    @application.exception_handler(RequestValidationError)
+    async def validation_error_handler(
+        request: Request,
+        _exc: RequestValidationError,
+    ) -> JSONResponse:
+        return _error_response(request, 422, "VALIDATION_ERROR", "请求参数校验失败")
+
+    @application.exception_handler(Exception)
+    async def generic_exception_handler(request: Request, _exc: Exception) -> JSONResponse:
+        return _error_response(request, 500, "INTERNAL_ERROR", "内部服务器错误")
+
+    application.include_router(build_router(container, frontend_dir=frontend_dir))
+    return application
 
 
-@app.on_event("shutdown")
-async def stop_prefetch_worker():
-    """停止后台预刷新线程。"""
-    global _prefetch_worker, _analysis_prefetch_worker
-    if _prefetch_worker is not None:
-        _prefetch_worker.stop()
-    if _analysis_prefetch_worker is not None:
-        _analysis_prefetch_worker.stop()
-
-
-# ── 全局异常处理器 ──────────────────────────────────────────
-# 统一所有 API 端点的错误响应格式为 ApiErrorResponse
-
-
-@app.exception_handler(AnalysisError)
-async def analysis_error_handler(request: Request, exc: AnalysisError) -> JSONResponse:
-    """处理 AnalysisError 及其子类 → 返回统一 ApiErrorResponse。"""
-    return JSONResponse(
-        status_code=exc.http_status_code,
-        content={
-            "success": False,
-            "error": str(exc),
-            "error_code": exc.error_code,
-            "detail": exc.detail,
-            "request_id": str(uuid.uuid4()),
-        },
+def _error_response(
+    request: Request,
+    status_code: int,
+    code: str,
+    message: str,
+    *,
+    retryable: bool = False,
+) -> JSONResponse:
+    envelope = error_envelope(
+        request,
+        code=code,
+        message=message,
+        retryable=retryable,
     )
+    return JSONResponse(status_code=status_code, content=envelope.model_dump(mode="json"))
 
 
-@app.exception_handler(ValueError)
-async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
-    """处理 ValueError（参数校验失败）→ 400 Bad Request。"""
-    return JSONResponse(
-        status_code=400,
-        content={
-            "success": False,
-            "error": str(exc),
-            "error_code": "INVALID_PARAMETER",
-            "detail": None,
-            "request_id": str(uuid.uuid4()),
-        },
-    )
-
-
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-    """处理 Starlette HTTPException（含 404 等）→ 统一 ApiErrorResponse。"""
-    error_code_map = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "error": str(exc.detail) if exc.detail else "",
-            "error_code": error_code_map.get(exc.status_code, "HTTP_ERROR"),
-            "detail": None,
-            "request_id": str(uuid.uuid4()),
-        },
-    )
-
-
-@app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """兜底异常处理器 → 500 Internal Server Error。"""
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "error": "内部服务器错误",
-            "error_code": "INTERNAL_ERROR",
-            "detail": str(exc),
-            "request_id": str(uuid.uuid4()),
-        },
-    )
-
-
-from .routes import router  # noqa: E402, I001
-
-app.include_router(router)
+container = bootstrap_runtime()
+app = create_app(container)

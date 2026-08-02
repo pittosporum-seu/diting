@@ -37,9 +37,7 @@ class DeepAnalysisManager:
         if max_concurrent is None:
             from ...infra.config_loader import ConfigLoader
 
-            max_concurrent = (
-                ConfigLoader.get_section("pipeline").get("deep_concurrent", 4)
-            )
+            max_concurrent = ConfigLoader.get_section("pipeline").get("deep_concurrent", 4)
         self._max_concurrent = max(1, int(max_concurrent))
 
     @staticmethod
@@ -101,9 +99,7 @@ class DeepAnalysisManager:
         analyzed = 0
         completed = 0
 
-        logger.info(
-            "deep_analysis.batch", batch_size=batch_size, total=len(codes)
-        )
+        logger.info("deep_analysis.batch", batch_size=batch_size, total=len(codes))
         # 按 batch_size 分批：每批先一次性批量取 AI 结果（wyckoff+can_slim 各 1 次调用），
         # 再逐只跑 quick 引擎 + 共识融合 + 写缓存（复用预取的 AI 结果）
         for batch_start in range(0, len(codes), batch_size):
@@ -176,8 +172,7 @@ class DeepAnalysisManager:
             if not result:
                 return False
             names = {
-                (e.get("engine_name") or e.get("name"))
-                for e in result.get("engine_scores", [])
+                (e.get("engine_name") or e.get("name")) for e in result.get("engine_scores", [])
             }
             return ai_engines.issubset(names)
         except Exception:

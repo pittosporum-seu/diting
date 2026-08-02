@@ -69,41 +69,33 @@ class BatchAIAnalyzer:
     def __init__(self, stock_service: StockService, llm: AIClient | None = None):
         self._ss = stock_service
         self._llm = llm or get_llm()
+        # 可拆卸上下文构建器（读配置决定启用哪些 provider）
+        from .context_builder import ContextBuilder
 
-    # ── 富数据摘要 ──────────────────────────────────
+        self._ctx_builder = ContextBuilder()
+
+    # ── 富数据摘要（委托给 ContextBuilder）──────────────
     def build_summary(self, code: str) -> str | None:
-        """构建单只股票的富数据摘要（价格/估值/量价/趋势）。"""
+        """构建单只股票的富数据摘要（由配置的 providers 拼接）。"""
         try:
             q = self._ss.get_realtime(code)
             hist = self._ss.get_historical(code)
             if hist is None or hist.df is None or len(hist.df) < 30:
                 return None
             df = hist.df
-            close = df.get("close", df.get("收盘价"))
-            if close is None or len(close) < 30:
+            close_col = df.get("close", df.get("收盘价"))
+            if close_col is None or len(close_col) < 30:
                 return None
-            recent = [round(x, 2) for x in close.iloc[-5:].tolist()]
-            vol_col = "volume" if "volume" in df.columns else "成交量"
-            avg_vol = df[vol_col].mean() if vol_col in df.columns else 0
-            chg20 = (close.iloc[-1] / close.iloc[-20] - 1) * 100 if len(close) >= 20 else 0
-            pe = f"{q.pe:.1f}" if q and q.pe else "N/A"
-            pb = f"{q.pb:.2f}" if q and q.pb else "N/A"
-            mv = f"{q.total_mv / 1e8:.0f}亿" if q and q.total_mv else "N/A"
-            name = q.name if q else code
-            chg = q.change_pct if q else 0
-            return (
-                f"[{code} {name}] 现价{close.iloc[-1]:.2f} 涨跌{chg:.1f}% "
-                f"PE={pe} PB={pb} 总市值{mv} | {len(close)}日 区间{close.min():.2f}-{close.max():.2f} "
-                f"近20日{chg20:+.1f}% 近5日{recent} 均量{avg_vol:.0f}"
-            )
+            import numpy as np
+
+            close = np.asarray(close_col, dtype=float)
+            return self._ctx_builder.build(code, close, quote=q)
         except Exception as e:
             logger.debug("batch_ai.summary_failed", code=code, error=str(e))
             return None
 
     # ── 核心：批量分析 ──────────────────────────────
-    def analyze(
-        self, codes: list[str], engine_names: list[str]
-    ) -> dict[str, list[AnalysisResult]]:
+    def analyze(self, codes: list[str], engine_names: list[str]) -> dict[str, list[AnalysisResult]]:
         """对一批股票批量跑指定 AI 引擎，返回 {code: [AnalysisResult, ...]}。
 
         每个引擎对整批只做一次 AI 调用。缺摘要的股票跳过。
@@ -146,13 +138,9 @@ class BatchAIAnalyzer:
                 arr = self._extract_json_array(resp)
                 if isinstance(arr, list) and arr:
                     return [it for it in arr if isinstance(it, dict)]
-                logger.warning(
-                    "batch_ai.empty", engine=engine, attempt=attempt, n=len(summaries)
-                )
+                logger.warning("batch_ai.empty", engine=engine, attempt=attempt, n=len(summaries))
             except Exception as e:
-                logger.warning(
-                    "batch_ai.call_failed", engine=engine, attempt=attempt, error=str(e)
-                )
+                logger.warning("batch_ai.call_failed", engine=engine, attempt=attempt, error=str(e))
         return []
 
     @staticmethod

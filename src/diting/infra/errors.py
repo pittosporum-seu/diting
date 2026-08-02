@@ -62,6 +62,17 @@ class AllProvidersFailedError(DataUnavailableError):
         super().__init__(message)
 
 
+class ProviderTransientError(DataUnavailableError):
+    """A retryable upstream failure such as timeout or temporary rate limiting."""
+
+
+class ProviderNotFoundError(DataUnavailableError):
+    """The requested instrument or dataset definitively does not exist."""
+
+    def __init__(self, message: str = "证券或数据不存在"):
+        super().__init__(message, error_code="NOT_FOUND", http_status_code=404)
+
+
 class EngineTimeoutError(AnalysisError):
     """分析引擎执行超时"""
 
@@ -103,6 +114,38 @@ class RateLimitError(AnalysisError):
         )
 
 
+class JobQueueFullError(AnalysisError):
+    """The bounded background queue has no remaining capacity."""
+
+    def __init__(self, message: str = "任务队列已满"):
+        super().__init__(message, error_code="JOB_QUEUE_FULL", http_status_code=503)
+
+
+class AuthenticationError(AnalysisError):
+    """Owner credentials or session are absent or invalid."""
+
+    def __init__(self, message: str = "需要 owner 会话"):
+        super().__init__(message, error_code="AUTH_REQUIRED", http_status_code=401)
+
+
+class AuthorizationError(AnalysisError):
+    """An authenticated or browser request failed an authorization control."""
+
+    def __init__(self, message: str = "请求未通过安全校验", *, error_code: str = "FORBIDDEN"):
+        super().__init__(message, error_code=error_code, http_status_code=403)
+
+
+class AuthNotConfiguredError(AnalysisError):
+    """Owner authentication secrets were not configured at startup."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "owner 认证尚未配置",
+            error_code="AUTH_NOT_CONFIGURED",
+            http_status_code=503,
+        )
+
+
 class ConfigError(AnalysisError):
     """配置错误"""
 
@@ -122,6 +165,15 @@ class ConfigError(AnalysisError):
         )
 
 
+class MigrationError(DitingError):
+    """A database migration failed or its recorded checksum changed."""
+
+    def __init__(self, database: str, reason: str):
+        self.database = database
+        self.reason = reason
+        super().__init__(f"Migration failed for {database}: {reason}")
+
+
 class EngineFailedError(DitingError):
     """分析引擎执行失败"""
 
@@ -130,6 +182,12 @@ class EngineFailedError(DitingError):
         self.symbol = symbol
         self.reason = reason
         super().__init__(f"[{engine_name}] {symbol}: {reason}")
+
+
+class StructuredOutputError(EngineFailedError):
+    """An LLM response failed the engine's strict output contract."""
+
+    error_code = "INVALID_STRUCTURED_OUTPUT"
 
 
 class SandboxError(DitingError):

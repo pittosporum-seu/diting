@@ -62,14 +62,14 @@
 # 所有分析引擎的共同契约
 class AnalysisEngine(ABC):
     """分析引擎抽象基类"""
-    
+
     @property
     @abstractmethod
     def name(self) -> str: ...
-    
+
     @abstractmethod
     def analyze(self, context: AnalysisContext) -> AnalysisResult: ...
-    
+
     @abstractmethod
     def required_data(self) -> list[DataType]: ...
 ```
@@ -127,11 +127,11 @@ class CANSLIMEngine(AnalysisEngine):
 ```python
 class MarketDataRepository:
     """统一数据访问层，屏蔽底层数据源差异"""
-    
+
     def __init__(self, providers: list[DataProvider]):
         self._providers = providers  # 按优先级排序 [MxData, AkShare]
         self._cache = CacheLayer()
-    
+
     def get_realtime(self, symbols: list[str]) -> RealtimeData:
         """获取实时行情，自动降级"""
         for p in self._providers:
@@ -246,7 +246,7 @@ class RealtimeQuote:
     timestamp: datetime = field(default_factory=datetime.now)
     source: DataSource = DataSource.UNKNOWN
 
-@dataclass 
+@dataclass
 class HistoricalData:
     symbol: str
     df: Any  # polars DataFrame（明确指定列名）
@@ -339,29 +339,29 @@ class DataType(Enum):
 ```python
 # 引擎必须实现的接口
 class AnalysisEngine(ABC):
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
         """引擎唯一标识，如 'wyckoff', 'buffett'"""
         ...
-    
+
     @property
     @abstractmethod
     def version(self) -> str:
         """引擎版本号"""
         ...
-    
+
     @abstractmethod
     def required_data(self) -> list[DataType]:
         """声明需要的数据类型，管道据此获取数据"""
         ...
-    
+
     @abstractmethod
     def analyze(self, context: AnalysisContext) -> AnalysisResult:
         """执行分析，输入上下文，输出结果"""
         ...
-    
+
     def validate_context(self, context: AnalysisContext) -> bool:
         """可选：验证上下文是否满足要求"""
         required = self.required_data()
@@ -374,33 +374,33 @@ class AnalysisEngine(ABC):
 
 ```python
 class DataProvider(ABC):
-    
+
     @property
     @abstractmethod
     def name(self) -> str: ...
-    
+
     @abstractmethod
     def health_check(self) -> bool:
         """数据源是否可用"""
         ...
-    
+
     @abstractmethod
     def fetch_realtime(self, symbols: list[str]) -> dict[str, RealtimeQuote]:
         """获取实时行情"""
         ...
-    
+
     @abstractmethod
     def fetch_historical(self, symbol: str, start: date, end: date) -> HistoricalData:
         """获取历史行情"""
         ...
-    
+
     # 可选方法——不是所有数据源都支持
     def fetch_fundamentals(self, symbol: str) -> dict:
         raise NotImplementedError
-    
+
     def fetch_fund_flow(self, symbol: str) -> dict:
         raise NotImplementedError
-    
+
     def fetch_minute(self, symbol: str, date: date) -> HistoricalData:
         raise NotImplementedError
 ```
@@ -409,14 +409,14 @@ class DataProvider(ABC):
 
 ```python
 class Notifier(ABC):
-    
+
     @property
     @abstractmethod
     def channel_name(self) -> str: ...
-    
+
     @abstractmethod
     async def send(self, message: Notification) -> bool: ...
-    
+
     @abstractmethod
     def health_check(self) -> bool: ...
 ```
@@ -621,7 +621,7 @@ response = completion(
 )
 
 # 支持 100+ provider，包括：
-# deepseek/, openai/, anthropic/, gemini/, together_ai/, 
+# deepseek/, openai/, anthropic/, gemini/, together_ai/,
 # bedrock/, azure/, huggingface/, replicate/, ...
 ```
 

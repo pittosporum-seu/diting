@@ -1,1 +1,1 @@
-"""谛听 · Web 服务 — FastAPI JSON API + Jinja2 前端"""
+"""Diting v0.8 FastAPI and static SPA delivery."""

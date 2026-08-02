@@ -1,6 +1,6 @@
 """谛听 · 枚举定义"""
 
-from enum import Enum
+from enum import Enum, StrEnum
 
 
 class Rating(Enum):
@@ -15,6 +15,8 @@ class Rating(Enum):
 class DataSource(Enum):
     MX_DATA = "mx_data"
     AKSHARE = "akshare"
+    ASHARE = "ashare"
+    EAST_MONEY = "east_money"
     SQLITE = "sqlite"
     CSV = "csv"
     CACHE = "cache"
@@ -41,3 +43,91 @@ class Signal(Enum):
     VOLUME_DRIED = "volume_dried"
     FUND_INFLOW = "fund_inflow"
     FUND_OUTFLOW = "fund_outflow"
+
+
+class FetchMode(StrEnum):
+    """How the data gateway may use caches and upstream providers."""
+
+    CACHE_PREFERRED = "cache_preferred"
+    FRESH_REQUIRED = "fresh_required"
+    CACHE_ONLY = "cache_only"
+
+
+class CacheTier(StrEnum):
+    NONE = "none"
+    L1 = "l1"
+    L2 = "l2"
+    UPSTREAM = "upstream"
+
+
+class CacheState(StrEnum):
+    MISS = "miss"
+    FRESH = "fresh"
+    STALE = "stale"
+    NEGATIVE = "negative"
+
+
+class TraceOutcome(StrEnum):
+    SUCCESS = "success"
+    FAILURE = "failure"
+    SKIPPED = "skipped"
+    CIRCUIT_OPEN = "circuit_open"
+
+
+class RunStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    INTERRUPTED = "interrupted"
+
+
+class EngineRunStatus(StrEnum):
+    SUCCEEDED = "succeeded"
+    SKIPPED = "skipped"
+    TIMED_OUT = "timed_out"
+    FAILED = "failed"
+
+
+class EngineMode(StrEnum):
+    DETERMINISTIC = "deterministic"
+    LLM_STRUCTURED = "llm_structured"
+    LLM_CODE_SANDBOX = "llm_code_sandbox"
+
+
+class AnalysisProfile(StrEnum):
+    STANDARD = "standard"
+    DEEP = "deep"
+
+
+class VerdictLabel(StrEnum):
+    POSITIVE = "positive"
+    NEUTRAL = "neutral"
+    CAUTIOUS = "cautious"
+    INSUFFICIENT = "insufficient"
+
+
+class JobType(StrEnum):
+    ANALYSIS = "analysis"
+    SCAN = "scan"
+    REPORT = "report"
+    NOTIFICATION = "notification"
+
+
+class StrategyState(StrEnum):
+    DRAFT = "draft"
+    VALIDATED = "validated"
+    APPROVED = "approved"
+    ACTIVE = "active"
+    RETIRED = "retired"
+
+
+class FactorFamily(StrEnum):
+    PRICE_VS_MA = "price_vs_ma"
+    RETURN = "ret"
+    VOLATILITY = "volatility"
+    RSI = "rsi"
+    VOLUME_RATIO = "volume_ratio"
+    BOLLINGER = "bollinger"

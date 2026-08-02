@@ -5,11 +5,10 @@
 from __future__ import annotations
 
 import os
-import threading
 from datetime import date, datetime, timedelta
 
 from ...cache import get_market_state
-from ...data.providers.east_money import EastMoneyProvider
+from ...enums import FetchMode
 from ...schema import StockAnalysisResponse
 from ._utils import (
     _RATING_CN,
@@ -38,132 +37,38 @@ class StockService(_BaseService):
             return None
 
     def get_realtime(self, code: str, force_refresh: bool = False):
-        """获取单只股票实时行情（L1 内存 → L2 SQLite → API）。
-
-        v0.6.5: 整合 MarketState，盘后/周末不调 API；支持 force_refresh。
-        """
-        from ...schema import RealtimeQuote
-
-        state = get_market_state()
-
-        # L1: 内存 TTL
-        if not force_refresh:
-            cm = self._get_cache_mgr()
-            cached = cm.mem_get_adaptive(f"realtime:{code}", trading_ttl=30)
-            if cached is not None:
-                return cached
-
-        # L2: SQLite watchlist_cache
+        """Get one quote exclusively through the v0.8 Data Gateway."""
         try:
-            cm = self._get_cache_mgr()
-            db_row = cm.db_get("watchlist_cache", code)
-            if db_row:
-                quote = RealtimeQuote(
-                    symbol=code,
-                    name=db_row.get("name", code),
-                    price=db_row.get("price") or 0.0,
-                    change_pct=db_row.get("change_pct") or 0.0,
-                    open=db_row.get("open") or 0.0,
-                    high=db_row.get("high") or 0.0,
-                    low=db_row.get("low") or 0.0,
-                    volume=int(db_row.get("volume") or 0),
-                    turnover=db_row.get("amount") or 0.0,
-                    pe=db_row.get("pe"),
-                    pb=db_row.get("pb"),
-                    total_mv=db_row.get("total_mv"),
-                    timestamp=datetime.now(),
-                )
-                cm.mem_set(f"realtime:{code}", quote)
-                # v0.6.5: L2 命中后后台异步刷新 API（仅 TRADING 状态）
-                if state.is_trading and not force_refresh:
-                    self._async_refresh_realtime(code)
-                return quote
-        except Exception:
-            pass
-
-        # v0.6.5: CLOSED/WEEKEND → 不调 API，返回兜底 RealtimeQuote
-        if not state.should_call_api and not force_refresh:
-            logger.debug(
-                "services.realtime.api_skipped",
-                code=code,
-                phase=state.phase,
-            )
-            return RealtimeQuote(
-                symbol=code,
-                name=code,
-                price=0.0,
-                change_pct=0.0,
-                open=0.0,
-                high=0.0,
-                low=0.0,
-                volume=0,
-                turnover=0.0,
-                timestamp=datetime.now(),
-            )
-
-        # L3: API
-        try:
-            repo = self._build_repo()
-            quotes = repo.get_realtime([code])
-            result = quotes.get(code)
-            if result:
-                self._get_cache_mgr().mem_set(f"realtime:{code}", result)
-                # 写入 SQLite
-                try:
-                    cm = self._get_cache_mgr()
-                    cm.db_set(
-                        "watchlist_cache",
-                        code,
-                        {
-                            "code": code,
-                            "name": result.name,
-                            "price": result.price,
-                            "change_pct": result.change_pct,
-                            "high": result.high,
-                            "low": result.low,
-                            "volume": result.volume,
-                            "amount": result.turnover,
-                            "pe": result.pe,
-                            "pb": result.pb,
-                            "total_mv": result.total_mv,
-                            "score": 0,
-                        },
-                    )
-                except Exception:
-                    pass
-            return result
+            if self._data_gateway is not None:
+                return self.get_realtime_result(code, force_refresh).data
+            return self._build_repo().get_realtime([code]).get(code)
         except Exception:
             logger.warning("services.realtime.failed", code=code)
             return None
 
-    def _async_refresh_realtime(self, code: str) -> None:
-        """后台异步刷新单只股票实时行情。"""
+    def get_realtime_result(self, code: str, force_refresh: bool = False):
+        """Return the gateway DataResult without changing cache or trace metadata."""
 
-        def _refresh():
-            try:
-                self.get_realtime(code, force_refresh=True)
-            except Exception:
-                pass
+        if self._data_gateway is None:
+            raise RuntimeError("DataGateway was not injected")
+        from ...schema import QuoteRequest
 
-        t = threading.Thread(target=_refresh, daemon=True, name=f"async-realtime-{code}")
-        t.start()
+        return self._data_gateway.get_quotes(
+            QuoteRequest(
+                symbols=(code,),
+                mode=(FetchMode.FRESH_REQUIRED if force_refresh else FetchMode.CACHE_PREFERRED),
+                force_refresh=force_refresh,
+            )
+        )[code]
 
     # ── Historical ──────────────────────────────────
 
     def get_historical(self, code: str, days: int = 250):
-        """获取历史日线行情。"""
-        cache_key = f"{code}:{days}"
-        cm = self._get_cache_mgr()
-        cached = cm.mem_get_adaptive(f"historical:{cache_key}", trading_ttl=600)
-        if cached is not None:
-            return cached
+        """Get normalized history exclusively through the v0.8 Data Gateway."""
         try:
-            repo = self._build_repo()
             end = date.today()
             start = end - timedelta(days=days)
-            result = repo.get_historical(code, start, end)
-            cm.mem_set(f"historical:{cache_key}", result)
-            return result
+            return self._build_repo().get_historical(code, start, end)
         except Exception:
             logger.warning("services.historical.failed", code=code)
             return None
@@ -373,11 +278,10 @@ class StockService(_BaseService):
             except Exception:
                 logger.debug("services.vmd.skip", code=code)
 
-        # ── 资金流向（优先用 EastMoney 直连）──
+        # ── 资金流向（统一通过 Data Gateway）──
         fund_flow = None
         try:
-            em = EastMoneyProvider()
-            fund_flow = em.fetch_fund_flow(code)
+            fund_flow = self._build_repo().get_fund_flow(code)
         except Exception:
             logger.debug("services.fund_flow.skip", code=code)
 
@@ -527,7 +431,9 @@ class StockService(_BaseService):
 
             serializable = clean_numpy(result)
             if _sig is not None:
-                serializable["signals"] = _asdict(_sig) if hasattr(_sig, "__dataclass_fields__") else _sig
+                serializable["signals"] = (
+                    _asdict(_sig) if hasattr(_sig, "__dataclass_fields__") else _sig
+                )
             l2_ttl = 30 if (state and state.should_call_api) else 1440
             cm.db_set(
                 "stock_analysis_cache",

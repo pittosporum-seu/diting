@@ -56,27 +56,27 @@ def test_legacy_analysis_settings_exclude_eltdx() -> None:
     ]
 
 
-def test_settings_page_shows_real_degradation_chain() -> None:
-    """前端只展示当前仓库实际采用的数据源降级链。"""
-    source = (ROOT / "frontend/js/pages/settings.js").read_text(encoding="utf-8")
+def test_settings_page_does_not_hardcode_adapter_degradation_chain() -> None:
+    """v0.8 前端只读脱敏 diagnostics，不复制 bootstrap 的 Provider 顺序。"""
+    app_source = (ROOT / "frontend/js/app.js").read_text(encoding="utf-8")
+    api_source = (ROOT / "frontend/js/api.js").read_text(encoding="utf-8")
 
-    assert "降级链顺序：east_money → ashare → akshare" in source
-    assert "降级链顺序：eltdx" not in source
+    assert "/admin/diagnostics" in api_source
+    assert "eltdx" not in app_source.lower()
+    assert "east_money →" not in app_source
+    assert "mx_data →" not in app_source
 
 
-def test_repository_provider_order_is_unchanged() -> None:
-    """清理配置/UI 不改变运行时其他 provider 的排序。"""
-    service = DashboardService(
-        watchlist_db=_db_with_settings(),
-        settings={"MX_APIKEY": "test-key"},
-    )
-    service._load_saved_settings = lambda: {}
+def test_provider_order_is_declared_only_in_bootstrap_config() -> None:
+    """Interfaces no longer construct their own Provider degradation chain."""
+    config = yaml.safe_load((ROOT / "config/diting.yaml").read_text(encoding="utf-8"))
+    priorities = [item["priority"] for item in config["providers"]]
 
-    repo = service._build_repo()
-
-    # mx-data 已全局关闭 (v0.7.2)，降级链仅 east_money → ashare → akshare
-    assert [provider.name for provider in repo._providers] == [
-        "east_money",
-        "ashare",
-        "akshare",
-    ]
+    assert priorities == sorted(priorities)
+    service = DashboardService(watchlist_db=_db_with_settings())
+    try:
+        service._build_repo()
+    except RuntimeError as exc:
+        assert "DataGateway" in str(exc)
+    else:
+        raise AssertionError("Web service constructed a Provider without bootstrap injection")

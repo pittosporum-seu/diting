@@ -1,3 +1,21 @@
+# 所有文本统一 LF，避免 Windows core.autocrlf=true 与 pre-commit 反复改写
+* text=auto eol=lf
+
+# 二进制文件不得做行尾转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.pkl binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.xlsx binary
+*.woff binary
+*.woff2 binary
+
 # Lock files — 标记为自动生成，不纳入语言统计
 uv.lock linguist-generated
 package-lock.json linguist-generated

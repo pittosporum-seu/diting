@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta
 
+from ...cache.market_state import get_market_state
 from . import _utils
 from ._utils import _BaseService, _get_logger, coarse_score, quick_score
-from ...cache.market_state import get_market_state
 
 logger = _get_logger()
 
@@ -26,97 +26,13 @@ class ScanService(_BaseService):
         日线数据一天只变一次（收盘后），用 SQLite 持久缓存大幅减少网络请求。
         首次扫描后，后续扫描 1200 只全命中 DB（ms 级）。
         """
-        cache_key = f"{code}:{days}"
-        cm = self._get_cache_mgr()
-
-        # L1: 内存 TTL（最快，进程内复用）
-        cached = cm.mem_get_adaptive(f"historical:{cache_key}", trading_ttl=600)
-        if cached is not None:
-            return cached
-
-        # L2: SQLite 持久缓存（跨重启、跨扫描复用）
-        hist = self._db_get_historical(cm, code, days)
-        if hist is not None:
-            cm.mem_set(f"historical:{cache_key}", hist)
-            return hist
-
-        # L3: 网络取数 + 回写 DB
         try:
             repo = self._build_repo()
             end = date.today()
             start = end - timedelta(days=days)
-            result = repo.get_historical(code, start, end)
-            cm.mem_set(f"historical:{cache_key}", result)
-            self._db_set_historical(cm, code, days, result)
-            return result
+            return repo.get_historical(code, start, end)
         except Exception:
             return None
-
-    def _db_get_historical(self, cm, code: str, days: int):
-        """从 SQLite 读历史缓存，校验新鲜度。"""
-        try:
-            db_key = f"{code}:{days}"
-            with cm._lock:
-                conn = cm._connect()
-                try:
-                    row = conn.execute(
-                        "SELECT df_json, last_bar, cached_at FROM historical_cache "
-                        "WHERE cache_key=?",
-                        (db_key,),
-                    ).fetchone()
-                finally:
-                    conn.close()
-            if row is None:
-                return None
-            df_json, last_bar, cached_at = row
-            # 新鲜度：最后一根 K 线日期距今 ≤4 天（覆盖周末/小长假）
-            if last_bar:
-                lb = date.fromisoformat(last_bar)
-                if (date.today() - lb).days > 4:
-                    return None  # 过期，需网络刷新
-            # 反序列化 DataFrame
-            import pandas as pd
-            from io import StringIO
-
-            df = pd.read_json(StringIO(df_json), orient="split")
-            from ...schema import HistoricalData
-
-            return HistoricalData(
-                symbol=code,
-                df=df,
-                columns=list(df.columns),
-                start_date=date.today() - timedelta(days=days),
-                end_date=date.today(),
-            )
-        except Exception:
-            return None
-
-    def _db_set_historical(self, cm, code: str, days: int, hist) -> None:
-        """将历史数据持久化到 SQLite。"""
-        try:
-            if hist is None or hist.df is None or len(hist.df) == 0:
-                return
-            df = hist.df
-            df_json = df.to_json(orient="split", force_ascii=False)
-            # 推断最后一根 K 线日期
-            last_bar = ""
-            date_col = df.get("date", df.get("日期"))
-            if date_col is not None and len(date_col) > 0:
-                last_bar = str(date_col.iloc[-1])[:10]
-            db_key = f"{code}:{days}"
-            with cm._lock:
-                conn = cm._connect()
-                try:
-                    conn.execute(
-                        "INSERT OR REPLACE INTO historical_cache "
-                        "(cache_key, df_json, last_bar, cached_at) VALUES (?,?,?,?)",
-                        (db_key, df_json, last_bar, datetime.now().isoformat()),
-                    )
-                    conn.commit()
-                finally:
-                    conn.close()
-        except Exception:
-            pass  # 持久化失败不影响主流程
 
     # ── 因子缓存（避免每次扫描重复解析 DataFrame）───────────
 
@@ -207,9 +123,7 @@ class ScanService(_BaseService):
                 )
             else:
                 # 非交易时段：复用上次扫描缓存（含上个交易日收盘价）
-                market_candidates = self._get_valid_market_top20(
-                    state.last_trade_date
-                )
+                market_candidates = self._get_valid_market_top20(state.last_trade_date)
             watchlist_items = self._scan_watchlist()
 
             # 2. 候选集（去重，自选股优先）
@@ -217,23 +131,17 @@ class ScanService(_BaseService):
 
             # 3. 触发后台深度分析（对候选跑全量 analyze_stock）
             if self._deep_analysis_mgr is not None and candidates:
-                self._deep_analysis_mgr.start(
-                    [c["code"] for c in candidates], force=force_refresh
-                )
+                self._deep_analysis_mgr.start([c["code"] for c in candidates], force=force_refresh)
 
             # 4. 收集已有全量分析结果的候选（引擎共识分）
             analyzed = self._collect_analyzed(candidates)
 
             # 5. 分离已分析/未分析，主榜只用引擎分（保证里外一致）
             confirmed = [r for r in analyzed if r["analyzed"]]
-            pending = [r for r in analyzed if not r["analyzed"]]
             confirmed.sort(key=lambda x: x["score"], reverse=True)
-            pending.sort(key=lambda x: x["quick_score"] or 0, reverse=True)
 
-            # 主榜：已分析的排前面，不足 20 时用 pending 补位
+            # 主榜只展示已完成分析的结果；禁止用 quick_score 补位。
             top20 = confirmed[:20]
-            if len(top20) < 20:
-                top20 += pending[: 20 - len(top20)]
 
             from_watchlist = [it for it in top20 if it.get("source") == "watchlist"]
             from_market = [it for it in top20 if it.get("source") != "watchlist"]
@@ -330,9 +238,7 @@ class ScanService(_BaseService):
 
             analysis = self._get_cached_analysis(code)
             has_analysis = (
-                analysis
-                and analysis.get("score") is not None
-                and not analysis.get("error")
+                analysis and analysis.get("score") is not None and not analysis.get("error")
             )
 
             # 名称：分析缓存 → 候选 → code
@@ -345,15 +251,8 @@ class ScanService(_BaseService):
             else:
                 name = cand.get("name") or code
 
-            # 价格：分析缓存 → 候选 → market_snapshot
+            # 价格只来自已分析结果或当前网关候选数据。
             price = (analysis.get("price") if has_analysis else None) or cand.get("price")
-            if not price:
-                try:
-                    snap = self._get_cache_mgr().db_get("market_snapshot", code)
-                    if snap and snap.get("price"):
-                        price = snap["price"]
-                except Exception:
-                    pass
 
             # 评分：有分析用引擎共识分，否则用 quick_score 占位
             if has_analysis:
@@ -367,6 +266,7 @@ class ScanService(_BaseService):
                 rating_obj = score_to_rating(score)
                 rating = rating_obj.value if hasattr(rating_obj, "value") else str(rating_obj)
                 from ._utils import _RATING_CN, _RATING_EMOJI
+
                 rating_label = _RATING_CN.get(rating, rating)
                 rating_emoji = _RATING_EMOJI.get(rating, "")
                 confidence = 0.3  # 低置信度标记“未全量分析”
@@ -393,7 +293,7 @@ class ScanService(_BaseService):
         return results
 
     def _scan_watchlist(self) -> list[dict]:
-        """扫描自选股评分。非交易时段回退 market_snapshot 收盘价。"""
+        """扫描自选股评分；行情缓存和降级由 Data Gateway 负责。"""
         from ...config import Config
         from ...engines.rating import score_to_rating
 
@@ -403,48 +303,7 @@ class ScanService(_BaseService):
             if not stocks:
                 return []
 
-            state = get_market_state()
             codes = [s.get("code") for s in stocks if s.get("code")]
-
-            # 非交易时段：从 market_snapshot 取上个交易日收盘价
-            if not state.should_call_api:
-                cm = self._get_cache_mgr()
-                results = []
-                for s in stocks:
-                    code = s.get("code")
-                    if not code:
-                        continue
-                    cached = cm.db_get("market_snapshot", code)
-                    if not cached or not cached.get("price"):
-                        continue
-                    price = cached["price"]
-                    change_pct = cached.get("change_pct") or 0.0
-                    # 用 snapshot 数据构造简易 quote 进行 quick_score
-                    score, signals = quick_score(type("Q", (), {
-                        "price": price,
-                        "change_pct": change_pct,
-                        "open": cached.get("open") or price,
-                        "high": cached.get("high") or price,
-                        "low": cached.get("low") or price,
-                        "volume": cached.get("volume") or 0,
-                        "turnover": cached.get("amount") or 0,
-                        "pe": None,
-                        "name": cached.get("name") or code,
-                    })())
-                    results.append(
-                        {
-                            "code": code,
-                            "name": cached.get("name") or s.get("name") or code,
-                            "price": price,
-                            "change_pct": change_pct,
-                            "score": score,
-                            "signals": signals,
-                            "rating": score_to_rating(score),
-                            "source": "watchlist",
-                        }
-                    )
-                results.sort(key=lambda x: x["score"], reverse=True)
-                return results
 
             # 交易时段：实时抓取
             repo = self._build_repo()
@@ -488,7 +347,7 @@ class ScanService(_BaseService):
         """获取有效的市场 Top20。
 
         缓存扫描结果不早于最近交易日（即之后没有新开盘）→ 复用；
-        否则（缺失或过期）→ 全量重扫；重扫失败→ market_snapshot 兜底。
+        否则（缺失或过期）→ 全量重扫；网关无数据则返回空结果。
         """
         items, scan_date = self._read_latest_scan()
 
@@ -516,8 +375,8 @@ class ScanService(_BaseService):
         if result:
             return result
 
-        # 重扫失败（非交易时段 API 无数据）→ 从 market_snapshot 兜底
-        return self._fallback_from_snapshot()
+        # 网关已经负责 stale-if-error；不得回退旧数据表。
+        return []
 
     def _read_latest_scan(self) -> tuple[list[dict], date | None]:
         """读最近一次扫描结果及其扫描日期（SQLite 优先，内存兑底）。"""
@@ -549,67 +408,10 @@ class ScanService(_BaseService):
             pass
         return [], None
 
-    def _fallback_from_snapshot(self, top_n: int = 30) -> list[dict]:
-        """非交易时段兜底：从 market_snapshot 读取上个交易日数据，计算 quick_score 并返回 Top N。"""
-        import sqlite3
-
-        from ...engines.rating import score_to_rating
-
-        try:
-            cm = self._get_cache_mgr()
-            conn = sqlite3.connect(str(cm._path))
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                "SELECT code, name, price, change_pct, open, high, low, volume, amount "
-                "FROM market_snapshot WHERE price > 2 ORDER BY price DESC LIMIT 200"
-            ).fetchall()
-            conn.close()
-
-            if not rows:
-                return []
-
-            results: list[dict] = []
-            for r in rows:
-                code = r["code"]
-                if not code or code[0] not in "0236":
-                    continue
-                price = r["price"]
-                change_pct = r["change_pct"] or 0.0
-                # 构造简易 quote 对象给 quick_score
-                q = type("Q", (), {
-                    "price": price,
-                    "change_pct": change_pct,
-                    "open": r["open"] or price,
-                    "high": r["high"] or price,
-                    "low": r["low"] or price,
-                    "volume": r["volume"] or 0,
-                    "turnover": r["amount"] or 0,
-                    "pe": None,
-                    "name": r["name"] or code,
-                })()
-                score, signals = quick_score(q)
-                results.append({
-                    "code": code,
-                    "name": r["name"] or code,
-                    "price": price,
-                    "change_pct": change_pct,
-                    "score": score,
-                    "signals": signals,
-                    "rating": score_to_rating(score),
-                    "source": "market",
-                })
-
-            results.sort(key=lambda x: x["score"], reverse=True)
-            logger.info("services.offhours.snapshot_fallback", count=len(results))
-            return results[:top_n]
-        except Exception:
-            logger.warning("services.offhours.snapshot_fallback_failed")
-            return []
-
     def _scan_market_top20(self, force: bool = False, top_n: int = 20) -> list[dict]:
         """全市场扫描：ashare 分批获取行情 → 过滤 → quick_score 评分 → 写入 SQLite + 内存。
 
-        每 1h 重新扫描，使用 CacheManager 持久化 market_snapshot + market_scan_cache。
+        每 1h 重新扫描；原始行情统一由 Data Gateway 缓存。
         force=True 时跳过内存缓存检查，强制重扫。
         top_n: 返回 quick_score 排名前 top_n 名（作为深度分析候选池）。
         """
@@ -652,8 +454,6 @@ class ScanService(_BaseService):
 
             batch_id = datetime.now().strftime("%Y-%m-%d-%H%M")
             all_results: list[dict] = []
-            snapshot_rows: list[dict] = []
-            stock_dict_rows: list[dict] = []
 
             for code, q in all_quotes.items():
                 if q is None or q.price is None or q.price <= 0:
@@ -678,92 +478,13 @@ class ScanService(_BaseService):
                 }
                 all_results.append(item)
 
-                # 写入 market_snapshot
-                snapshot_rows.append(
-                    {
-                        "code": code,
-                        "name": q.name or code,
-                        "price": q.price,
-                        "change_pct": q.change_pct,
-                        "open": q.open,
-                        "high": q.high,
-                        "low": q.low,
-                        "volume": q.volume,
-                        "amount": q.turnover,
-                        "turnover": 0.0,
-                        "batch_id": batch_id,
-                    }
-                )
-
-                # 写入 stock_dict
-                _market = (
-                    "SZ"
-                    if code.startswith(("0", "2", "3"))
-                    else ("SH" if code.startswith("6") else "BJ")
-                )
-                stock_dict_rows.append(
-                    {
-                        "code": code,
-                        "name": q.name or code,
-                        "pinyin": "",
-                        "market": _market,
-                        "status": "normal",
-                    }
-                )
-
-            # 写入 SQLite
-            if snapshot_rows:
-                try:
-                    cm.db_set_batch("market_snapshot", snapshot_rows)
-                except Exception:
-                    logger.warning("services.scan_market.snapshot_write_failed")
-
-            if stock_dict_rows:
-                try:
-                    cm.db_set_batch("stock_dict", stock_dict_rows)
-                except Exception:
-                    logger.warning("services.scan_market.stock_dict_write_failed")
-
-            # ── 两段式数据驱动初筛 ──
-            # Stage 1: 实时粗筛，按 quick_score 取前 COARSE_POOL_SIZE
+            # Legacy service is unreachable from v0.8 HTTP. Keep only the neutral coarse
+            # ordering for its isolated compatibility tests; production ranking is owned by
+            # ScanOrchestrator and an active versioned strategy.
             all_results.sort(key=lambda x: x["score"], reverse=True)
             coarse = all_results[: self.COARSE_POOL_SIZE]
-
-            # Stage 2: 并发取粗筛池的技术因子（优先用 DB 缓存因子，避免重复解析 DataFrame）
-            from concurrent.futures import ThreadPoolExecutor
-
+            top20 = coarse[:top_n]
             cm = self._get_cache_mgr()
-
-            def _factors_for(code: str):
-                # 先查因子缓存（极快，纯 JSON）
-                f = self._get_cached_factors(cm, code)
-                if f is not None:
-                    return code, f if f else None  # 空 dict = 已知失败
-                # 未命中：取历史算因子 + 回写因子缓存
-                hist = self._get_historical(code)
-                f = _utils.technical_factors(hist)
-                # 无论成功失败都缓存（失败存空 dict，当天不重试）
-                self._set_cached_factors(cm, code, f or {})
-                return code, f
-
-            factor_map: dict[str, dict] = {}
-            with ThreadPoolExecutor(max_workers=8, thread_name_prefix="scan_hist") as pool:
-                for code, f in pool.map(_factors_for, [it["code"] for it in coarse]):
-                    if f:
-                        factor_map[code] = f
-            if factor_map:
-                dd_scores = _utils.rank_score_pool(factor_map)
-                ranked = []
-                for item in coarse:
-                    if item["code"] in dd_scores:
-                        item["score"] = dd_scores[item["code"]]
-                        item["source"] = "market_dd"
-                        ranked.append(item)
-                ranked.sort(key=lambda x: x["score"], reverse=True)
-                top20 = ranked[:top_n]
-            else:
-                logger.warning("services.scan_market.dd_fallback")
-                top20 = coarse[:top_n]
 
             # 写入 market_scan_cache
             try:
@@ -785,7 +506,6 @@ class ScanService(_BaseService):
             logger.info(
                 "services.scan_market.done",
                 total_scanned=len(all_results),
-                snapshot_rows=len(snapshot_rows),
                 top20_count=len(top20),
             )
             return top20

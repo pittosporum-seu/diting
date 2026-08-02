@@ -6,11 +6,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ...cache import CacheManager
-    from ...data.repository import MarketDataRepository
+    from ...ports import DataGateway
     from ...schema import RealtimeQuote
 
 logger = None  # 延迟导入，避免循环
@@ -57,13 +57,15 @@ class _BaseService:
         cache_mgr: CacheManager | None = None,
         watchlist_db=None,
         settings: dict | None = None,
-        repo_factory: Callable[[], MarketDataRepository] | None = None,
+        repo_factory: Callable[[], Any] | None = None,
+        data_gateway: DataGateway | None = None,
     ) -> None:
         self._settings = settings if settings is not None else {}
         self._watchlist_db = watchlist_db
         self._stock_list_cache: list[dict] | None = None
         self._cache_mgr = cache_mgr
         self._repo_factory = repo_factory
+        self._data_gateway = data_gateway
 
     def _get_cache_mgr(self) -> CacheManager:
         """获取缓存管理器实例（延迟初始化）。"""
@@ -88,64 +90,15 @@ class _BaseService:
         except Exception:
             return {}
 
-    def _build_repo(self) -> MarketDataRepository:
-        """构建数据仓库，尊重数据源开关设置。
-
-        降级链: east_money → ashare → mx_data → akshare
-        每个 provider 有 try/except 保护，单个失败不阻塞整体。
-        """
+    def _build_repo(self) -> Any:
+        """Return the injected gateway view; concrete Providers belong to bootstrap only."""
         if self._repo_factory is not None:
             return self._repo_factory()
+        if self._data_gateway is None:
+            raise RuntimeError("DataGateway was not injected at the composition root")
+        from ...adapters.gateway_legacy_view import GatewayLegacyView
 
-        from ...data.providers.akshare import AkShareProvider
-        from ...data.providers.ashare import AshareProvider
-        from ...data.providers.east_money import EastMoneyProvider
-
-        # MxDataProvider — 已全局关闭 (v0.7.2)，需要时取消注释
-        # from ...data.providers.mx_data import MxDataProvider
-        from ...data.repository import MarketDataRepository
-
-        saved = self._load_saved_settings()
-        log = _get_logger()
-
-        providers: list = []
-        # mx_key = cfg.get("MX_APIKEY")  # mx-data 已全局关闭 (v0.7.2)
-
-        # ashare（默认启用，新浪/腾讯免费接口）
-        if saved.get("provider_ashare", "1") == "1":
-            try:
-                providers.append(AshareProvider())
-            except Exception:
-                log.warning("services.build_repo.ashare_failed")
-
-        # east_money（默认启用，免费直连，提供 PE/PB/市值/资金流向）
-        if saved.get("provider_eastmoney", "1") == "1":
-            try:
-                providers.append(EastMoneyProvider())
-            except Exception:
-                log.warning("services.build_repo.east_money_failed")
-
-        # mx-data — 已全局关闭 (v0.7.2, 2026-07-16)
-        # 东方财富 mx-data 免费版每日仅 150 次配额，极易在 cron job 的
-        # 批量查询中耗尽。需要时手动取消注释下面这段：
-        # if saved.get("provider_mxdata", "1") == "1" and mx_key:
-        #     try:
-        #         providers.append(MxDataProvider(api_key=mx_key))
-        #     except Exception:
-        #         log.warning("services.build_repo.mx_data_failed")
-
-        # akshare（默认启用，免费兜底）
-        if saved.get("provider_akshare", "1") == "1":
-            try:
-                providers.append(AkShareProvider())
-            except Exception:
-                log.warning("services.build_repo.akshare_failed")
-
-        # 兜底：如果全部关闭/失败，至少保留 east_money（免费直连最可靠）
-        if not providers:
-            providers.append(EastMoneyProvider())
-
-        return MarketDataRepository(providers=providers)
+        return GatewayLegacyView(self._data_gateway)
 
 
 # ── Pure utility functions ─────────────────────────
@@ -337,7 +290,7 @@ def quick_score(q: RealtimeQuote) -> tuple[int, list[str]]:
     return score, signals
 
 
-def coarse_score(q: "RealtimeQuote") -> float:
+def coarse_score(q: RealtimeQuote) -> float:
     """粗筛分（方向中性）：执筛全市场选出“值得精筛”的活跃可交易股。
 
     设计要点：**不以今日涨跌排序**（实验证今日涨幅与最终分负相关），
@@ -364,100 +317,6 @@ def coarse_score(q: "RealtimeQuote") -> float:
     if q.pe is not None and 0 < q.pe < 20:
         score += 3.0
     return max(0.0, min(100.0, round(score, 1)))
-
-
-# ── 数据驱动初筛（基于缓存历史的技术因子）──────────────
-#
-# 因子网格搜索结论（详 scripts/factor_search.py）：
-# - 今日涨跌幅与最终共识分负相关（-0.23），不能作主因子
-# - 有效因子均为多日趋势/位置类：dist_high_20(+0.62) > ret_20d(+0.57)
-#   > price_vs_ma20(+0.57) > rsi_14(+0.50) > boll_pos(+0.49) > dist_high_60(+0.46)
-# - 成交量类（量比/量趋势）几乎无用
-# 回归权重有过拟合（样本外 Spearman 仅 0.28），故采用结构稳健的
-# “池内百分位排名 × 相关系数权重”公式（样本 Spearman 0.57，正权重无多共线性）。
-
-# 单因子相关系数（来自网格搜索）+ 微调（tune_weights.py 确认 dist_high_20 主导）
-FACTOR_CORR_WEIGHTS: dict[str, float] = {
-    "dist_high_20": 0.85,  # 距20日高点，两次实验均 #1，上调
-    "ret_20d": 0.45,
-    "price_vs_ma20": 0.45,
-    "rsi_14": 0.40,
-    "boll_pos": 0.40,
-    "dist_high_60": 0.45,
-}
-
-
-def _rsi(close, period: int = 14) -> float:
-    """RSI(14)。close 为 numpy 数组。"""
-    import numpy as np
-
-    if len(close) < period + 1:
-        return 50.0
-    delta = np.diff(close)
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
-    avg_gain = gain[-period:].mean()
-    avg_loss = loss[-period:].mean()
-    if avg_loss == 0:
-        return 100.0
-    return float(100 - 100 / (1 + avg_gain / avg_loss))
-
-
-def technical_factors(hist) -> dict | None:
-    """从缓存历史数据计算技术因子（需 >=60 根 K 线）。
-
-    返回因子字典；数据不足返回 None。仅用缓存历史，无网络/AI 开销。
-    """
-    import numpy as np
-
-    if hist is None or hist.df is None or len(hist.df) < 60:
-        return None
-    df = hist.df
-    close = df.get("close", df.get("收盘价"))
-    high = df.get("high", df.get("最高价"))
-    if close is None:
-        return None
-    c = np.asarray(close, dtype=float)
-    h = np.asarray(high, dtype=float) if high is not None else c
-    if len(c) < 60:
-        return None
-    ma20 = c[-20:].mean()
-    std20 = c[-20:].std()
-    upper, lower = ma20 + 2 * std20, ma20 - 2 * std20
-    h20_max = h[-20:].max()
-    h60_max = h[-60:].max()
-    return {
-        "dist_high_20": float(c[-1] / h20_max) if h20_max > 0 else 0.0,
-        "ret_20d": float(c[-1] / c[-21] - 1) if c[-21] > 0 else 0.0,
-        "price_vs_ma20": float((c[-1] - ma20) / ma20) if ma20 > 0 else 0.0,
-        "rsi_14": _rsi(c, 14),
-        "boll_pos": float((c[-1] - lower) / (upper - lower)) if upper > lower else 0.5,
-        "dist_high_60": float(c[-1] / h60_max) if h60_max > 0 else 0.0,
-    }
-
-
-def rank_score_pool(factor_map: dict[str, dict]) -> dict[str, float]:
-    """数据驱动初筛打分：池内各因子百分位排名 × 相关系数权重，归一到 0-100。
-
-    Args:
-        factor_map: {code: technical_factors 字典}
-    Returns:
-        {code: 初筛分 0-100}（池内相对排名，用于排序选 Top N）
-    """
-    import numpy as np
-
-    codes = list(factor_map.keys())
-    n = len(codes)
-    if n == 0:
-        return {}
-    scores = {c: 0.0 for c in codes}
-    total_w = sum(FACTOR_CORR_WEIGHTS.values())
-    for fn, w in FACTOR_CORR_WEIGHTS.items():
-        vals = np.array([factor_map[c].get(fn, 0.0) for c in codes])
-        ranks = np.argsort(np.argsort(vals)).astype(float) / max(1, n - 1)
-        for i, c in enumerate(codes):
-            scores[c] += w * float(ranks[i])
-    return {c: round(s / total_w * 100, 1) for c, s in scores.items()}
 
 
 # ── Stock list cache ───────────────────────────────

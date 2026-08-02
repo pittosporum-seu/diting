@@ -1,6 +1,3 @@
-# CI 中心编排
-# 检测变更区域，调度子 workflow，聚合结果
-
 name: CI
 
 on:
@@ -13,62 +10,34 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# v0.8 intentionally has no path filter. Python, frontend, configuration,
+# contracts, strategy research, deployment scripts and workflows share one
+# release and must not bypass the required gates.
 jobs:
-  # ── 变更分类 ─────────────────────────────────────────────
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      python: ${{ steps.filter.outputs.python }}
-      workflows: ${{ steps.filter.outputs.workflows }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            python:
-              - 'src/**'
-              - 'tests/**'
-              - 'pyproject.toml'
-              - 'uv.lock'
-            workflows:
-              - '.github/workflows/**'
-
-  # ── Lint ─────────────────────────────────────────────────
   lint:
-    needs: detect-changes
-    if: >-
-      needs.detect-changes.outputs.python == 'true' ||
-      needs.detect-changes.outputs.workflows == 'true'
     uses: ./.github/workflows/lint.yml
 
-  # ── Tests ────────────────────────────────────────────────
   tests:
-    needs: detect-changes
-    if: >-
-      needs.detect-changes.outputs.python == 'true' ||
-      needs.detect-changes.outputs.workflows == 'true'
     uses: ./.github/workflows/tests.yml
 
-  # ── Lockfile 同步检查 ───────────────────────────────────
   lockfile-check:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.python == 'true'
     uses: ./.github/workflows/uv-lockfile-check.yml
 
-  # ── 聚合门禁 ─────────────────────────────────────────────
   all-checks-pass:
     if: always()
     needs: [lint, tests, lockfile-check]
     runs-on: ubuntu-latest
     steps:
-      - name: Check all jobs
+      - name: Require every gate to pass
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.tests.result }}
+          LOCK_RESULT: ${{ needs.lockfile-check.result }}
         run: |
-          if [[ "${{ needs.lint.result }}" == "failure" ]] ||
-             [[ "${{ needs.tests.result }}" == "failure" ]] ||
-             [[ "${{ needs.lockfile-check.result }}" == "failure" ]]; then
-            echo "One or more checks failed"
-            exit 1
-          fi
-          # skipped jobs are OK (e.g. no Python changes)
-          echo "All checks passed or skipped"
+          for result in "$LINT_RESULT" "$TEST_RESULT" "$LOCK_RESULT"; do
+            if [[ "$result" != "success" ]]; then
+              echo "Required CI job did not succeed: $result"
+              exit 1
+            fi
+          done
+          echo "All required CI jobs passed"

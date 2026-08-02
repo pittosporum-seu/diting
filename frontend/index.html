@@ -1,38 +1,77 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>谛听 · A股多模型AI投资分析</title>
-  <link rel="stylesheet" href="css/styles.css?v=0.7.7">
-  <link rel="stylesheet" href="css/freshness.css?v=0.7.7">
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-  <!-- v0.7.4: core.js 必须在所有业务模块之前加载，避免循环依赖；?v= 用于缓存破坏 -->
-  <script type="module" src="js/core.js?v=0.7.7"></script>
-  <script type="module" src="js/cache.js?v=0.7.7"></script>
-  <script type="module" src="js/api.js?v=0.7.7"></script>
-  <script type="module" src="js/charts.js?v=0.7.7"></script>
-  <script type="module" src="js/ui.js?v=0.7.7"></script>
-  <script type="module" src="js/pages/dashboard.js?v=0.7.7"></script>
-  <script type="module" src="js/pages/stock.js?v=0.7.7"></script>
-  <script type="module" src="js/pages/opportunities.js?v=0.7.7"></script>
-  <script type="module" src="js/pages/watchlist.js?v=0.7.7"></script>
-  <script type="module" src="js/pages/settings.js?v=0.7.7"></script>
-  <script type="module" src="js/router.js?v=0.7.7"></script>
-  <script type="module" src="js/app.js?v=0.7.7"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f2f4f1">
+  <title>谛听 · 投资分析工作台</title>
+  <link rel="stylesheet" href="css/styles.css?v=0.8.0">
+  <script type="module" src="js/app.js?v=0.8.0"></script>
 </head>
 <body>
-  <nav id="navbar">
-    <a href="#/dashboard" class="nav-logo">🐾 谛听</a>
-    <div class="nav-links">
-      <a href="#/dashboard" class="nav-link" data-route="dashboard">仪表盘</a>
-      <a href="#/stock" class="nav-link" data-route="stock_landing">个股分析</a>
-      <a href="#/opportunities" class="nav-link" data-route="opportunities">选股机会</a>
-      <a href="#/watchlist" class="nav-link" data-route="watchlist">自选股</a>
-      <a href="#/settings" class="nav-link" data-route="settings">设置</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="主导航">
+      <a class="brand" href="#/dashboard" aria-label="谛听首页">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M5 18c3-8 7-12 11-12s8 4 11 12M8 20c2-5 5-8 8-8s6 3 8 8M12 22c1-2 2-3 4-3s3 1 4 3"/>
+          <circle cx="16" cy="25" r="2"/>
+        </svg>
+        <span><strong>谛听</strong><small>DITING 0.8</small></span>
+      </a>
+      <nav class="nav-list">
+        <a href="#/dashboard" data-route="dashboard"><span data-icon="dashboard"></span>概览</a>
+        <a href="#/stock" data-route="stock"><span data-icon="search"></span>个股分析</a>
+        <a href="#/opportunities" data-route="opportunities"><span data-icon="ranking"></span>机会策略</a>
+        <a href="#/watchlist" data-route="watchlist"><span data-icon="bookmark"></span>自选列表</a>
+        <a href="#/settings" data-route="settings"><span data-icon="settings"></span>系统设置</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="system-indicator" class="system-dot" aria-hidden="true"></span>
+        <span><strong id="system-label">连接中</strong><small>数据由缓存中间层提供</small></span>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="page-eyebrow">MARKET INTELLIGENCE</p>
+          <h1 id="page-title">市场概览</h1>
+        </div>
+        <div class="topbar-actions">
+          <span id="auth-state" class="auth-state">访客只读</span>
+          <button id="auth-button" class="button secondary" type="button">Owner 登录</button>
+        </div>
+      </header>
+      <main id="app-root" tabindex="-1" aria-live="polite"></main>
     </div>
-  </nav>
-  <main id="app-root"><p style="color:var(--text-secondary);text-align:center;padding:40px">加载中…</p></main>
-  <noscript><div style="text-align:center;padding:40px;color:red">需要启用 JavaScript</div></noscript>
+  </div>
+
+  <dialog id="login-dialog" class="modal">
+    <form id="login-form" method="dialog">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">OWNER SESSION</p>
+          <h2>解锁管理操作</h2>
+        </div>
+        <button class="icon-button" value="cancel" aria-label="关闭登录窗口" type="submit">
+          <span data-icon="close"></span>
+        </button>
+      </div>
+      <p class="modal-copy">Token 只用于本次登录校验，不会写入浏览器存储或页面日志。</p>
+      <label class="field">
+        <span>Owner token</span>
+        <input id="owner-token" name="token" type="password" minlength="16" maxlength="4096"
+          autocomplete="current-password" required>
+      </label>
+      <p id="login-error" class="form-error" role="alert"></p>
+      <div class="modal-actions">
+        <button class="button secondary" value="cancel" type="submit">取消</button>
+        <button id="login-submit" class="button primary" value="default" type="submit">建立安全会话</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast-region" class="toast-region" aria-live="assertive"></div>
+  <noscript><p class="noscript">此工作台需要启用 JavaScript。</p></noscript>
 </body>
 </html>

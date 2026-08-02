@@ -1,169 +1,89 @@
-# 谛听 · API 契约
+# Diting v0.8 interface contracts
 
-> 版本：v1.0 | 日期：2026-07-04
-> REST API 契约见 `docs/api/diting-openapi.yaml`
+This reference summarizes stable public entry points. HTTP field-level truth is the
+[runtime-generated OpenAPI document](../api/diting-openapi.yaml); Python types live in
+`src/diting/schema.py` and ports in `src/diting/ports.py`.
 
----
-
-## Python API
+## Python
 
 ```python
-from diting import Diting, AnalysisConfig
+from diting import AnalysisProfile, Diting, FetchMode
 
-# === 快速模式 ===
-diting = Diting(level="L0")
-
-# 单只行情快照
-quote = diting.quick_scan("002475")
-# → RealtimeQuote(symbol="002475", name="立讯精密", price=70.4, change_pct=2.1, ...)
-
-# 批量
-quotes = diting.quick_scan(["002475", "603659", "159851"])
-# → dict[str, RealtimeQuote]
-
-# === 标准分析 (L1) ===
-diting_l1 = Diting(level="L1", config=AnalysisConfig(
-    engines=["wyckoff", "vmd_rsi"],
-    notifiers=["feishu"],
-))
-
-result = diting_l1.analyze("002475")
-# → AnalysisResult(engine_name="wyckoff", score=65, rating=BUY, ...)
-
-# 批量
-results = diting_l1.analyze(["002475", "603659"])
-# → PipelineResult(symbols=..., results=..., consensus=...)
-
-# === 深度分析 (L2) ===
-diting_l2 = Diting(level="L2", config=AnalysisConfig(
-    engines="all",  # 所有已注册引擎
-    notifiers=["feishu", "email", "local"],
-    report_format=["html", "pdf"],
-))
-
-results = diting_l2.deep_analyze(["002475"])
-# → PipelineResult(..., reports={"html": "/path/to/report.html", "pdf": "..."})
+with Diting.from_config(path=None, overrides=None) as client:
+    quote = client.get_quote(
+        "002475",
+        freshness=FetchMode.CACHE_PREFERRED,
+        force_refresh=False,
+    )
+    run = client.analyze(
+        "002475",
+        profile=AnalysisProfile.STANDARD,
+        force_refresh=False,
+        engines=None,
+    )
+    scan = client.scan(limit=20)
 ```
+
+| Method | Return | Failure semantics |
+|---|---|---|
+| `get_quote` | `DataResult[RealtimeQuote]` | typed `error_code`, warnings and trace; never starts analysis |
+| `analyze` | `AnalysisRun` | failed engines remain EngineRun failures; insufficient consensus has null score |
+| `scan` | `ScanResult` | no active strategy is a failed empty result with `NO_ACTIVE_STRATEGY` |
+| `close` | `None` | idempotently closes owned workers/adapters |
+
+Symbols are exactly six digits. `freshness` accepts `cache_preferred`, `fresh_required` or
+`cache_only`; profiles are `standard` and `deep`.
 
 ## CLI
 
+```text
+diting [--config FILE] analyze CODE [--profile standard|deep] [--force-refresh] [--engine NAME] [--json]
+diting CODE                         # standard analyze shorthand
+diting [--config FILE] quote CODE [--freshness MODE] [--force-refresh] [--json]
+diting [--config FILE] compare CODE,CODE [--freshness MODE] [--json]
+diting [--config FILE] scan [--limit 1..100] [--json]
+diting [--config FILE] watchlist [--add CODE | --remove CODE] [...]
+diting [--config FILE] strategy [--json]
+diting [--config FILE] serve [--host HOST] [--port PORT]
+```
+
+`l0`, `l1`, `l2`, `run` and `init` are permanently removed and return `CLI_COMMAND_REMOVED`.
+
+## HTTP
+
+- Internal FastAPI root: `/api/v1/*`.
+- Production gateway root: `/api/diting/v1/*`.
+- Unversioned `/api/*`: `410 API_VERSION_REMOVED`.
+- All v1 JSON uses `ApiEnvelope[T]` with `api_version`, `request_id`, `server_time`, `data`, `meta`
+  and `error`.
+
+Anonymous availability is controlled by `runtime.public_readonly`. Health/session endpoints remain
+available; configured public mode exposes search, quote, completed analysis, dashboard and active
+opportunities. Owner-only operations include analysis/scan creation, jobs, watchlist, preferences,
+cache administration, diagnostics and strategy lifecycle transitions.
+
+Owner login uses `POST /api/v1/auth/session`; the service returns a 12-hour HttpOnly,
+SameSite=Strict cookie and a CSRF token in the response body. Browser writes require the cookie,
+exact allowed Origin and `X-CSRF-Token`. Production cookies are Secure.
+
+## Data result metadata
+
+Every data result carries:
+
+```text
+data, data_time, cache_info, provider_traces, warnings, request_hash, error_code
+```
+
+Cache mode and force-refresh behavior are described in the Accepted design. Cache keys include data
+type, symbol, period/adjustment/date range and schema version; analysis/scan identities add their
+frozen strategy/config/engine dimensions.
+
+## Contract maintenance
+
 ```bash
-# L0: 快速行情
-diting l0 --symbols 002475,603659
-diting l0 --watchlist config/watchlist.csv
-
-# L1: 标准分析
-diting l1 --symbols 002475 --engines wyckoff,vmd_rsi
-diting l1 --watchlist config/watchlist.csv --notify feishu
-
-# L2: 深度分析
-diting l2 --symbols 002475 --engines all
-diting l2 --watchlist config/watchlist.csv --notify feishu,email
-diting l2 --watchlist config/watchlist.csv --output ./reports/
-
-# 自动选择层级（按 .env DITING_LEVEL）
-diting run --symbols 002475
+uv run python scripts/validate-api.py --write  # intentional runtime model change
+uv run python scripts/validate-api.py --check  # required CI comparison
 ```
 
-## 配置 (.env)
-
-```bash
-# 层级
-DITING_LEVEL=L1
-
-# 数据源
-MX_APIKEY=***
-AKSHARE_ENABLED=true
-
-# AI（LiteLLM — 统一 100+ provider）
-AI_MODEL=deepseek/deepseek-v4-pro    # 格式: provider/model
-# 切换示例: openai/gpt-4o, anthropic/claude-sonnet-4
-AI_API_KEY=***
-
-# 沙箱（sandboxmcp — seccomp + namespace 隔离）
-SANDBOX_BACKEND=process              # process | docker
-SANDBOX_MEMORY_MB=512
-SANDBOX_TIMEOUT=60
-SANDBOX_ALLOWED_IMPORTS=numpy,pandas,scipy,vmdpy,PyWavelets,PyEMD,openpyxl
-
-# 推送
-NOTIFY_DEFAULT=feishu
-FEISHU_APP_ID=
-FEISHU_APP_SECRET=
-EMAIL_SMTP_HOST=
-EMAIL_FROM=
-EMAIL_TO=
-
-# 缓存
-CACHE_REALTIME_TTL=3600
-CACHE_HISTORICAL_TTL=86400
-```
-
-## 管道配置 (pipeline.yaml)
-
-```yaml
-# 引擎权重
-engines:
-  wyckoff:
-    enabled: true
-    weight: 0.30
-    timeout: 60
-  buffett:
-    enabled: false  # L1 不跑
-    weight: 0.25
-  vmd_rsi:
-    enabled: true
-    weight: 0.35
-  technical:
-    enabled: true
-    weight: 0.35
-
-# 评分融合
-consensus:
-  method: weighted_average
-  conflict_threshold: 2.0  # 两引擎评分差 >20 标记冲突
-  min_engines: 1           # 至少几个引擎成功才出结果
-
-# 报告
-report:
-  template: l1
-  charts: true
-  include_raw_data: false
-
-# 推送
-notify:
-  channels: [feishu]
-  summary_max_chars: 200
-  attach_report: false
-```
-
-## 引擎扩展接口
-
-```python
-# 注册新引擎
-from diting.engines import register_engine, AnalysisEngine, AnalysisContext, AnalysisResult
-
-@register_engine("my_custom")
-class MyCustomEngine(AnalysisEngine):
-    name = "my_custom"
-    version = "1.0.0"
-    
-    def required_data(self) -> list[DataType]:
-        return [DataType.REALTIME, DataType.HISTORICAL]
-    
-    def analyze(self, ctx: AnalysisContext) -> AnalysisResult:
-        # AI 规划 + Python 沙箱执行
-        code = self._plan_computation(ctx)
-        result = self._sandbox.execute(code)
-        return AnalysisResult(
-            engine_name=self.name,
-            symbol=ctx.symbol,
-            score=result["score"],
-            rating=Rating.BUY,
-            ...
-        )
-```
-
----
-
-*文档维护：小爪 | 谛听项目组 | 2026-07-04*
+Do not hand-edit the generated YAML. Change FastAPI/Pydantic models, regenerate, inspect the diff and
+update this summary when public semantics change.

@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import time
 from typing import Any
+from uuid import uuid4
 
 from litellm import completion
 
 from ..infra.errors import EngineFailedError
 from ..infra.logging_config import get_logger
+from ..schema import LLMRequest, LLMResponse
 
 logger = get_logger(__name__)
 
@@ -95,6 +97,36 @@ class AIClient:
             response_len=len(content),
         )
         return content
+
+
+class LiteLLMPortAdapter:
+    """Adapt the legacy client to the v0.8 structured-output LLM port."""
+
+    def __init__(self, client: AIClient) -> None:
+        self._client = client
+
+    def complete(self, request: LLMRequest) -> LLMResponse:
+        messages = dict(request.messages)
+        schema = __import__("json").loads(request.response_schema)
+        content = self._client.complete(
+            system=messages.get("system", ""),
+            user=messages.get("user", ""),
+            model=request.model,
+            max_tokens=request.max_tokens,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "diting_engine_result",
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
+        )
+        return LLMResponse(
+            content=content,
+            model=request.model,
+            request_id=f"llm_{uuid4().hex}",
+        )
 
 
 # 模块级默认实例

@@ -35,12 +35,14 @@ class DashboardService(_BaseService):
         watchlist_db=None,
         settings: dict | None = None,
         repo_factory=None,
+        data_gateway=None,
     ) -> None:
         super().__init__(
             cache_mgr=cache_mgr,
             watchlist_db=watchlist_db,
             settings=settings,
             repo_factory=repo_factory,
+            data_gateway=data_gateway,
         )
         self._scan_service = scan_service
 
@@ -186,12 +188,11 @@ class DashboardService(_BaseService):
 
         try:
             from ...config import Config
-            from ...data.repository import MarketDataRepository
 
             # 获取活跃的 provider 列表以确定 source
             repo = self._build_repo()
             provider_source = "api"
-            if isinstance(repo, MarketDataRepository) and repo.available_providers:
+            if repo.available_providers:
                 provider_names = [p.lower() for p in repo.available_providers]
                 primary = [n for n in provider_names if n not in ("akshare",)]
                 provider_source = primary[0] if primary else provider_names[0]

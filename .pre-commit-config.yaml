@@ -27,5 +27,7 @@ repos:
       # Lint（含 import 排序），自动修复
       - id: ruff
         args: [--fix]
+        files: ^(src/|tests/)
       # 统一代码格式
       - id: ruff-format
+        files: ^(src/|tests/)

@@ -1,0 +1,31 @@
+{
+	email ops@example.invalid
+}
+
+# Complete candidate file used only as a reviewable template. Preserve every
+# unrelated production site/route when preparing the actual promotion file.
+pittosporum.cloud {
+	encode zstd gzip
+
+	handle /api/diting/* {
+		uri strip_prefix /api/diting
+		rewrite * /api{uri}
+		reverse_proxy 127.0.0.1:8100
+	}
+
+	handle_path /app/diting/* {
+		root * /opt/diting/current/frontend
+		try_files {path} /index.html
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	handle {
+		respond "Not found" 404
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

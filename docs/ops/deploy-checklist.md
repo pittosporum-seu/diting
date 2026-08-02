@@ -1,127 +1,114 @@
-# 谛听 · 服务器部署规范
+# Deploying Diting v0.8 safely
 
-> 部署检查清单 | 推代码/更新服务前必读
-> v0.4.0 — 微服务架构
+This is the production deployment how-to. The release controller is intentionally unusable from an
+unmerged feature commit and has no `--skip-tests` escape hatch.
 
----
+## Prerequisites
 
-## 一、URL 约定
+- The exact release commit is merged to `verify`, locally fetched as `origin/verify`, and its GitHub
+  CI is green.
+- Run from WSL/Linux with `git`, `uv 0.11.32`, Node.js, Playwright Chromium, `ssh`, `scp`, `curl`,
+  `tar`, `gzip` and `sha256sum`.
+- The target SSH host is already present in the operator's `known_hosts`; never bypass that check.
+- VPS `/usr/local/bin/uv` is exactly 0.11.32. The deploy driver uses it to install Python 3.12 and
+  sync `uv.lock` with `--frozen --no-dev`.
+- `/etc/diting/env` exists as root:diting mode 0640. At minimum it contains real values for
+  `DITING_OWNER_TOKEN_HASH`, `DITING_SESSION_SECRET` and `DITING_ALLOWED_ORIGINS`. Do not put the raw
+  Owner token in this file.
+- Prepare a complete candidate Caddyfile based on `config/Caddyfile.v080.example`, preserving all
+  unrelated production sites and routes. The deployer validates and atomically installs the file;
+  it does not attempt a risky textual merge.
 
-```
-访问入口:  https://pittosporum.cloud/app/diting/
-SPA 前端:  /app/diting/（Caddy file_server → /root/frontend/）
-API 路径:  /api/diting/*（Caddy 网关 → strip /diting → uvicorn:8100 /api/*）
-证书:      Let's Encrypt（Caddy 自动签发）
-```
-
-## 二、服务拓扑
-
-```
-用户 → https://pittosporum.cloud
-  ├── /app/diting/          → Caddy file_server → /root/frontend/
-  ├── /api/diting/*                → Caddy strip /diting → uvicorn:8100 /api/*
-  └── 证书                         → Caddy auto HTTPS (Let's Encrypt)
-
-内部服务:
-  uvicorn:8100  ← 谛听 API
-  trojan:443    ← 代理
-```
-
-## 三、部署前检查清单
-
-### 0. 每次变更必验（不可跳过）
-
-每次修改/部署后，必须验证全链路可用：
+## 1. Package the exact verified commit
 
 ```bash
-# 内网验证（SSH 到服务器执行）
-curl -s http://127.0.0.1:8443/api/diting/health                    # API → {"status":"ok"}
-curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8443/app/diting/  # SPA → 200
-curl -s 'http://127.0.0.1:8443/api/diting/stock/002475' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["name"])'  # 个股 → 立讯精密
-
-# 外网验证（从浏览器/外部 curl）
-curl -sk https://pittosporum.cloud/api/diting/health
-curl -sk -o /dev/null -w '%{http_code}' https://pittosporum.cloud/app/diting/
+git fetch origin verify
+bash scripts/deploy.sh package --commit "$(git rev-parse origin/verify)"
 ```
 
-三条全部通过才算部署成功。**任何一条失败 → 回滚 → 修好再部署。**
+This reruns pre-commit, Ruff, formatting, non-network pytest, OpenAPI drift, every JavaScript and
+shell syntax check, and real Chromium. Output is:
 
-### 1. 代码变更检查
-- [ ] `uv run pytest -q` — 全部通过
-- [ ] `uv run ruff check src/` — 无 lint 错误
-- [ ] `.gitignore` 排除了含凭据的文件（`scripts/notify-diting.sh`、`.env`）
-- [ ] 推送前排除本地凭据（`config/diting.yaml` 不含真实 key）
-
-### 2. 前端检查
-- [ ] `api.js` 中 `API_BASE` 硬编码为 `/api/diting`
-- [ ] 搜索栏 placeholder 提示股票代码格式
-- [ ] 每个 API 调用前后有 `console.log('[谛听]', ...)` 日志
-- [ ] 加载中有状态提示条
-
-### 3. 数据源检查
-- [ ] 服务器有 `config/watchlist.csv`
-- [ ] 服务器有 `.env` 含 `MX_APIKEY`
-- [ ] AshareProvider 优先级正确（priority: 5，最快源）
-- [ ] 所有 provider 有 try/except 包裹
-
-### 4. 服务检查
-```
-systemctl is-active diting caddy   # 都应返回 active
-ss -tlnp | grep ':443'            # Caddy
-ss -tlnp | grep ':8100'           # uvicorn
-ss -tlnp | grep ':9443'           # trojan
+```text
+dist/diting-<sha>.tar.gz
+dist/diting-<sha>.tar.gz.sha256
 ```
 
-### 5. 功能检查
-- [ ] `curl https://pittosporum.cloud/api/diting/health` → 200
-- [ ] `curl https://pittosporum.cloud/app/diting/` → SPA 首页 200
-- [ ] `curl https://pittosporum.cloud/api/diting/stock/002475` → 有名称有价格
+`git archive` plus `gzip -n` makes repeated packaging of the same commit deterministic.
 
-### 6. 保活脚本
-```bash
-# 手动测试
-bash /root/diting/scripts/keepalive.sh
-
-# 设置 cron（每5分钟检查一次）
-crontab -l 2>/dev/null | { cat; echo "*/5 * * * * /root/diting/scripts/keepalive.sh"; } | crontab -
-```
-
-- [ ] `scripts/keepalive.sh` 已部署到服务器
-- [ ] cron job 已配置（每5分钟）
-- [ ] 日志路径 `/var/log/diting-keepalive.log` 可写
-
-## 四、API 端点一览（v0.4.0）
-
-| 端点 | 方法 | 说明 |
-|------|:----:|------|
-| `/api/diting/health` | GET | 健康检查 |
-| `/api/diting/stock/{code}` | GET | 个股多引擎分析 |
-| `/api/diting/dashboard` | GET | 仪表盘概览 |
-| `/api/diting/watchlist` | GET | 自选股列表 |
-| `/api/diting/opportunities` | GET | 选股机会 |
-| `/api/diting/market-sentiment` | GET | 市场情绪 |
-| `/api/diting/settings` | GET/POST | 用户设置 |
-
-完整契约见 `docs/api/diting-openapi.yaml`。
-
-## 五、部署命令速查
+## 2. Stage and start the candidate
 
 ```bash
-# 推送代码到服务器
-cat file.py | ssh haitong-server "cat > /root/src/diting/xxx/xxx.py"
-
-# 重启服务
-ssh haitong-server "systemctl restart diting"
-
-# 查看日志
-ssh haitong-server "journalctl -u diting --no-pager -n 50"
-ssh haitong-server "journalctl -u caddy --no-pager -n 50"
+SHA="$(git rev-parse origin/verify)"
+bash scripts/deploy.sh stage \
+  --host root@your-vps \
+  --bundle "dist/diting-$SHA.tar.gz" \
+  --caddy-config "/secure/reviewed/Caddyfile"
 ```
 
-## 六、回滚
+Prepare creates `/root/diting-archive/<timestamp>-pre-<sha>/`, verifies its `SHA256SUMS`, creates the
+non-root runtime identity and isolated release, migrates database copies, validates systemd/Caddy
+and starts the candidate on loopback port 8101. It does not change port 8100 or public Caddy state.
+
+## 3. Verify through an SSH tunnel
+
+Keep the raw token only in the local shell environment:
 
 ```bash
-# 回滚 diting 到上次提交
-cd /root && git stash
-systemctl restart diting
+read -rsp "Owner token: " DITING_OWNER_TOKEN; export DITING_OWNER_TOKEN; echo
+export DITING_SMOKE_ORIGIN="https://pittosporum.cloud"
+bash scripts/deploy.sh verify --host root@your-vps --commit "$SHA"
+unset DITING_OWNER_TOKEN
 ```
+
+The smoke checks health/readiness/dashboard/opportunities, anonymous Owner rejection, v0.7 `410`,
+Owner login, cookie session, CSRF preference write, diagnostics and logout. The token is used only
+over the local SSH tunnel and is never logged, archived, uploaded or stored remotely.
+
+Run the browser journey against the tunnel if the candidate changes rendering or deployment
+headers. The same application flow is already a required CI gate in `browser_tests/`.
+
+## 4. Rehearse rollback without production writes
+
+```bash
+bash scripts/deploy.sh rehearse --host root@your-vps --commit "$SHA"
+```
+
+This restores a database backup into a separate rehearsal file and compares hashes, exercises the
+release symlink, and revalidates systemd and Caddy. It writes a release-scoped marker; promotion is
+rejected if either tunnel verification or this rehearsal is missing.
+
+## 5. Promote and observe
+
+```bash
+bash scripts/deploy.sh promote --host root@your-vps --commit "$SHA"
+```
+
+Promotion stops the old service, takes fresh database backups, migrates live state, switches
+`/opt/diting/current` and the validated Caddyfile atomically, starts one non-root worker on 8100 and
+observes readiness for 1800 seconds. It summarizes error, stale, Provider, queue and analysis-failure
+log signals. Readiness failure triggers automatic rollback.
+
+For a time-bounded rehearsal environment only, `--observe-seconds 30` shortens observation. Do not
+shorten the production window.
+
+## Roll back explicitly
+
+```bash
+bash scripts/deploy.sh rollback --host root@your-vps --commit "$SHA"
+```
+
+Rollback restores the promotion-time database copies and archived systemd/Caddy configuration,
+switches to the previous isolated release when one exists, validates/reloads Caddy and accepts either
+the v0.8 or old health path. It does not delete the failed release or archive.
+
+## Read-only dry runs
+
+Every remote action supports `--dry-run`, for example:
+
+```bash
+bash scripts/deploy.sh promote --host root@your-vps --commit "$SHA" --dry-run
+bash scripts/deploy.sh rollback --host root@your-vps --commit "$SHA" --dry-run
+```
+
+Dry-run output redacts the token placeholder and never opens SSH or changes files.

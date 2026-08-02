@@ -8,10 +8,18 @@ from __future__ import annotations
 
 import warnings
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from ...infra.errors import DataUnavailableError
 from ...infra.logging_config import get_logger
-from ...schema import HistoricalData, RealtimeQuote
+from ...schema import (
+    HistoricalData,
+    Instrument,
+    InstrumentPage,
+    RealtimeQuote,
+    TradingCalendar,
+    TradingSession,
+)
 from .base import DataProvider
 
 logger = get_logger(__name__)
@@ -169,3 +177,123 @@ class AkShareProvider(DataProvider):
             start_date=start,
             end_date=end,
         )
+
+    def fetch_instruments(
+        self,
+        query: str,
+        market: str | None,
+        limit: int,
+        cursor: str | None,
+    ) -> InstrumentPage:
+        """Fetch the A-share security directory through AkShare's catalog endpoint."""
+
+        try:
+            import akshare as ak
+
+            frame = ak.stock_info_a_code_name()
+        except Exception as exc:
+            raise DataUnavailableError(f"akshare instrument catalog: {exc}") from exc
+        if frame is None or frame.empty:
+            raise DataUnavailableError("akshare returned an empty instrument catalog")
+        code_column = _find_column(frame.columns, "code", "代码", "证券代码")
+        name_column = _find_column(frame.columns, "name", "名称", "证券简称")
+        if code_column is None or name_column is None:
+            raise DataUnavailableError("akshare instrument catalog has unknown columns")
+
+        needle = query.strip().lower()
+        matches: list[Instrument] = []
+        for _, row in frame.iterrows():
+            symbol = str(row[code_column]).strip().zfill(6)
+            name = str(row[name_column]).strip()
+            item_market = _symbol_market(symbol)
+            if market and item_market != market:
+                continue
+            if needle and needle not in symbol.lower() and needle not in name.lower():
+                continue
+            matches.append(
+                Instrument(
+                    symbol=symbol,
+                    name=name,
+                    market=item_market,
+                    instrument_type="stock",
+                )
+            )
+
+        offset = max(0, int(cursor or 0))
+        items = tuple(matches[offset : offset + limit])
+        next_offset = offset + len(items)
+        return InstrumentPage(
+            items=items,
+            total=len(matches),
+            next_cursor=str(next_offset) if next_offset < len(matches) else None,
+        )
+
+    def fetch_trading_calendar(
+        self,
+        market: str,
+        start: date,
+        end: date,
+    ) -> TradingCalendar:
+        """Fetch open dates and construct official A-share trading sessions."""
+
+        try:
+            import akshare as ak
+
+            frame = ak.tool_trade_date_hist_sina()
+        except Exception as exc:
+            raise DataUnavailableError(f"akshare trading calendar: {exc}") from exc
+        if frame is None or frame.empty:
+            raise DataUnavailableError("akshare returned an empty trading calendar")
+        column = _find_column(frame.columns, "trade_date", "日期", "交易日期")
+        if column is None:
+            raise DataUnavailableError("akshare trading calendar has unknown columns")
+
+        timezone = ZoneInfo("Asia/Shanghai")
+        sessions = []
+        for value in frame[column].tolist():
+            try:
+                if isinstance(value, datetime):
+                    trading_date = value.date()
+                else:
+                    trading_date = date.fromisoformat(str(value)[:10])
+            except (TypeError, ValueError):
+                continue
+            if not start <= trading_date <= end:
+                continue
+            sessions.append(
+                TradingSession(
+                    trading_date=trading_date,
+                    market=market,
+                    is_open=True,
+                    open_at=datetime(
+                        trading_date.year,
+                        trading_date.month,
+                        trading_date.day,
+                        9,
+                        30,
+                        tzinfo=timezone,
+                    ),
+                    close_at=datetime(
+                        trading_date.year,
+                        trading_date.month,
+                        trading_date.day,
+                        15,
+                        0,
+                        tzinfo=timezone,
+                    ),
+                )
+            )
+        return TradingCalendar(market=market, sessions=tuple(sessions))
+
+
+def _find_column(columns, *candidates: str):
+    by_name = {str(column): column for column in columns}
+    return next((by_name[item] for item in candidates if item in by_name), None)
+
+
+def _symbol_market(symbol: str) -> str:
+    if symbol.startswith(("4", "8")):
+        return "XBSE"
+    if symbol.startswith(("6", "9")):
+        return "XSHG"
+    return "XSHE"

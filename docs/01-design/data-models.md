@@ -233,19 +233,19 @@ class Signal(Enum):
     VMD_TROUGH = "vmd_trough"        # 谷底
     VMD_PEAK = "vmd_peak"            # 峰顶
     VMD_TREND_BROKEN = "vmd_trend_broken"
-    
+
     # RSI 信号
     RSI_OVERSOLD = "rsi_oversold"     # <30
     RSI_OVERBOUGHT = "rsi_overbought" # >70
-    
+
     # Wyckoff 信号
     WYCKOFF_SPRING = "wyckoff_spring"
     WYCKOFF_SOS = "wyckoff_sos"
-    
+
     # 量价信号
     VOLUME_SURGE = "volume_surge"     # 放量
     VOLUME_DRIED = "volume_dried"     # 缩量
-    
+
     # 资金信号
     FUND_INFLOW = "fund_inflow"       # 资金流入
     FUND_OUTFLOW = "fund_outflow"

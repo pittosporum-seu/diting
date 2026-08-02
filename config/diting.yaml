@@ -1,95 +1,91 @@
-# config/diting.yaml — 谛听主配置文件
-# 此文件不存在时所有模块使用代码默认值
+# 谛听 v0.8.0 主配置。密钥只允许通过环境变量注入。
 
-# ── 数据源降级链 ──────────────────────────────────
+runtime:
+  environment: development
+  public_readonly: false
+  log_level: WARNING
+
+database:
+  business_path: diting.db
+  cache_path: diting_cache.db
 
 providers:
-  - name: ashare         # 新浪/腾讯免费数据
+  - name: ashare
     priority: 20
-    auto_detect: false
-  - name: mx_data        # 东方财富（需 API Key）
+  - name: mx_data
     priority: 30
     requires_key: MX_APIKEY
     settings:
-      max_batch: 4       # 每批最多查 4 只
-  - name: akshare        # 兜底（慢但全）
+      max_batch: 4
+  - name: akshare
     priority: 40
-    auto_detect: false
-
-# ── 引擎选择 + 权重 ────────────────────────────────
 
 engines:
-  default:               # 默认启用哪些引擎（按顺序）
-    - verdict            # 结论翻译（必选）
-    - vmd_rsi            # VMD+RSI 择时
-    - volume_profile     # 成交量分布
-    - wyckoff            # 以下需 AI，无 API key 或非交易时段自动 graceful skip
-    - can_slim
-
+  default: [technical, volume_profile, wyckoff, can_slim]
+  deep: [technical, volume_profile, wyckoff, can_slim, buffett]
   weights:
-    vmd_rsi: 1.2
-    verdict: 1.0
+    technical: 1.0
     volume_profile: 0.8
-    wyckoff: 0.6
-    can_slim: 0.5
-
+    wyckoff: 0.8
+    can_slim: 0.7
+    buffett: 0.7
+    vmd_rsi: 0.0
   scoring:
-    threshold: [80, 65, 50, 35, 20]  # strong_buy/buy/accumulate/hold/reduce
+    threshold: [80, 65, 50, 35, 20]
 
-# ── 技术指标参数 ──────────────────────────────────
+context:
+  providers: [price_basic, vmd_cycle_state]
+  vmd_cycle_state:
+    k: 8
+    alpha: 2000
+    window: 250
+    tol: 1e-5
 
 indicators:
-  rsi:      {period: 14, oversold: 30, overbought: 75}
-  macd:     {fast: 12, slow: 26, signal: 9}
-  kdj:      {period: 9, k_smooth: 3, d_smooth: 3}
+  rsi: {period: 14, oversold: 30, overbought: 75}
+  macd: {fast: 12, slow: 26, signal: 9}
+  kdj: {period: 9, k_smooth: 3, d_smooth: 3}
   bollinger: {period: 20, std_dev: 2.0}
-  vmd:      {k: 6, alpha: 2000, min_window: 60, trough: 0.3, peak: 0.7}
-  ma:       [5, 20, 60]
-
-# ── 管道运行参数 ──────────────────────────────────
+  vmd: {k: 6, alpha: 2000, min_window: 60, trough: 0.3, peak: 0.7}
+  ma: [5, 20, 60]
 
 pipeline:
   max_workers: 4
-  timeout_per_engine: 60   # 秒
+  llm_concurrent: 2
+  scan_concurrent: 1
+  queue_limit: 100
+  timeout_per_engine: 60
   fail_fast: false
-  ai_batch_size: 15        # 批量 AI 分析每批股票数（wyckoff/can_slim 直出 JSON）
-
+  ai_batch_size: 15
+  deep_concurrent: 4
   cache:
-    realtime_ttl: 300      # 实时行情缓存 5 分钟
-    historical_ttl: 3600   # 历史行情缓存 1 小时
+    realtime_ttl: 30
+    historical_ttl: 300
     max_size: 512
-
   logging: WARNING
-
-# ── 报告配置 ──────────────────────────────────────
 
 report:
   level: L2
   theme: light
-  output_dir: ./output/
+  output_dir: output
   charts: {width: 800, height: 400}
-
-# ── 通知通道 ──────────────────────────────────────
 
 notify:
   default_channel: local
   channels:
-    feishu:
-      enabled: false
-      settings: {}
-    email:
-      enabled: false
-      settings: {}
-
-# ── 后台优先级抓取 ──────────────────────────────
-# 收盘后闲时按“自选股优先、信号股次之”分批预取个股分析
+    feishu: {enabled: false, settings: {}}
+    email: {enabled: false, settings: {}}
 
 prefetch:
   analysis:
     enabled: true
-    idle_hour: 18        # 收盘后闲时（24h制），到点才跑
-    batch_size: 3        # 每批分析几只
-    stock_delay: 3       # 单只之间间隔（秒）
-    batch_delay: 20      # 批次之间间隔（秒，限流关键）
-    max_stocks: 30       # 单次最多分析多少只
-    signal_threshold: 65 # 信号股评分阈值
+    idle_hour: 18
+    batch_size: 3
+    stock_delay: 3
+    batch_delay: 20
+    max_stocks: 30
+    signal_threshold: 65
+
+strategy:
+  selected: mean_reversion_v1
+  require_active: true

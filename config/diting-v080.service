@@ -1,0 +1,37 @@
+[Unit]
+Description=Diting v0.8 API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=diting
+Group=diting
+WorkingDirectory=/opt/diting/current
+EnvironmentFile=/etc/diting/env
+Environment=DITING_ENVIRONMENT=production
+Environment=DITING_PUBLIC_READONLY=true
+Environment=DITING_DB_PATH=/var/lib/diting/diting.db
+Environment=DITING_CACHE_DB_PATH=/var/lib/diting/diting_cache.db
+Environment=DITING_REPORT_OUTPUT_DIR=/var/lib/diting/reports
+ExecStart=/opt/diting/current/.venv/bin/python -m uvicorn diting.web.app:app --host 127.0.0.1 --port 8100 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1 --no-access-log
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/diting
+
+[Install]
+WantedBy=multi-user.target
