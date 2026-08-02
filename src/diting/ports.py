@@ -14,6 +14,7 @@ from .schema import (
     CacheRecord,
     DataResult,
     DataSnapshot,
+    ExperimentManifest,
     FinancialRequest,
     Financials,
     FundFlow,
@@ -135,6 +136,10 @@ class DurableStore(Protocol):
     def save_scan_result(self, result: ScanResult) -> None: ...
 
     def save_strategy(self, strategy: StrategyVersion) -> bool: ...
+
+    def save_experiment_manifest(self, manifest: ExperimentManifest) -> bool: ...
+
+    def get_experiment_manifest(self, manifest_hash: str) -> ExperimentManifest | None: ...
 
     def get_strategy(self, name: str, version: str) -> StrategyVersion | None: ...
 

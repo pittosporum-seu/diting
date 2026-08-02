@@ -31,6 +31,18 @@ class StrategyRegistry:
         return strategy
 
     def mark_validated(self, name: str, version: str) -> StrategyVersion:
+        current = self._require(name, version)
+        manifest = self._store.get_experiment_manifest(current.manifest_hash)
+        if (
+            manifest is None
+            or manifest.strategy_name != name
+            or manifest.strategy_version != version
+        ):
+            raise AnalysisError(
+                "strategy is not bound to a persisted experiment manifest",
+                error_code="STRATEGY_MANIFEST_REQUIRED",
+                http_status_code=409,
+            )
         return self._transition(name, version, StrategyState.DRAFT, StrategyState.VALIDATED)
 
     def approve(self, name: str, version: str) -> StrategyVersion:

@@ -42,12 +42,22 @@ def _draft(version: str) -> StrategyVersion:
 def test_lifecycle_is_strict_and_activation_retires_previous_version(tmp_path: Path) -> None:
     registry, store = _registry(tmp_path)
     registry.register(_draft("1.0.0"))
-    assert registry.mark_validated("mean_reversion_v1", "1.0.0").state is StrategyState.VALIDATED
+    assert store.transition_strategy(
+        "mean_reversion_v1",
+        "1.0.0",
+        StrategyState.DRAFT,
+        StrategyState.VALIDATED,
+    )
     assert registry.approve("mean_reversion_v1", "1.0.0").state is StrategyState.APPROVED
     assert registry.activate("mean_reversion_v1", "1.0.0").state is StrategyState.ACTIVE
 
     registry.register(_draft("1.1.0"))
-    registry.mark_validated("mean_reversion_v1", "1.1.0")
+    assert store.transition_strategy(
+        "mean_reversion_v1",
+        "1.1.0",
+        StrategyState.DRAFT,
+        StrategyState.VALIDATED,
+    )
     registry.approve("mean_reversion_v1", "1.1.0")
     active = registry.activate("mean_reversion_v1", "1.1.0")
 
@@ -62,14 +72,20 @@ def test_lifecycle_is_strict_and_activation_retires_previous_version(tmp_path: P
 
 
 def test_versions_cannot_skip_or_reverse_lifecycle_states(tmp_path: Path) -> None:
-    registry, _ = _registry(tmp_path)
+    registry, store = _registry(tmp_path)
     registry.register(_draft("1.0.0"))
 
     with pytest.raises(AnalysisError, match="expected validated") as exc_info:
         registry.approve("mean_reversion_v1", "1.0.0")
     assert exc_info.value.error_code == "STRATEGY_STATE_CONFLICT"
 
-    registry.mark_validated("mean_reversion_v1", "1.0.0")
+    assert registry.get("mean_reversion_v1", "1.0.0").state is StrategyState.DRAFT
+    store.transition_strategy(
+        "mean_reversion_v1",
+        "1.0.0",
+        StrategyState.DRAFT,
+        StrategyState.VALIDATED,
+    )
     registry.approve("mean_reversion_v1", "1.0.0")
     registry.activate("mean_reversion_v1", "1.0.0")
     retired = registry.retire("mean_reversion_v1", "1.0.0")
@@ -98,3 +114,13 @@ def test_registration_is_draft_only_and_version_immutable(tmp_path: Path) -> Non
     with pytest.raises(AnalysisError) as non_draft:
         registry.register(invalid)
     assert non_draft.value.error_code == "STRATEGY_REGISTRATION_INVALID"
+
+
+def test_draft_cannot_be_validated_without_its_persisted_manifest(tmp_path: Path) -> None:
+    registry, _ = _registry(tmp_path)
+    registry.register(_draft("1.0.0"))
+
+    with pytest.raises(AnalysisError) as missing_manifest:
+        registry.mark_validated("mean_reversion_v1", "1.0.0")
+
+    assert missing_manifest.value.error_code == "STRATEGY_MANIFEST_REQUIRED"

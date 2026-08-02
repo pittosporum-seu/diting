@@ -32,7 +32,7 @@
 - [x] Task 23 — remove legacy HTTP/Jinja flow
 - [x] Checkpoint C3
 - [x] Task 24 — strategy registry and lifecycle
-- [ ] Task 25 — experiment manifest and validation gates
+- [x] Task 25 — experiment manifest and validation gates
 - [ ] Task 26 — mean_reversion_v1 candidate
 - [ ] Task 27 — active-strategy ScanOrchestrator
 - [ ] Checkpoint C4

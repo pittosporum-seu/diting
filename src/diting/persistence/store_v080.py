@@ -31,12 +31,16 @@ from ..schema import (
     EngineResult,
     EngineRun,
     Evidence,
+    ExperimentFactor,
+    ExperimentManifest,
+    ExperimentWindow,
     JobRecord,
     OwnerSession,
     PreferenceRecord,
     Risk,
     ScanResult,
     StrategyVersion,
+    ValidationMetrics,
     Verdict,
     WatchlistEntry,
 )
@@ -398,6 +402,36 @@ class SQLiteDurableStore:
             return False
         return True
 
+    def save_experiment_manifest(self, manifest: ExperimentManifest) -> bool:
+        try:
+            with self._lock, self._connect() as connection:
+                connection.execute(
+                    """INSERT INTO experiment_manifests(
+                           manifest_hash, strategy_name, strategy_version,
+                           manifest_json, created_at
+                       ) VALUES(?,?,?,?,?)""",
+                    (
+                        manifest.manifest_hash,
+                        manifest.strategy_name,
+                        manifest.strategy_version,
+                        _dump(manifest),
+                        manifest.created_at.isoformat(),
+                    ),
+                )
+        except sqlite3.IntegrityError:
+            return False
+        return True
+
+    def get_experiment_manifest(self, manifest_hash: str) -> ExperimentManifest | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT manifest_json FROM experiment_manifests WHERE manifest_hash=?",
+                (manifest_hash,),
+            ).fetchone()
+        if row is None:
+            return None
+        return _parse_experiment_manifest(json.loads(row["manifest_json"]))
+
     def get_strategy(self, name: str, version: str) -> StrategyVersion | None:
         with self._connect() as connection:
             row = connection.execute(
@@ -513,6 +547,46 @@ def _parse_strategy(row: sqlite3.Row) -> StrategyVersion:
         manifest_hash=row["manifest_hash"],
         created_at=_datetime(row["created_at"]),
         activated_at=_datetime(row["activated_at"]) if row["activated_at"] else None,
+    )
+
+
+def _parse_experiment_manifest(raw: dict[str, Any]) -> ExperimentManifest:
+    return ExperimentManifest(
+        manifest_hash=raw["manifest_hash"],
+        experiment_id=raw["experiment_id"],
+        title=raw["title"],
+        hypothesis=raw["hypothesis"],
+        strategy_name=raw["strategy_name"],
+        strategy_version=raw["strategy_version"],
+        code_commit=raw["code_commit"],
+        config_hash=raw["config_hash"],
+        universe=raw["universe"],
+        asset_types=tuple(raw["asset_types"]),
+        exclusion_rules=tuple(raw["exclusion_rules"]),
+        includes_listing_dates=bool(raw["includes_listing_dates"]),
+        includes_delisting_dates=bool(raw["includes_delisting_dates"]),
+        survivorship_bias_checked=bool(raw["survivorship_bias_checked"]),
+        data_start=date.fromisoformat(raw["data_start"]),
+        data_end=date.fromisoformat(raw["data_end"]),
+        providers=tuple(raw["providers"]),
+        provider_trace_hash=raw["provider_trace_hash"],
+        gateway_request_hashes=tuple(raw["gateway_request_hashes"]),
+        adjustment_method=raw["adjustment_method"],
+        data_snapshot_hash=raw["data_snapshot_hash"],
+        training_window=_parse_experiment_window(raw["training_window"]),
+        validation_window=_parse_experiment_window(raw["validation_window"]),
+        oos_window=_parse_experiment_window(raw["oos_window"]),
+        factors=tuple(ExperimentFactor(**factor) for factor in raw["factors"]),
+        metrics=ValidationMetrics(**raw["metrics"]),
+        result_hashes=tuple(tuple(item) for item in raw["result_hashes"]),
+        reproduce_command=raw["reproduce_command"],
+        created_at=_datetime(raw["created_at"]),
+    )
+
+
+def _parse_experiment_window(raw: dict[str, Any]) -> ExperimentWindow:
+    return ExperimentWindow(
+        start=date.fromisoformat(raw["start"]), end=date.fromisoformat(raw["end"])
     )
 
 

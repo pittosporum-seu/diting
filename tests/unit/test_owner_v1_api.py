@@ -326,7 +326,12 @@ def test_only_owner_can_approve_and_activate_selected_strategy(tmp_path: Path) -
                 created_at=NOW,
             )
         )
-        registry.mark_validated("mean_reversion_v1", "1.0.0")
+        assert store.transition_strategy(
+            "mean_reversion_v1",
+            "1.0.0",
+            StrategyState.DRAFT,
+            StrategyState.VALIDATED,
+        )
         path = "/api/v1/admin/strategies/mean_reversion_v1/1.0.0"
 
         anonymous = client.post(f"{path}/approve")

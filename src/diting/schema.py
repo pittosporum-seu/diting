@@ -733,6 +733,85 @@ class StrategyVersion:
     activated_at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class ExperimentWindow:
+    start: date
+    end: date
+
+
+@dataclass(frozen=True)
+class ExperimentFactor:
+    name: str
+    formula: str
+    direction: int
+    normalization: str
+    missing_value_policy: str
+
+
+@dataclass(frozen=True)
+class ValidationMetrics:
+    oos_rank_ic: float
+    oos_ic_ir: float
+    bootstrap_ic_lower_95: float
+    net_excess_return_20d: float
+    parameter_sensitivity: float
+    data_coverage: float
+    minimum_cross_section: int
+    top_n: int
+    holding_days: int
+    round_trip_cost_bps: int
+    annualized_turnover: float
+    max_drawdown: float
+    future_data_leakage: bool
+
+
+@dataclass(frozen=True)
+class ExperimentManifest:
+    manifest_hash: str
+    experiment_id: str
+    title: str
+    hypothesis: str
+    strategy_name: str
+    strategy_version: str
+    code_commit: str
+    config_hash: str
+    universe: str
+    asset_types: tuple[str, ...]
+    exclusion_rules: tuple[str, ...]
+    includes_listing_dates: bool
+    includes_delisting_dates: bool
+    survivorship_bias_checked: bool
+    data_start: date
+    data_end: date
+    providers: tuple[str, ...]
+    provider_trace_hash: str
+    gateway_request_hashes: tuple[str, ...]
+    adjustment_method: str
+    data_snapshot_hash: str
+    training_window: ExperimentWindow
+    validation_window: ExperimentWindow
+    oos_window: ExperimentWindow
+    factors: tuple[ExperimentFactor, ...]
+    metrics: ValidationMetrics
+    result_hashes: tuple[tuple[str, str], ...]
+    reproduce_command: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class PromotionGateCheck:
+    code: str
+    passed: bool
+    actual: str
+    required: str
+
+
+@dataclass(frozen=True)
+class PromotionDecision:
+    passed: bool
+    checks: tuple[PromotionGateCheck, ...]
+
+
 # ============================================================
 # v0.8 port payloads
 # ============================================================
