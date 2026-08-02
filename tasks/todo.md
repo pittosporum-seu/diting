@@ -4,10 +4,10 @@
 - [x] Create `codex/v0.8.0` from `922cd92`
 - [x] Task 00 — repository hygiene and WSL notification bridge
 - [x] Task 00b — reproducible Windows/pre-commit gates
-- [ ] Task 01 — version and strict configuration foundation
-- [ ] Task 02 — domain contracts and ports
-- [ ] Task 03 — single bootstrap composition root
-- [ ] Checkpoint C0
+- [x] Task 01 — version and strict configuration foundation
+- [x] Task 02 — domain contracts and ports
+- [x] Task 03 — single bootstrap composition root
+- [x] Checkpoint C0
 - [ ] Task 04 — idempotent database migrations
 - [ ] Task 05 — L1/L2 cache store and canonical keys
 - [ ] Task 06 — quote gateway vertical slice

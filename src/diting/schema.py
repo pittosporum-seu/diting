@@ -4,9 +4,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
-from .enums import DataSource, Rating
+from .enums import (
+    AnalysisProfile,
+    CacheState,
+    CacheTier,
+    DataSource,
+    FetchMode,
+    Rating,
+    RunStatus,
+    StrategyState,
+    TraceOutcome,
+)
 
 # ============================================================
 # 数据层协议
@@ -279,7 +290,7 @@ class StockAnalysisResponse:
 # ============================================================
 
 
-@dataclass
+@dataclass(frozen=True)
 class FreshnessInfo:
     """数据新鲜度信息，在所有 API 响应中透传。"""
 
@@ -288,3 +299,317 @@ class FreshnessInfo:
     is_fresh: bool  # 是否在有效期内
     age_seconds: float  # 数据年龄（秒）
     ttl_seconds: int  # 有效期（秒）
+
+
+# ============================================================
+# v0.8 immutable data-access contracts
+# ============================================================
+
+
+@dataclass(frozen=True)
+class DataWarning:
+    code: str
+    message: str
+    provider: str | None = None
+    recoverable: bool = True
+
+
+@dataclass(frozen=True)
+class ProviderTrace:
+    provider: str
+    operation: str
+    outcome: TraceOutcome
+    started_at: datetime
+    finished_at: datetime
+    attempt: int = 1
+    error_code: str | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True)
+class CacheInfo:
+    state: CacheState = CacheState.MISS
+    tier: CacheTier = CacheTier.NONE
+    cache_key: str = ""
+    cached_at: datetime | None = None
+    expires_at: datetime | None = None
+    stale_until: datetime | None = None
+    schema_version: str = "v1"
+    single_flight_shared: bool = False
+
+    @property
+    def hit(self) -> bool:
+        return self.state in {CacheState.FRESH, CacheState.STALE, CacheState.NEGATIVE}
+
+
+@dataclass(frozen=True)
+class DataResult[T]:
+    data: T | None
+    data_time: datetime | None
+    cache_info: CacheInfo = field(default_factory=CacheInfo)
+    provider_traces: tuple[ProviderTrace, ...] = ()
+    warnings: tuple[DataWarning, ...] = ()
+    request_hash: str = ""
+    error_code: str | None = None
+
+    @property
+    def succeeded(self) -> bool:
+        return self.error_code is None and self.data is not None
+
+
+@dataclass(frozen=True)
+class HistoricalBar:
+    trading_date: date
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    turnover: float | None = None
+
+
+@dataclass(frozen=True)
+class HistoricalSeries:
+    symbol: str
+    bars: tuple[HistoricalBar, ...]
+    period: str = "1d"
+    adjustment: str = "forward"
+    schema_version: str = "bars-v1"
+
+
+@dataclass(frozen=True)
+class Instrument:
+    symbol: str
+    name: str
+    market: str
+    instrument_type: str
+    listed_on: date | None = None
+    delisted_on: date | None = None
+
+
+@dataclass(frozen=True)
+class InstrumentPage:
+    items: tuple[Instrument, ...]
+    total: int
+    next_cursor: str | None = None
+
+
+@dataclass(frozen=True)
+class TradingSession:
+    trading_date: date
+    market: str
+    is_open: bool
+    open_at: datetime | None = None
+    close_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class TradingCalendar:
+    market: str
+    sessions: tuple[TradingSession, ...]
+    timezone: str = "Asia/Shanghai"
+
+
+@dataclass(frozen=True)
+class QuoteRequest:
+    symbols: tuple[str, ...]
+    mode: FetchMode = FetchMode.CACHE_PREFERRED
+    force_refresh: bool = False
+    deadline: datetime | None = None
+
+
+@dataclass(frozen=True)
+class HistoricalRequest:
+    symbol: str
+    start_date: date
+    end_date: date
+    period: str = "1d"
+    adjustment: str = "forward"
+    mode: FetchMode = FetchMode.CACHE_PREFERRED
+    force_refresh: bool = False
+    deadline: datetime | None = None
+
+
+@dataclass(frozen=True)
+class FinancialRequest:
+    symbol: str
+    as_of: date | None = None
+    mode: FetchMode = FetchMode.CACHE_PREFERRED
+    force_refresh: bool = False
+    deadline: datetime | None = None
+
+
+@dataclass(frozen=True)
+class FundFlowRequest:
+    symbol: str
+    trading_date: date | None = None
+    mode: FetchMode = FetchMode.CACHE_PREFERRED
+    force_refresh: bool = False
+    deadline: datetime | None = None
+
+
+@dataclass(frozen=True)
+class InstrumentSearchRequest:
+    query: str
+    market: str | None = None
+    limit: int = 20
+    cursor: str | None = None
+    mode: FetchMode = FetchMode.CACHE_PREFERRED
+    force_refresh: bool = False
+
+
+@dataclass(frozen=True)
+class TradingCalendarRequest:
+    market: str
+    start_date: date
+    end_date: date
+    mode: FetchMode = FetchMode.CACHE_PREFERRED
+    force_refresh: bool = False
+
+
+# ============================================================
+# v0.8 immutable analysis and strategy contracts
+# ============================================================
+
+
+@dataclass(frozen=True)
+class DataSnapshot:
+    snapshot_id: str
+    symbol: str
+    created_at: datetime
+    quote: DataResult[RealtimeQuote] | None = None
+    historical: DataResult[HistoricalSeries] | None = None
+    financials: DataResult[Financials] | None = None
+    fund_flow: DataResult[FundFlow] | None = None
+    completeness: float = 0.0
+    snapshot_hash: str = ""
+    warnings: tuple[DataWarning, ...] = ()
+
+
+@dataclass(frozen=True)
+class EngineRun:
+    engine_name: str
+    engine_version: str
+    status: RunStatus
+    deterministic: bool
+    started_at: datetime
+    finished_at: datetime | None = None
+    score: float | None = None
+    confidence: float | None = None
+    result: AnalysisResult | None = None
+    error_code: str | None = None
+    error_detail: str | None = None
+
+
+@dataclass(frozen=True)
+class AnalysisRun:
+    run_id: str
+    symbol: str
+    profile: AnalysisProfile
+    status: RunStatus
+    created_at: datetime
+    snapshot_hash: str
+    config_hash: str
+    strategy_version: str
+    engine_runs: tuple[EngineRun, ...] = ()
+    analysis_score: float | None = None
+    confidence: float | None = None
+    completed_at: datetime | None = None
+    warnings: tuple[DataWarning, ...] = ()
+
+
+@dataclass(frozen=True)
+class ScanItem:
+    symbol: str
+    name: str
+    rank: int
+    score: float
+    strategy_version: str
+    data_date: date
+    evidence: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ScanResult:
+    scan_id: str
+    status: RunStatus
+    strategy_version: str | None
+    data_date: date | None
+    items: tuple[ScanItem, ...] = ()
+    warnings: tuple[DataWarning, ...] = ()
+    error_code: str | None = None
+
+
+@dataclass(frozen=True)
+class StrategyVersion:
+    name: str
+    version: str
+    state: StrategyState
+    manifest_hash: str
+    created_at: datetime
+    activated_at: datetime | None = None
+
+
+# ============================================================
+# v0.8 port payloads
+# ============================================================
+
+
+@dataclass(frozen=True)
+class CacheRecord:
+    key: str
+    payload: bytes
+    created_at: datetime
+    expires_at: datetime
+    stale_until: datetime
+    schema_version: str
+    negative: bool = False
+    error_code: str | None = None
+
+
+@dataclass(frozen=True)
+class LLMRequest:
+    messages: tuple[tuple[str, str], ...]
+    response_schema: str
+    model: str
+    max_tokens: int = 4000
+    deadline: datetime | None = None
+
+
+@dataclass(frozen=True)
+class LLMResponse:
+    content: str
+    model: str
+    request_id: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+
+@dataclass(frozen=True)
+class SandboxRequest:
+    code: str
+    timeout_seconds: int = 60
+    memory_mb: int = 512
+
+
+@dataclass(frozen=True)
+class SandboxResponse:
+    output: str
+    audit_id: str
+    execution_time_ms: int
+    errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ReportArtifact:
+    run_id: str
+    path: Path
+    media_type: str
+    sha256: str
+
+
+@dataclass(frozen=True)
+class Notification:
+    title: str
+    body: str
+    severity: str = "info"

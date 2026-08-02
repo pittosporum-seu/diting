@@ -1,0 +1,134 @@
+"""Dependency-inversion ports for the v0.8 application core."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from datetime import date, datetime
+from typing import Protocol, runtime_checkable
+
+from .schema import (
+    AnalysisRun,
+    CacheRecord,
+    DataResult,
+    FinancialRequest,
+    Financials,
+    FundFlow,
+    FundFlowRequest,
+    HistoricalRequest,
+    HistoricalSeries,
+    InstrumentPage,
+    InstrumentSearchRequest,
+    LLMRequest,
+    LLMResponse,
+    Notification,
+    QuoteRequest,
+    RealtimeQuote,
+    ReportArtifact,
+    SandboxRequest,
+    SandboxResponse,
+    ScanResult,
+    StrategyVersion,
+    TradingCalendar,
+    TradingCalendarRequest,
+)
+
+
+@runtime_checkable
+class DataGateway(Protocol):
+    def get_quotes(self, request: QuoteRequest) -> Mapping[str, DataResult[RealtimeQuote]]: ...
+
+    def get_historical(self, request: HistoricalRequest) -> DataResult[HistoricalSeries]: ...
+
+    def get_financials(self, request: FinancialRequest) -> DataResult[Financials]: ...
+
+    def get_fund_flow(self, request: FundFlowRequest) -> DataResult[FundFlow]: ...
+
+    def search_instruments(
+        self, request: InstrumentSearchRequest
+    ) -> DataResult[InstrumentPage]: ...
+
+    def get_trading_calendar(
+        self, request: TradingCalendarRequest
+    ) -> DataResult[TradingCalendar]: ...
+
+
+@runtime_checkable
+class MarketDataProvider(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    def get_quotes(self, request: QuoteRequest) -> tuple[RealtimeQuote, ...]: ...
+
+    def get_historical(self, request: HistoricalRequest) -> HistoricalSeries: ...
+
+    def get_financials(self, request: FinancialRequest) -> Financials: ...
+
+    def get_fund_flow(self, request: FundFlowRequest) -> FundFlow: ...
+
+    def search_instruments(self, request: InstrumentSearchRequest) -> InstrumentPage: ...
+
+    def get_trading_calendar(self, request: TradingCalendarRequest) -> TradingCalendar: ...
+
+
+@runtime_checkable
+class CacheStore(Protocol):
+    def get(self, key: str) -> CacheRecord | None: ...
+
+    def set(self, record: CacheRecord) -> None: ...
+
+    def delete(self, key: str) -> None: ...
+
+    def clear(self, prefix: str | None = None) -> int: ...
+
+    def close(self) -> None: ...
+
+
+@runtime_checkable
+class DurableStore(Protocol):
+    def save_analysis_run(self, run: AnalysisRun) -> None: ...
+
+    def get_analysis_run(self, run_id: str) -> AnalysisRun | None: ...
+
+    def save_scan_result(self, result: ScanResult) -> None: ...
+
+    def save_strategy(self, strategy: StrategyVersion) -> None: ...
+
+    def get_active_strategy(self, name: str) -> StrategyVersion | None: ...
+
+    def close(self) -> None: ...
+
+
+@runtime_checkable
+class LLMPort(Protocol):
+    def complete(self, request: LLMRequest) -> LLMResponse: ...
+
+
+@runtime_checkable
+class SandboxPort(Protocol):
+    def execute(self, request: SandboxRequest) -> SandboxResponse: ...
+
+
+@runtime_checkable
+class Clock(Protocol):
+    def now(self) -> datetime: ...
+
+    def today(self) -> date: ...
+
+    def monotonic(self) -> float: ...
+
+
+@runtime_checkable
+class CalendarPort(Protocol):
+    def get_calendar(self, request: TradingCalendarRequest) -> TradingCalendar: ...
+
+    def market_phase(self, market: str, at: datetime) -> str: ...
+
+
+@runtime_checkable
+class ReportPort(Protocol):
+    def build(self, run: AnalysisRun) -> ReportArtifact: ...
+
+
+@runtime_checkable
+class Notifier(Protocol):
+    def send(self, notification: Notification) -> None: ...

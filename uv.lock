@@ -580,7 +580,7 @@ wheels = [
 
 [[package]]
 name = "diting"
-version = "0.1.0"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "akshare" },
@@ -594,6 +594,7 @@ dependencies = [
     { name = "numpy" },
     { name = "openpyxl" },
     { name = "pandas" },
+    { name = "pydantic" },
     { name = "pywavelets" },
     { name = "pyyaml" },
     { name = "requests" },
@@ -634,6 +635,7 @@ requires-dist = [
     { name = "openpyxl", specifier = "==3.1.5" },
     { name = "pandas", specifier = "==3.0.3" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = "==4.2.0" },
+    { name = "pydantic", specifier = "==2.13.4" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.1.1" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==7.1.0" },
     { name = "pywavelets", specifier = "==1.9.0" },

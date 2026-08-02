@@ -18,6 +18,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .. import __version__
+from ..bootstrap import bootstrap_application
 from ..infra.errors import AnalysisError
 
 
@@ -37,17 +39,15 @@ class NumpyEncoder(json.JSONEncoder):
 # ── suppress LiteLLM debug noise ──
 os.environ.setdefault("LITELLM_LOG", "ERROR")
 
-# ── 加载 .env 到 os.environ（确保 AI_API_KEY 等对所有模块可见）──
-from ..config import Config as _Config  # noqa: E402
-
-_Config()  # 触发 _load_env()
+# Validate raw configuration once at the HTTP composition boundary.
+container = bootstrap_application()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 STATIC = Path(__file__).resolve().parent / "static"
 FRONTEND = PROJECT_ROOT / "frontend"
 
-app = FastAPI(title="谛听", version="0.7.0")
+app = FastAPI(title="谛听", version=__version__)
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 app.mount("/app", StaticFiles(directory=str(FRONTEND), html=True), name="frontend")
 templates = Jinja2Templates(directory=str(TEMPLATES))

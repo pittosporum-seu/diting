@@ -8,6 +8,7 @@ from __future__ import annotations
 import pytest
 from click.testing import CliRunner
 
+from src.diting import __version__
 from src.diting.main import cli
 
 
@@ -26,7 +27,7 @@ class TestCLISmoke:
         runner = CliRunner()
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "0.7.1" in result.output
+        assert __version__ in result.output
 
     def test_default_code_displays_help(self):
         """diting（无参数）输出帮助信息。"""

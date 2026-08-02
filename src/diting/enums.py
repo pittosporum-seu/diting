@@ -1,6 +1,6 @@
 """谛听 · 枚举定义"""
 
-from enum import Enum
+from enum import Enum, StrEnum
 
 
 class Rating(Enum):
@@ -41,3 +41,55 @@ class Signal(Enum):
     VOLUME_DRIED = "volume_dried"
     FUND_INFLOW = "fund_inflow"
     FUND_OUTFLOW = "fund_outflow"
+
+
+class FetchMode(StrEnum):
+    """How the data gateway may use caches and upstream providers."""
+
+    CACHE_PREFERRED = "cache_preferred"
+    FRESH_REQUIRED = "fresh_required"
+    CACHE_ONLY = "cache_only"
+
+
+class CacheTier(StrEnum):
+    NONE = "none"
+    L1 = "l1"
+    L2 = "l2"
+    UPSTREAM = "upstream"
+
+
+class CacheState(StrEnum):
+    MISS = "miss"
+    FRESH = "fresh"
+    STALE = "stale"
+    NEGATIVE = "negative"
+
+
+class TraceOutcome(StrEnum):
+    SUCCESS = "success"
+    FAILURE = "failure"
+    SKIPPED = "skipped"
+    CIRCUIT_OPEN = "circuit_open"
+
+
+class RunStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    INTERRUPTED = "interrupted"
+
+
+class AnalysisProfile(StrEnum):
+    STANDARD = "standard"
+    DEEP = "deep"
+
+
+class StrategyState(StrEnum):
+    DRAFT = "draft"
+    VALIDATED = "validated"
+    APPROVED = "approved"
+    ACTIVE = "active"
+    RETIRED = "retired"

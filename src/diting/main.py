@@ -19,10 +19,9 @@ from pathlib import Path
 
 import click
 
+from . import __version__
+from .bootstrap import bootstrap_application, build_legacy_repository, build_mx_repository
 from .config import Config
-from .data.providers.akshare import AkShareProvider
-from .data.providers.base import DataProvider
-from .data.repository import MarketDataRepository
 from .engines.registry import discover_engines
 from .infra.config_loader import ConfigLoader
 from .infra.errors import AllProvidersFailedError
@@ -58,41 +57,12 @@ _RATING_EMOJI: dict[str, str] = {
 }
 
 
-def _build_repo(cfg: Config) -> MarketDataRepository:
-    providers = []
-    provider_configs = ConfigLoader.get_section("providers")
-    for pc in provider_configs:
-        name = pc.get("name", "")
-        if not name:
-            continue
-        # 跳过要求 key 但未配置的
-        requires_key = pc.get("requires_key", "")
-        if requires_key and not cfg.get(requires_key):
-            continue
-        # 跳过 auto_detect 失败的
-        if pc.get("auto_detect", False):
-            try:
-                provider = DataProvider.from_config(name, pc.get("settings"))
-                if not provider.health_check():
-                    continue
-            except Exception:
-                continue
-        else:
-            try:
-                provider = DataProvider.from_config(name, pc.get("settings"))
-            except Exception:
-                logger.warning("provider.import_failed", provider=name)
-                continue
-        providers.append(provider)
-
-    if not providers:
-        providers.append(AkShareProvider())  # 兜底
-
-    return MarketDataRepository(providers=providers)
+def _build_repo(cfg: Config):
+    return build_legacy_repository(cfg.settings)
 
 
 def _log_level() -> int:
-    raw = os.environ.get("DITING_LOG", "WARNING").upper()
+    raw = ConfigLoader.current().runtime.log_level.upper()
     return getattr(logging, raw, logging.WARNING)
 
 
@@ -183,7 +153,7 @@ class _DitingGroup(click.Group):
         "auto_envvar_prefix": "DITING",
     },
 )
-@click.version_option(version="0.7.1", prog_name="diting")
+@click.version_option(version=__version__, prog_name="diting")
 @click.pass_context
 def cli(ctx):
     """谛听 · A股多模型AI投资分析工具
@@ -197,6 +167,7 @@ def cli(ctx):
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
         return
+    bootstrap_application()
     setup_logging(level=_log_level())
 
 
@@ -822,7 +793,7 @@ def _score_to_rating_str(score: float) -> str:
 def _compute_one_summary_from_quote(
     code: str,
     quote,
-    repo: MarketDataRepository,
+    repo,
 ) -> _StockSummary | None:
     """Compute signals and score for one stock from a pre-fetched quote."""
     if quote is None:
@@ -885,7 +856,7 @@ def _compute_one_summary_from_quote(
 
 def _compute_stock_summaries(
     symbols: list[str],
-    repo: MarketDataRepository,
+    repo,
 ) -> list[_StockSummary]:
     """Fetch realtime quotes in one batch, then historical+signals in parallel."""
     # ── batch realtime ──
@@ -1274,10 +1245,7 @@ def _build_env_lines(mx_key: str | None, ai_key: str | None) -> list[str]:
 def _test_connection(mx_key: str) -> None:
     """Test data provider connectivity with a known symbol."""
     try:
-        from .data.providers.mx_data import MxDataProvider
-        from .data.repository import MarketDataRepository
-
-        repo = MarketDataRepository(providers=[MxDataProvider(api_key=mx_key)])
+        repo = build_mx_repository(mx_key)
         quotes = repo.get_realtime(["000001"])
         if quotes and "000001" in quotes:
             q = quotes["000001"]
