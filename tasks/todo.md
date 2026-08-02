@@ -40,4 +40,4 @@
 - [x] Task 29 — real Chromium journeys
 - [x] Task 30 — release-safe VPS deployment
 - [x] Task 31 — documentation and release review
-- [ ] Checkpoint C5 / release
+- [x] Checkpoint C5 / release
