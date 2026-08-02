@@ -55,6 +55,9 @@ def test_release_controller_dry_run_redacts_token_and_keeps_ssh_verification() -
     assert "git reset --hard" not in source
     assert "--skip-tests" not in source
     assert "origin/verify" in source
+    assert "ExitOnForwardFailure=yes" in source
+    assert 'kill -0 "$tunnel_pid"' in source
+    assert "SSH tunnel did not become ready within 30 seconds" in source
 
 
 def test_all_remote_state_transitions_support_read_only_dry_run() -> None:
