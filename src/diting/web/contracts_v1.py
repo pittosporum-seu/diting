@@ -169,6 +169,9 @@ class OpportunitiesData(_HttpModel):
     items: tuple[OpportunityView, ...] = ()
     total: int = 0
     strategy_version: str | None = None
+    manifest_hash: str | None = None
+    factor_version: str | None = None
+    data_date: str | None = None
 
 
 class JobView(_HttpModel):

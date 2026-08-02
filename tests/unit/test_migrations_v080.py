@@ -34,7 +34,7 @@ def test_empty_databases_migrate_and_are_ready(tmp_path: Path) -> None:
 
     business, cache = migrate_databases(business_path, cache_path)
 
-    assert business.applied_versions == (1, 2, 3, 4)
+    assert business.applied_versions == (1, 2, 3, 4, 5)
     assert cache.applied_versions == (1,)
     assert business.ready is True
     assert cache.ready is True

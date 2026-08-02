@@ -39,6 +39,7 @@ from ..schema import (
     PreferenceRecord,
     RankingStrategyDefinition,
     Risk,
+    ScanItem,
     ScanResult,
     StrategyVersion,
     ValidationMetrics,
@@ -376,10 +377,36 @@ class SQLiteDurableStore:
     def save_scan_result(self, result: ScanResult) -> None:
         with self._lock, self._connect() as connection:
             connection.execute(
-                "INSERT INTO scan_results(scan_id, status, payload_json, created_at) "
-                "VALUES(?,?,?,?)",
-                (result.scan_id, result.status.value, _dump(result), datetime.now().isoformat()),
+                """INSERT INTO scan_results(
+                       scan_id, status, payload_json, created_at, strategy_version, data_date
+                   ) VALUES(?,?,?,?,?,?)""",
+                (
+                    result.scan_id,
+                    result.status.value,
+                    _dump(result),
+                    datetime.now().isoformat(),
+                    result.strategy_version or "",
+                    result.data_date.isoformat() if result.data_date else None,
+                ),
             )
+
+    def get_scan_result(self, scan_id: str) -> ScanResult | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload_json FROM scan_results WHERE scan_id=?",
+                (scan_id,),
+            ).fetchone()
+        return _parse_scan_result(json.loads(row["payload_json"])) if row is not None else None
+
+    def get_latest_scan_result(self, strategy_version: str) -> ScanResult | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT payload_json FROM scan_results
+                   WHERE strategy_version=? AND status='succeeded'
+                   ORDER BY data_date DESC, created_at DESC LIMIT 1""",
+                (strategy_version,),
+            ).fetchone()
+        return _parse_scan_result(json.loads(row["payload_json"])) if row is not None else None
 
     def save_strategy(self, strategy: StrategyVersion) -> bool:
         try:
@@ -560,6 +587,33 @@ def _parse_strategy(row: sqlite3.Row) -> StrategyVersion:
         created_at=_datetime(row["created_at"]),
         activated_at=_datetime(row["activated_at"]) if row["activated_at"] else None,
         definition=definition,
+    )
+
+
+def _parse_scan_result(raw: dict[str, Any]) -> ScanResult:
+    return ScanResult(
+        scan_id=raw["scan_id"],
+        status=RunStatus(raw["status"]),
+        strategy_version=raw.get("strategy_version"),
+        data_date=date.fromisoformat(raw["data_date"]) if raw.get("data_date") else None,
+        items=tuple(
+            ScanItem(
+                symbol=item["symbol"],
+                name=item["name"],
+                rank=int(item["rank"]),
+                score=float(item["score"]),
+                strategy_version=item["strategy_version"],
+                data_date=date.fromisoformat(item["data_date"]),
+                evidence=tuple(item.get("evidence", ())),
+            )
+            for item in raw.get("items", ())
+        ),
+        warnings=tuple(_parse_warning(item) for item in raw.get("warnings", ())),
+        error_code=raw.get("error_code"),
+        manifest_hash=raw.get("manifest_hash"),
+        factor_version=raw.get("factor_version"),
+        config_hash=raw.get("config_hash"),
+        cache_key=raw.get("cache_key"),
     )
 
 

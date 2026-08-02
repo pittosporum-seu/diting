@@ -25,6 +25,7 @@ from .contracts_v1 import (
     InstrumentSearchData,
     InstrumentView,
     OpportunitiesData,
+    OpportunityView,
     QuoteData,
     VerdictView,
     WarningInfo,
@@ -203,9 +204,42 @@ def build_v1_router(
                     ),
                 ),
             )
+        strategy_version = f"{active.name}:{active.version}"
+        latest = container.durable_store.get_latest_scan_result(strategy_version)
+        if latest is None:
+            return success_envelope(
+                request,
+                OpportunitiesData(strategy_version=strategy_version),
+                result_status="unavailable",
+                warnings=(
+                    WarningInfo(
+                        code="NO_SCAN_RESULT",
+                        message="当前 active 策略尚无已完成扫描结果",
+                        recoverable=True,
+                    ),
+                ),
+            )
         return success_envelope(
             request,
-            OpportunitiesData(strategy_version=f"{active.name}:{active.version}"),
+            OpportunitiesData(
+                items=tuple(
+                    OpportunityView(
+                        symbol=item.symbol,
+                        name=item.name,
+                        rank=item.rank,
+                        screening_score=item.score,
+                        strategy_version=item.strategy_version,
+                        data_date=item.data_date.isoformat(),
+                        evidence=item.evidence,
+                    )
+                    for item in latest.items
+                ),
+                total=len(latest.items),
+                strategy_version=latest.strategy_version,
+                manifest_hash=latest.manifest_hash,
+                factor_version=latest.factor_version,
+                data_date=latest.data_date.isoformat() if latest.data_date else None,
+            ),
         )
 
     return router

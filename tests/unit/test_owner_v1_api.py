@@ -51,6 +51,7 @@ class FakeJobs:
     def __init__(self) -> None:
         self.jobs: dict[str, JobRecord] = {}
         self.requests = []
+        self.scan_requests = []
 
     def submit_analysis(self, _orchestrator, request):
         self.requests.append(request)
@@ -76,6 +77,20 @@ class FakeJobs:
         cancelled = replace(job, cancel_requested=True)
         self.jobs[job_id] = cancelled
         return cancelled
+
+    def submit_scan(self, scanner, *, limit=20, dedupe_key=None):
+        self.scan_requests.append((scanner, limit, dedupe_key))
+        job = JobRecord(
+            job_id=f"job_{len(self.jobs) + 1}",
+            job_type=JobType.SCAN,
+            status=RunStatus.QUEUED,
+            progress=0,
+            request_json="{}",
+            created_at=NOW,
+            dedupe_key=dedupe_key,
+        )
+        self.jobs[job.job_id] = job
+        return job
 
 
 class FakeCache:
@@ -117,6 +132,7 @@ def _build(tmp_path: Path):
             analysis=object(),
             jobs=jobs,
             auth=auth,
+            scanner=object(),
         ),
     )
     limiter = SlidingWindowRateLimiter(clock.monotonic)
@@ -379,11 +395,14 @@ def test_only_owner_can_approve_and_activate_selected_strategy(tmp_path: Path) -
         )
         approved = client.post(f"{path}/approve", headers=_write_headers(csrf))
         activated = client.post(f"{path}/activate", headers=_write_headers(csrf))
+        scan = client.post("/api/v1/scans", headers=_write_headers(csrf))
 
         assert anonymous.status_code == 401
         assert missing_csrf.status_code == 403
         assert approved.json()["data"]["state"] == "approved"
         assert activated.json()["data"]["active"] is True
+        assert scan.status_code == 202
+        assert scan.json()["data"]["job_type"] == "scan"
         active = store.get_active_strategy("mean_reversion_v1")
         assert active is not None and active.version == "1.0.0"
         with sqlite3.connect(business) as connection:
@@ -394,6 +413,11 @@ def test_only_owner_can_approve_and_activate_selected_strategy(tmp_path: Path) -
                 )
             }
         assert actions == {"strategy.approved", "strategy.activated"}
+        with sqlite3.connect(business) as connection:
+            scan_actions = connection.execute(
+                "SELECT COUNT(*) FROM audit_log WHERE action='scan.create'"
+            ).fetchone()[0]
+        assert scan_actions == 1
     finally:
         client.close()
 

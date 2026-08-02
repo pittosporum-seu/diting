@@ -232,11 +232,32 @@ def build_owner_v1_router(
                 error_code="NO_ACTIVE_STRATEGY",
                 http_status_code=409,
             )
-        raise AnalysisError(
-            "扫描编排器尚未启用",
-            error_code="SCAN_SERVICE_UNAVAILABLE",
-            http_status_code=503,
+        if container.jobs is None or container.scanner is None:
+            raise AnalysisError(
+                "扫描任务服务不可用",
+                error_code="SCAN_SERVICE_UNAVAILABLE",
+                http_status_code=503,
+            )
+        factor_version = active.definition.factor_version if active.definition else "invalid"
+        dedupe_key = (
+            f"scan:{active.name}:{active.version}:{factor_version}:"
+            f"{container.clock.today().isoformat()}"
         )
+        job = container.jobs.submit_scan(
+            container.scanner,
+            limit=20,
+            dedupe_key=dedupe_key,
+        )
+        _audit(
+            container,
+            session,
+            request,
+            "scan.create",
+            job.job_id,
+            {"strategy": f"{active.name}:{active.version}"},
+        )
+        envelope = success_envelope(request, _job_view(job), result_status=job.status.value)
+        return JSONResponse(status_code=202, content=envelope.model_dump(mode="json"))
 
     @router.post("/admin/cache/clear", response_model=ApiEnvelope[CacheClearData])
     async def clear_cache(

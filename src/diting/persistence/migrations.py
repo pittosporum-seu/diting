@@ -198,6 +198,16 @@ BUSINESS_MIGRATIONS = (
             "CREATE INDEX IF NOT EXISTS idx_owner_sessions_expiry ON owner_sessions(expires_at)",
         ),
     ),
+    MigrationStep(
+        version=5,
+        name="v080_scan_strategy_index",
+        statements=(
+            "ALTER TABLE scan_results ADD COLUMN strategy_version TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE scan_results ADD COLUMN data_date TEXT",
+            "CREATE INDEX IF NOT EXISTS idx_scan_results_strategy_date "
+            "ON scan_results(strategy_version, data_date, created_at)",
+        ),
+    ),
 )
 
 

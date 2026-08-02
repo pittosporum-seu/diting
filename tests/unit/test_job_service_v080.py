@@ -14,7 +14,7 @@ from src.diting.enums import AnalysisProfile, JobType, RunStatus
 from src.diting.infra.errors import JobQueueFullError
 from src.diting.persistence.migrations import migrate_databases
 from src.diting.persistence.store_v080 import SQLiteDurableStore
-from src.diting.schema import AnalysisRequest, JobRecord, LLMRequest, LLMResponse
+from src.diting.schema import AnalysisRequest, JobRecord, LLMRequest, LLMResponse, ScanResult
 
 NOW = datetime(2026, 8, 2, 10, 0, tzinfo=UTC)
 
@@ -165,6 +165,33 @@ def test_analysis_dedupe_ignores_request_correlation_id(tmp_path: Path) -> None:
         assert duplicate.job_id == first.job_id
     finally:
         release.set()
+        service.close()
+
+
+def test_scan_job_uses_single_scan_executor_and_persists_result_reference(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    service = JobService(store, FakeClock(), scan_workers=1, queue_limit=2)
+
+    class Scanner:
+        def scan(self, *, limit=20, progress=None, cancelled=None):
+            del cancelled
+            if progress is not None:
+                progress(0.8)
+            return ScanResult(
+                scan_id=f"scan-{limit}",
+                status=RunStatus.SUCCEEDED,
+                strategy_version="mean_reversion_v1:1.0.0",
+                data_date=NOW.date(),
+            )
+
+    try:
+        job = service.submit_scan(Scanner(), limit=20, dedupe_key="scan:identity")
+        completed = _wait_for(store, job.job_id, {RunStatus.SUCCEEDED})
+
+        assert completed.job_type is JobType.SCAN
+        assert completed.result_ref == "scan-20"
+        assert completed.progress == 1
+    finally:
         service.close()
 
 

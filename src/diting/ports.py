@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import date, datetime
 from typing import Protocol, runtime_checkable
 
@@ -135,6 +135,10 @@ class DurableStore(Protocol):
 
     def save_scan_result(self, result: ScanResult) -> None: ...
 
+    def get_scan_result(self, scan_id: str) -> ScanResult | None: ...
+
+    def get_latest_scan_result(self, strategy_version: str) -> ScanResult | None: ...
+
     def save_strategy(self, strategy: StrategyVersion) -> bool: ...
 
     def save_experiment_manifest(self, manifest: ExperimentManifest) -> bool: ...
@@ -162,7 +166,13 @@ class DurableStore(Protocol):
 
 @runtime_checkable
 class ScanOrchestratorPort(Protocol):
-    def scan(self, *, limit: int = 20) -> ScanResult: ...
+    def scan(
+        self,
+        *,
+        limit: int = 20,
+        progress: Callable[[float], None] | None = None,
+        cancelled: Callable[[], bool] | None = None,
+    ) -> ScanResult: ...
 
 
 @runtime_checkable

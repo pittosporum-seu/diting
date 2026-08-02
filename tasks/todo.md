@@ -34,7 +34,7 @@
 - [x] Task 24 — strategy registry and lifecycle
 - [x] Task 25 — experiment manifest and validation gates
 - [x] Task 26 — mean_reversion_v1 candidate
-- [ ] Task 27 — active-strategy ScanOrchestrator
+- [x] Task 27 — active-strategy ScanOrchestrator
 - [ ] Checkpoint C4
 - [ ] Task 28 — OpenAPI and CI contract gates
 - [ ] Task 29 — real Chromium journeys

@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from ..enums import JobType, RunStatus
 from ..infra.errors import AnalysisError, EngineTimeoutError, JobQueueFullError
-from ..ports import Clock, DurableStore, LLMPort
+from ..ports import Clock, DurableStore, LLMPort, ScanOrchestratorPort
 from ..schema import AnalysisRequest, JobRecord, LLMRequest, LLMResponse
 from .analysis import AnalysisOrchestrator
 
@@ -176,6 +176,42 @@ class JobService:
             deadline=request.deadline,
         )
 
+    def submit_scan(
+        self,
+        orchestrator: ScanOrchestratorPort,
+        *,
+        limit: int = 20,
+        dedupe_key: str | None = None,
+    ) -> JobRecord:
+        request_json = json.dumps(
+            {"limit": limit},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+        def run(control: JobControl) -> str:
+            control.set_progress(0.1)
+            result = orchestrator.scan(
+                limit=limit,
+                progress=control.set_progress,
+                cancelled=lambda: control.cancel_requested,
+            )
+            if result.status is not RunStatus.SUCCEEDED:
+                raise AnalysisError(
+                    "scan did not produce a valid result",
+                    error_code=result.error_code or "SCAN_FAILED",
+                    http_status_code=503,
+                )
+            control.set_progress(0.95)
+            return result.scan_id
+
+        return self.submit(
+            JobType.SCAN,
+            request_json,
+            run,
+            dedupe_key=dedupe_key,
+        )
+
     def get(self, job_id: str) -> JobRecord | None:
         return self._store.get_job(job_id)
 
@@ -237,11 +273,18 @@ class JobService:
             result_ref = handler(JobControl(job_id, self))
         except Exception as exc:
             current = self._store.get_job(job_id) or running
-            error_code = exc.error_code if isinstance(exc, AnalysisError) else "JOB_FAILED"
+            cancelled = current.cancel_requested
+            error_code = (
+                "JOB_CANCELLED"
+                if cancelled
+                else exc.error_code
+                if isinstance(exc, AnalysisError)
+                else "JOB_FAILED"
+            )
             self._store.update_job(
                 replace(
                     current,
-                    status=RunStatus.FAILED,
+                    status=RunStatus.CANCELLED if cancelled else RunStatus.FAILED,
                     error_code=error_code,
                     finished_at=self._clock.now(),
                 )

@@ -18,6 +18,7 @@ from src.diting.enums import (
     CacheTier,
     DataSource,
     RunStatus,
+    StrategyState,
     TraceOutcome,
 )
 from src.diting.infra.errors import AnalysisError
@@ -31,6 +32,9 @@ from src.diting.schema import (
     OwnerSession,
     ProviderTrace,
     RealtimeQuote,
+    ScanItem,
+    ScanResult,
+    StrategyVersion,
 )
 from src.diting.security.auth import AuthService, hash_owner_token
 from src.diting.web.contracts_v1 import error_envelope
@@ -55,6 +59,7 @@ class FakeStore:
         self.sessions: dict[str, OwnerSession] = {}
         self.run = None
         self.active = None
+        self.scan = None
 
     def create_owner_session(self, session):
         self.sessions[session.session_id] = session
@@ -76,6 +81,9 @@ class FakeStore:
 
     def get_active_strategy(self, _name):
         return self.active
+
+    def get_latest_scan_result(self, _strategy_version):
+        return self.scan
 
 
 class FakeGateway:
@@ -285,9 +293,59 @@ def test_no_active_strategy_is_explicit_and_never_uses_legacy_ranking() -> None:
         body = response.json()
 
         assert response.status_code == 200
-        assert body["data"] == {"items": [], "total": 0, "strategy_version": None}
+        assert body["data"] == {
+            "items": [],
+            "total": 0,
+            "strategy_version": None,
+            "manifest_hash": None,
+            "factor_version": None,
+            "data_date": None,
+        }
         assert body["meta"]["result_status"] == "unavailable"
         assert body["meta"]["warnings"][0]["code"] == "NO_ACTIVE_STRATEGY"
+    finally:
+        client.close()
+
+
+def test_opportunities_read_latest_result_for_exact_active_version() -> None:
+    client, _, store = _client()
+    store.active = StrategyVersion(
+        name="mean_reversion_v1",
+        version="1.0.0",
+        state=StrategyState.ACTIVE,
+        manifest_hash="a" * 64,
+        created_at=NOW,
+        activated_at=NOW,
+    )
+    store.scan = ScanResult(
+        scan_id="scan-public",
+        status=RunStatus.SUCCEEDED,
+        strategy_version="mean_reversion_v1:1.0.0",
+        data_date=NOW.date(),
+        items=(
+            ScanItem(
+                "002475",
+                "立讯精密",
+                1,
+                82.5,
+                "mean_reversion_v1:1.0.0",
+                NOW.date(),
+                ("ret rank=0.9",),
+            ),
+        ),
+        manifest_hash="a" * 64,
+        factor_version="factor-v1",
+    )
+    try:
+        response = client.get("/api/v1/opportunities")
+        data = response.json()["data"]
+
+        assert response.status_code == 200
+        assert data["total"] == 1
+        assert data["items"][0]["screening_score"] == 82.5
+        assert data["manifest_hash"] == "a" * 64
+        assert data["factor_version"] == "factor-v1"
+        assert data["data_date"] == NOW.date().isoformat()
     finally:
         client.close()
 

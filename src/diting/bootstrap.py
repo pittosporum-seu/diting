@@ -168,6 +168,7 @@ def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDep
 
     from .application.jobs import BoundedLLMPort, JobService
     from .application.post_analysis import PostAnalysisDispatcher
+    from .application.scan import ActiveStrategyScanOrchestrator
     from .application.snapshot import DataSnapshotBuilder
     from .cache.store_v080 import MemoryCacheStore, SQLiteCacheStore, TieredCacheStore
     from .data.calendar_v080 import ExchangeCalendarState
@@ -283,6 +284,14 @@ def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDep
         durable,
         post_persist=post_analysis,
     )
+    scanner = ActiveStrategyScanOrchestrator(
+        gateway,
+        durable,
+        cache,
+        clock,
+        selected_strategy=settings.strategy.selected,
+        config_hash=analysis.config_hash,
+    )
     return ApplicationDependencies(
         clock=clock,
         data_gateway=gateway,
@@ -293,6 +302,7 @@ def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDep
         analysis=analysis,
         jobs=jobs,
         auth=auth,
+        scanner=scanner,
     )
 
 

@@ -721,6 +721,10 @@ class ScanResult:
     items: tuple[ScanItem, ...] = ()
     warnings: tuple[DataWarning, ...] = ()
     error_code: str | None = None
+    manifest_hash: str | None = None
+    factor_version: str | None = None
+    config_hash: str | None = None
+    cache_key: str | None = None
 
 
 @dataclass(frozen=True)
