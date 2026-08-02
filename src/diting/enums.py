@@ -122,3 +122,12 @@ class StrategyState(StrEnum):
     APPROVED = "approved"
     ACTIVE = "active"
     RETIRED = "retired"
+
+
+class FactorFamily(StrEnum):
+    PRICE_VS_MA = "price_vs_ma"
+    RETURN = "ret"
+    VOLATILITY = "volatility"
+    RSI = "rsi"
+    VOLUME_RATIO = "volume_ratio"
+    BOLLINGER = "bollinger"

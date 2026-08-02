@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from src.diting.enums import StrategyState
 from src.diting.infra.errors import AnalysisError
 from src.diting.persistence.migrations import migrate_databases
 from src.diting.persistence.store_v080 import SQLiteDurableStore
-from src.diting.schema import StrategyVersion
+from src.diting.schema import ExperimentFactor, RankingStrategyDefinition, StrategyVersion
 
 NOW = datetime(2026, 8, 2, 10, 0, tzinfo=UTC)
 
@@ -36,7 +37,41 @@ def _draft(version: str) -> StrategyVersion:
         state=StrategyState.DRAFT,
         manifest_hash=f"manifest-{version}",
         created_at=NOW,
+        definition=_definition(),
     )
+
+
+def _definition() -> RankingStrategyDefinition:
+    factors = (
+        ExperimentFactor(
+            name="ret",
+            formula="return",
+            direction=-1,
+            normalization="cross_sectional_rank",
+            missing_value_policy="exclude_period_asset",
+            training_ic_ir=-0.6,
+            weight=0.34,
+        ),
+        ExperimentFactor(
+            name="rsi",
+            formula="rsi",
+            direction=-1,
+            normalization="cross_sectional_rank",
+            missing_value_policy="exclude_period_asset",
+            training_ic_ir=-0.5,
+            weight=0.33,
+        ),
+        ExperimentFactor(
+            name="bollinger",
+            formula="bollinger",
+            direction=-1,
+            normalization="cross_sectional_rank",
+            missing_value_policy="exclude_period_asset",
+            training_ic_ir=-0.4,
+            weight=0.33,
+        ),
+    )
+    return RankingStrategyDefinition("factor-v1", factors)
 
 
 def test_lifecycle_is_strict_and_activation_retires_previous_version(tmp_path: Path) -> None:
@@ -124,3 +159,20 @@ def test_draft_cannot_be_validated_without_its_persisted_manifest(tmp_path: Path
         registry.mark_validated("mean_reversion_v1", "1.0.0")
 
     assert missing_manifest.value.error_code == "STRATEGY_MANIFEST_REQUIRED"
+
+
+def test_approved_strategy_with_invalid_factor_definition_cannot_activate(tmp_path: Path) -> None:
+    registry, store = _registry(tmp_path)
+    registry.register(replace(_draft("1.0.0"), definition=None))
+    assert store.transition_strategy(
+        "mean_reversion_v1",
+        "1.0.0",
+        StrategyState.DRAFT,
+        StrategyState.VALIDATED,
+    )
+    registry.approve("mean_reversion_v1", "1.0.0")
+
+    with pytest.raises(AnalysisError) as invalid:
+        registry.activate("mean_reversion_v1", "1.0.0")
+
+    assert invalid.value.error_code == "STRATEGY_DEFINITION_INVALID"

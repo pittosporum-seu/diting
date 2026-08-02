@@ -20,7 +20,12 @@ from src.diting.enums import JobType, RunStatus, StrategyState
 from src.diting.infra.errors import AnalysisError
 from src.diting.persistence.migrations import migrate_databases
 from src.diting.persistence.store_v080 import SQLiteDurableStore
-from src.diting.schema import JobRecord, StrategyVersion
+from src.diting.schema import (
+    ExperimentFactor,
+    JobRecord,
+    RankingStrategyDefinition,
+    StrategyVersion,
+)
 from src.diting.security.auth import AuthService, hash_owner_token
 from src.diting.web.contracts_v1 import error_envelope
 from src.diting.web.rate_limit import SlidingWindowRateLimiter
@@ -324,6 +329,38 @@ def test_only_owner_can_approve_and_activate_selected_strategy(tmp_path: Path) -
                 state=StrategyState.DRAFT,
                 manifest_hash="manifest-hash",
                 created_at=NOW,
+                definition=RankingStrategyDefinition(
+                    factor_version="factor-v1",
+                    factors=(
+                        ExperimentFactor(
+                            "ret",
+                            "return",
+                            -1,
+                            "cross_sectional_rank",
+                            "exclude_period_asset",
+                            -0.6,
+                            0.34,
+                        ),
+                        ExperimentFactor(
+                            "rsi",
+                            "rsi",
+                            -1,
+                            "cross_sectional_rank",
+                            "exclude_period_asset",
+                            -0.5,
+                            0.33,
+                        ),
+                        ExperimentFactor(
+                            "bollinger",
+                            "bollinger",
+                            -1,
+                            "cross_sectional_rank",
+                            "exclude_period_asset",
+                            -0.4,
+                            0.33,
+                        ),
+                    ),
+                ),
             )
         )
         assert store.transition_strategy(

@@ -63,13 +63,34 @@ def _manifest() -> ExperimentManifest:
         training_window=ExperimentWindow(date(2022, 1, 1), date(2024, 12, 31)),
         validation_window=ExperimentWindow(date(2025, 1, 1), date(2025, 12, 31)),
         oos_window=ExperimentWindow(date(2026, 1, 1), date(2026, 7, 31)),
+        factor_version="mean-reversion-factors-v1",
         factors=(
+            ExperimentFactor(
+                name="ret",
+                formula="close / lag(close, 20) - 1",
+                direction=-1,
+                normalization="cross_sectional_rank",
+                missing_value_policy="exclude_period_asset",
+                training_ic_ir=-0.6,
+                weight=0.34,
+            ),
             ExperimentFactor(
                 name="rsi",
                 formula="RSI(close, 14)",
                 direction=-1,
                 normalization="cross_sectional_rank",
-                missing_value_policy="exclude",
+                missing_value_policy="exclude_period_asset",
+                training_ic_ir=-0.5,
+                weight=0.33,
+            ),
+            ExperimentFactor(
+                name="bollinger",
+                formula="(close - mean(close, 20)) / (2 * std(close, 20))",
+                direction=-1,
+                normalization="cross_sectional_rank",
+                missing_value_policy="exclude_period_asset",
+                training_ic_ir=-0.4,
+                weight=0.33,
             ),
         ),
         metrics=ValidationMetrics(
@@ -174,3 +195,16 @@ def test_point_in_time_and_gateway_provenance_are_mandatory(tmp_path: Path) -> N
     failures = {check.code for check in decision.checks if not check.passed}
 
     assert failures >= {"POINT_IN_TIME_UNIVERSE", "PROVIDER_TRACE", "GATEWAY_REQUESTS"}
+
+
+def test_invalid_production_factor_weights_block_validation(tmp_path: Path) -> None:
+    governance, _, _ = _governance(tmp_path)
+    base = _manifest()
+    invalid = replace(base.factors[0], weight=0.36)
+    manifest = seal_manifest(replace(base, factors=(invalid, *base.factors[1:])))
+
+    decision = governance.evaluate(manifest)
+
+    assert "PRODUCTION_FACTOR_DEFINITION" in {
+        check.code for check in decision.checks if not check.passed
+    }

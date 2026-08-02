@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from ..enums import StrategyState
+import math
+
+from ..enums import FactorFamily, StrategyState
 from ..infra.errors import AnalysisError
 from ..ports import Clock, DurableStore
 from ..schema import StrategyVersion
@@ -52,6 +54,7 @@ class StrategyRegistry:
         current = self._require(name, version)
         if current.state is not StrategyState.APPROVED:
             self._state_conflict(current, StrategyState.APPROVED)
+        self._validate_definition(current)
         if not self._store.activate_strategy(name, version, self._clock.now()):
             raise AnalysisError(
                 "strategy state changed during activation",
@@ -104,3 +107,41 @@ class StrategyRegistry:
             error_code="STRATEGY_STATE_CONFLICT",
             http_status_code=409,
         )
+
+    @staticmethod
+    def _validate_definition(strategy: StrategyVersion) -> None:
+        definition = strategy.definition
+        allowed = {family.value for family in FactorFamily}
+        if definition is None:
+            _invalid_definition("production factor definition is missing")
+        factors = definition.factors
+        names = [factor.name for factor in factors]
+        weights = [factor.weight for factor in factors]
+        valid = (
+            bool(definition.factor_version)
+            and len(factors) >= 3
+            and len(names) == len(set(names))
+            and set(names) <= allowed
+            and definition.top_n == 20
+            and definition.holding_days == 20
+            and definition.round_trip_cost_bps == 40
+            and all(0 < weight <= 0.35 for weight in weights)
+            and math.isclose(sum(weights), 1.0, abs_tol=1e-9)
+            and all(
+                factor.training_ic_ir != 0
+                and factor.direction == (1 if factor.training_ic_ir > 0 else -1)
+                and factor.normalization == "cross_sectional_rank"
+                and factor.missing_value_policy == "exclude_period_asset"
+                for factor in factors
+            )
+        )
+        if not valid:
+            _invalid_definition("production factor definition violates mean_reversion_v1 policy")
+
+
+def _invalid_definition(message: str) -> None:
+    raise AnalysisError(
+        message,
+        error_code="STRATEGY_DEFINITION_INVALID",
+        http_status_code=409,
+    )

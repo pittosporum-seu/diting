@@ -33,7 +33,7 @@
 - [x] Checkpoint C3
 - [x] Task 24 — strategy registry and lifecycle
 - [x] Task 25 — experiment manifest and validation gates
-- [ ] Task 26 — mean_reversion_v1 candidate
+- [x] Task 26 — mean_reversion_v1 candidate
 - [ ] Task 27 — active-strategy ScanOrchestrator
 - [ ] Checkpoint C4
 - [ ] Task 28 — OpenAPI and CI contract gates

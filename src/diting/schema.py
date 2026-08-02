@@ -731,6 +731,7 @@ class StrategyVersion:
     manifest_hash: str
     created_at: datetime
     activated_at: datetime | None = None
+    definition: RankingStrategyDefinition | None = None
 
 
 @dataclass(frozen=True)
@@ -746,6 +747,31 @@ class ExperimentFactor:
     direction: int
     normalization: str
     missing_value_policy: str
+    training_ic_ir: float = 0.0
+    weight: float = 0.0
+
+
+@dataclass(frozen=True)
+class RankingStrategyDefinition:
+    factor_version: str
+    factors: tuple[ExperimentFactor, ...]
+    top_n: int = 20
+    holding_days: int = 20
+    round_trip_cost_bps: int = 40
+
+
+@dataclass(frozen=True)
+class FactorTrainingStatistic:
+    name: str
+    rank_ic: float
+    ic_ir: float
+
+
+@dataclass(frozen=True)
+class FactorCorrelation:
+    left: str
+    right: str
+    correlation: float
 
 
 @dataclass(frozen=True)
@@ -791,6 +817,7 @@ class ExperimentManifest:
     training_window: ExperimentWindow
     validation_window: ExperimentWindow
     oos_window: ExperimentWindow
+    factor_version: str
     factors: tuple[ExperimentFactor, ...]
     metrics: ValidationMetrics
     result_hashes: tuple[tuple[str, str], ...]

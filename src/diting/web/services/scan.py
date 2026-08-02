@@ -478,46 +478,13 @@ class ScanService(_BaseService):
                 }
                 all_results.append(item)
 
-            # ── 两段式数据驱动初筛 ──
-            # Stage 1: 实时粗筛，按 quick_score 取前 COARSE_POOL_SIZE
+            # Legacy service is unreachable from v0.8 HTTP. Keep only the neutral coarse
+            # ordering for its isolated compatibility tests; production ranking is owned by
+            # ScanOrchestrator and an active versioned strategy.
             all_results.sort(key=lambda x: x["score"], reverse=True)
             coarse = all_results[: self.COARSE_POOL_SIZE]
-
-            # Stage 2: 并发取粗筛池的技术因子（优先用 DB 缓存因子，避免重复解析 DataFrame）
-            from concurrent.futures import ThreadPoolExecutor
-
+            top20 = coarse[:top_n]
             cm = self._get_cache_mgr()
-
-            def _factors_for(code: str):
-                # 先查因子缓存（极快，纯 JSON）
-                f = self._get_cached_factors(cm, code)
-                if f is not None:
-                    return code, f if f else None  # 空 dict = 已知失败
-                # 未命中：取历史算因子 + 回写因子缓存
-                hist = self._get_historical(code)
-                f = _utils.technical_factors(hist)
-                # 无论成功失败都缓存（失败存空 dict，当天不重试）
-                self._set_cached_factors(cm, code, f or {})
-                return code, f
-
-            factor_map: dict[str, dict] = {}
-            with ThreadPoolExecutor(max_workers=8, thread_name_prefix="scan_hist") as pool:
-                for code, f in pool.map(_factors_for, [it["code"] for it in coarse]):
-                    if f:
-                        factor_map[code] = f
-            if factor_map:
-                dd_scores = _utils.rank_score_pool(factor_map)
-                ranked = []
-                for item in coarse:
-                    if item["code"] in dd_scores:
-                        item["score"] = dd_scores[item["code"]]
-                        item["source"] = "market_dd"
-                        ranked.append(item)
-                ranked.sort(key=lambda x: x["score"], reverse=True)
-                top20 = ranked[:top_n]
-            else:
-                logger.warning("services.scan_market.dd_fallback")
-                top20 = coarse[:top_n]
 
             # 写入 market_scan_cache
             try:

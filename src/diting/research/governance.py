@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import asdict, replace
 from datetime import date, datetime
 from enum import Enum
 from typing import Any
 
 from ..application.strategy_registry import StrategyRegistry
-from ..enums import StrategyState
+from ..enums import FactorFamily, StrategyState
 from ..infra.errors import AnalysisError
 from ..ports import DurableStore
 from ..schema import (
@@ -18,6 +19,7 @@ from ..schema import (
     ExperimentWindow,
     PromotionDecision,
     PromotionGateCheck,
+    RankingStrategyDefinition,
     StrategyVersion,
 )
 
@@ -149,7 +151,7 @@ class ExperimentGovernance:
             ),
             _check(
                 "FACTOR_METADATA",
-                bool(manifest.factors)
+                bool(manifest.factor_version and manifest.factors)
                 and all(
                     item.direction in {-1, 1}
                     and item.formula
@@ -159,6 +161,12 @@ class ExperimentGovernance:
                 ),
                 str(len(manifest.factors)),
                 "typed non-empty factors",
+            ),
+            _check(
+                "PRODUCTION_FACTOR_DEFINITION",
+                _valid_factor_definition(manifest),
+                manifest.factor_version,
+                "approved families, >=3 factors, trained directions, normalized weights <=35%",
             ),
             _check(
                 "RESULT_HASHES",
@@ -244,6 +252,13 @@ class ExperimentGovernance:
                 state=StrategyState.DRAFT,
                 manifest_hash=manifest.manifest_hash,
                 created_at=manifest.created_at,
+                definition=RankingStrategyDefinition(
+                    factor_version=manifest.factor_version,
+                    factors=manifest.factors,
+                    top_n=manifest.metrics.top_n,
+                    holding_days=manifest.metrics.holding_days,
+                    round_trip_cost_bps=manifest.metrics.round_trip_cost_bps,
+                ),
             )
         )
         self._registry.mark_validated(manifest.strategy_name, manifest.strategy_version)
@@ -256,6 +271,26 @@ def _check(code: str, passed: bool, actual: Any, required: str) -> PromotionGate
 
 def _sha256(value: str) -> bool:
     return len(value) == 64 and all(char in "0123456789abcdef" for char in value.lower())
+
+
+def _valid_factor_definition(manifest: ExperimentManifest) -> bool:
+    factors = manifest.factors
+    names = [factor.name for factor in factors]
+    allowed = {family.value for family in FactorFamily}
+    return (
+        len(factors) >= 3
+        and len(names) == len(set(names))
+        and set(names) <= allowed
+        and all(0 < factor.weight <= 0.35 for factor in factors)
+        and math.isclose(sum(factor.weight for factor in factors), 1.0, abs_tol=1e-9)
+        and all(
+            factor.training_ic_ir != 0
+            and factor.direction == (1 if factor.training_ic_ir > 0 else -1)
+            and factor.normalization == "cross_sectional_rank"
+            and factor.missing_value_policy == "exclude_period_asset"
+            for factor in factors
+        )
+    )
 
 
 def _json_default(value: Any) -> Any:

@@ -37,6 +37,7 @@ from ..schema import (
     JobRecord,
     OwnerSession,
     PreferenceRecord,
+    RankingStrategyDefinition,
     Risk,
     ScanResult,
     StrategyVersion,
@@ -540,6 +541,17 @@ def _parse_tags(value: str | None) -> tuple[str, ...]:
 
 
 def _parse_strategy(row: sqlite3.Row) -> StrategyVersion:
+    raw = json.loads(row["definition_json"] or "{}")
+    definition_raw = raw.get("definition")
+    definition = None
+    if definition_raw:
+        definition = RankingStrategyDefinition(
+            factor_version=definition_raw["factor_version"],
+            factors=tuple(ExperimentFactor(**item) for item in definition_raw["factors"]),
+            top_n=int(definition_raw["top_n"]),
+            holding_days=int(definition_raw["holding_days"]),
+            round_trip_cost_bps=int(definition_raw["round_trip_cost_bps"]),
+        )
     return StrategyVersion(
         name=row["name"],
         version=row["version"],
@@ -547,6 +559,7 @@ def _parse_strategy(row: sqlite3.Row) -> StrategyVersion:
         manifest_hash=row["manifest_hash"],
         created_at=_datetime(row["created_at"]),
         activated_at=_datetime(row["activated_at"]) if row["activated_at"] else None,
+        definition=definition,
     )
 
 
@@ -576,6 +589,7 @@ def _parse_experiment_manifest(raw: dict[str, Any]) -> ExperimentManifest:
         training_window=_parse_experiment_window(raw["training_window"]),
         validation_window=_parse_experiment_window(raw["validation_window"]),
         oos_window=_parse_experiment_window(raw["oos_window"]),
+        factor_version=raw["factor_version"],
         factors=tuple(ExperimentFactor(**factor) for factor in raw["factors"]),
         metrics=ValidationMetrics(**raw["metrics"]),
         result_hashes=tuple(tuple(item) for item in raw["result_hashes"]),
