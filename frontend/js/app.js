@@ -374,6 +374,10 @@ function opportunityTable(items) {
 }
 
 async function renderWatchlist() {
+  if (!state.authenticated) {
+    authRequired();
+    return;
+  }
   loadingState();
   try {
     const response = await api.watchlist();
@@ -460,6 +464,10 @@ function openWatchlistDialog() {
 }
 
 async function renderSettings() {
+  if (!state.authenticated) {
+    authRequired();
+    return;
+  }
   loadingState();
   try {
     const [preferences, strategy, diagnostics] = await Promise.all([api.preferences(), api.strategy(), api.diagnostics()]);

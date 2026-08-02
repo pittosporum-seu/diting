@@ -80,6 +80,14 @@ def test_page_rendering_does_not_assign_unescaped_html_or_emit_debug_markers() -
     assert "insertAdjacentHTML" not in source
 
 
+def test_owner_pages_short_circuit_known_anonymous_state() -> None:
+    source = _read(FRONTEND / "js" / "app.js")
+
+    assert source.count("if (!state.authenticated) {") >= 3
+    assert "async function renderWatchlist() {\n  if (!state.authenticated)" in source
+    assert "async function renderSettings() {\n  if (!state.authenticated)" in source
+
+
 def test_design_tokens_cover_light_dark_semantic_and_responsive_states() -> None:
     css = _read(FRONTEND / "css" / "styles.css")
 

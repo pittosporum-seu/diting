@@ -37,7 +37,7 @@
 - [x] Task 27 — active-strategy ScanOrchestrator
 - [x] Checkpoint C4
 - [x] Task 28 — OpenAPI and CI contract gates
-- [ ] Task 29 — real Chromium journeys
+- [x] Task 29 — real Chromium journeys
 - [ ] Task 30 — release-safe VPS deployment
 - [ ] Task 31 — documentation and release review
 - [ ] Checkpoint C5 / release

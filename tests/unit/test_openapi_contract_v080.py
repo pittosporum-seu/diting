@@ -48,3 +48,5 @@ def test_ci_has_no_path_filter_and_checks_non_python_surfaces() -> None:
     assert "scripts/validate-api.py --check" in tests
     assert "node --check" in tests
     assert "bash -n" in tests
+    assert "playwright install --with-deps chromium" in tests
+    assert "pytest browser_tests/" in tests

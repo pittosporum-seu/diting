@@ -35,6 +35,27 @@ jobs:
       - name: Run core tests (no network)
         run: uv run pytest tests/ -m "not network" -v --tb=short
 
+  # Real browser contract: separate install and deterministic local HTTP fixtures.
+  playwright-chromium:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      - name: Install pinned Chromium and operating-system dependencies
+        run: uv run playwright install --with-deps chromium
+      - name: Run real Chromium journeys
+        run: uv run pytest browser_tests/ -q
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-artifacts
+          path: browser-artifacts/
+          if-no-files-found: ignore
+
   # 网络测试：依赖 ashare/腾讯等外部源，偶发失败不阻塞主门禁
   pytest-network:
     runs-on: ubuntu-latest
