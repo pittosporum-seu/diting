@@ -141,6 +141,11 @@ class DurableStore(Protocol):
 
 
 @runtime_checkable
+class ScanOrchestratorPort(Protocol):
+    def scan(self, *, limit: int = 20) -> ScanResult: ...
+
+
+@runtime_checkable
 class LLMPort(Protocol):
     def complete(self, request: LLMRequest) -> LLMResponse: ...
 

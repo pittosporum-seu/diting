@@ -1,6 +1,6 @@
 # 谛听 · API 契约
 
-> 版本：v1.0 | 日期：2026-07-04
+> 版本：v0.8.0 | 日期：2026-08-02
 > REST API 契约见 `docs/api/diting-openapi.yaml`
 
 ---
@@ -8,42 +8,22 @@
 ## Python API
 
 ```python
-from diting import Diting, AnalysisConfig
+from diting import AnalysisProfile, Diting, FetchMode
 
-# === 快速模式 ===
-diting = Diting(level="L0")
+with Diting.from_config("config/diting.yaml") as client:
+    # 所有数据读取都经过 L1/L2 缓存中间层。
+    quote = client.get_quote("002475", freshness=FetchMode.CACHE_PREFERRED)
+    # -> DataResult[RealtimeQuote]
 
-# 单只行情快照
-quote = diting.quick_scan("002475")
-# → RealtimeQuote(symbol="002475", name="立讯精密", price=70.4, change_pct=2.1, ...)
+    run = client.analyze("002475", profile=AnalysisProfile.STANDARD)
+    # -> AnalysisRun；失败引擎不会伪造成 50 分
 
-# 批量
-quotes = diting.quick_scan(["002475", "603659", "159851"])
-# → dict[str, RealtimeQuote]
-
-# === 标准分析 (L1) ===
-diting_l1 = Diting(level="L1", config=AnalysisConfig(
-    engines=["wyckoff", "vmd_rsi"],
-    notifiers=["feishu"],
-))
-
-result = diting_l1.analyze("002475")
-# → AnalysisResult(engine_name="wyckoff", score=65, rating=BUY, ...)
-
-# 批量
-results = diting_l1.analyze(["002475", "603659"])
-# → PipelineResult(symbols=..., results=..., consensus=...)
-
-# === 深度分析 (L2) ===
-diting_l2 = Diting(level="L2", config=AnalysisConfig(
-    engines="all",  # 所有已注册引擎
-    notifiers=["feishu", "email", "local"],
-    report_format=["html", "pdf"],
-))
-
-results = diting_l2.deep_analyze(["002475"])
-# → PipelineResult(..., reports={"html": "/path/to/report.html", "pdf": "..."})
+    opportunities = client.scan(limit=20)
+    # -> ScanResult；无 active 策略时 error_code == "NO_ACTIVE_STRATEGY"
 ```
+
+配置优先级为调用参数 `overrides` > 环境变量 > YAML > 默认值。`Diting` 也支持显式
+`close()`；关闭后继续调用会抛出 `RuntimeError`。v0.8 不提供 L0/L1/L2 Python 别名。
 
 ## CLI
 

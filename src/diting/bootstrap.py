@@ -24,6 +24,7 @@ from .ports import (
     Notifier,
     ReportPort,
     SandboxPort,
+    ScanOrchestratorPort,
 )
 from .security.auth import AuthService
 
@@ -61,6 +62,7 @@ class ApplicationDependencies:
     analysis: AnalysisOrchestrator | None = None
     jobs: JobService | None = None
     auth: AuthService | None = None
+    scanner: ScanOrchestratorPort | None = None
     legacy_repository: Any | None = None
 
 
@@ -80,6 +82,7 @@ class ApplicationContainer:
     analysis: AnalysisOrchestrator | None = None
     jobs: JobService | None = None
     auth: AuthService | None = None
+    scanner: ScanOrchestratorPort | None = None
     legacy_repository: Any | None = None
 
     def close(self) -> None:
@@ -95,6 +98,7 @@ class ApplicationContainer:
             self.sandbox,
             self.report,
             self.notifier,
+            self.scanner,
             self.legacy_repository,
         ):
             if resource is None or id(resource) in seen:
@@ -125,6 +129,7 @@ def create_container(
         analysis=deps.analysis,
         jobs=deps.jobs,
         auth=deps.auth,
+        scanner=deps.scanner,
         legacy_repository=deps.legacy_repository,
     )
 
