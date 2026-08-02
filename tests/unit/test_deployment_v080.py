@@ -125,6 +125,7 @@ def test_remote_driver_requires_candidate_verification_and_preserves_rollback() 
     assert 'install -d -m 0710 -o root -g diting "$DEPLOYMENT_ROOT"' in source
     assert 'install -d -m 0710 -o root -g diting "$deployment"' in source
     assert 'install -d -m 0700 -o diting -g diting "$candidate_data"' in source
+    assert "sudo -u diting env" in source
     assert "wait_ready 8101" in source
     assert 'require_file "$deployment/verified"' in source
     assert 'require_file "$deployment/rollback-rehearsed"' in source

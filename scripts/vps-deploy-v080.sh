@@ -143,7 +143,11 @@ verify_service() {
 
 migrate_copy() {
   local release="$1" business="$2" cache="$3"
-  DITING_DB_PATH="$business" DITING_CACHE_DB_PATH="$cache" DITING_AI_ENABLED=false \
+  # Run migrations as the same non-root identity that will open SQLite in
+  # production. This also gives newly created databases the correct owner
+  # when no legacy database existed to copy.
+  sudo -u diting env \
+    DITING_DB_PATH="$business" DITING_CACHE_DB_PATH="$cache" DITING_AI_ENABLED=false \
     "$release/.venv/bin/python" - "$business" "$cache" <<'PY'
 import sys
 from pathlib import Path
