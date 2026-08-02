@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from .application.analysis import AnalysisOrchestrator
+from .application.jobs import JobService
 from .config import AppConfig, Config, load_app_config
 from .infra.config_loader import ConfigLoader
 from .infra.logging_config import get_logger
@@ -55,6 +57,8 @@ class ApplicationDependencies:
     sandbox: SandboxPort | None = None
     report: ReportPort | None = None
     notifier: Notifier | None = None
+    analysis: AnalysisOrchestrator | None = None
+    jobs: JobService | None = None
     legacy_repository: Any | None = None
 
 
@@ -71,6 +75,8 @@ class ApplicationContainer:
     sandbox: SandboxPort | None = None
     report: ReportPort | None = None
     notifier: Notifier | None = None
+    analysis: AnalysisOrchestrator | None = None
+    jobs: JobService | None = None
     legacy_repository: Any | None = None
 
     def close(self) -> None:
@@ -78,6 +84,7 @@ class ApplicationContainer:
 
         seen: set[int] = set()
         for resource in (
+            self.jobs,
             self.data_gateway,
             self.cache_store,
             self.durable_store,
@@ -112,6 +119,8 @@ def create_container(
         sandbox=deps.sandbox,
         report=deps.report,
         notifier=deps.notifier,
+        analysis=deps.analysis,
+        jobs=deps.jobs,
         legacy_repository=deps.legacy_repository,
     )
 
@@ -146,15 +155,30 @@ def bootstrap_runtime(
 
 
 def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDependencies:
-    """Construct the sole cache and market-data path used by runtime interfaces."""
+    """Construct the sole data and analysis paths used by runtime interfaces."""
 
+    from .ai.client import AIClient, LiteLLMPortAdapter
+    from .application.jobs import BoundedLLMPort, JobService
+    from .application.post_analysis import PostAnalysisDispatcher
+    from .application.snapshot import DataSnapshotBuilder
     from .cache.store_v080 import MemoryCacheStore, SQLiteCacheStore, TieredCacheStore
     from .data.calendar_v080 import ExchangeCalendarState
     from .data.gateway_v080 import CachedMarketDataGateway
     from .data.legacy_adapter_v080 import LegacyProviderAdapter
     from .data.providers.akshare import AkShareProvider
     from .data.providers.base import DataProvider
+    from .engines.kernel import EngineRegistry
+    from .engines.structured_v080 import (
+        StructuredBuffettEngine,
+        StructuredCANSLIMEngine,
+        StructuredWyckoffEngine,
+    )
+    from .engines.technical_v080 import TechnicalEngine
+    from .engines.volume_profile_v080 import SnapshotVolumeProfileEngine
     from .persistence.migrations import migrate_databases
+    from .persistence.store_v080 import SQLiteDurableStore
+    from .pipeline.consensus_v080 import ConsensusPolicy
+    from .report.v080 import AnalysisRunReportBuilder
 
     business_path = settings.database.business_path
     cache_path = settings.database.cache_path
@@ -205,10 +229,52 @@ def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDep
     cache = TieredCacheStore(memory, persistent)
     calendar = ExchangeCalendarState()
     gateway = CachedMarketDataGateway(tuple(providers), cache, clock, calendar=calendar)
+    durable = SQLiteDurableStore(business_path)
+    llm = None
+    engines = [TechnicalEngine(), SnapshotVolumeProfileEngine()]
+    api_key = Config._secret_value(settings.ai.api_key)
+    if settings.ai.enabled and api_key:
+        llm = BoundedLLMPort(
+            LiteLLMPortAdapter(AIClient(model=settings.ai.model, api_key=api_key)),
+            max_concurrent=settings.pipeline.llm_concurrent,
+        )
+        engines.extend(
+            (
+                StructuredWyckoffEngine(llm, model=settings.ai.model),
+                StructuredCANSLIMEngine(llm, model=settings.ai.model),
+                StructuredBuffettEngine(llm, model=settings.ai.model),
+            )
+        )
+    registry = EngineRegistry(engines)
+    snapshot_builder = DataSnapshotBuilder(gateway, clock)
+    consensus = ConsensusPolicy(settings.engines.weights)
+    jobs = JobService(
+        durable,
+        clock,
+        analysis_workers=settings.pipeline.max_workers,
+        scan_workers=settings.pipeline.scan_concurrent,
+        queue_limit=settings.pipeline.queue_limit,
+    )
+    report = AnalysisRunReportBuilder(settings.report.output_dir)
+    post_analysis = PostAnalysisDispatcher(jobs, durable, report=report)
+    analysis = AnalysisOrchestrator(
+        settings,
+        clock,
+        snapshot_builder,
+        registry,
+        consensus,
+        durable,
+        post_persist=post_analysis,
+    )
     return ApplicationDependencies(
         clock=clock,
         data_gateway=gateway,
         cache_store=cache,
+        durable_store=durable,
+        llm=llm,
+        report=report,
+        analysis=analysis,
+        jobs=jobs,
     )
 
 

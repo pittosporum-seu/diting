@@ -153,6 +153,37 @@ BUSINESS_MIGRATIONS = (
             )""",
         ),
     ),
+    MigrationStep(
+        version=2,
+        name="v080_analysis_run_contract",
+        statements=(
+            "ALTER TABLE analysis_runs ADD COLUMN request_json TEXT NOT NULL DEFAULT '{}'",
+            "ALTER TABLE analysis_runs ADD COLUMN snapshot_id TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE analysis_runs ADD COLUMN consensus_json TEXT",
+            "ALTER TABLE analysis_runs ADD COLUMN verdict_json TEXT",
+            "ALTER TABLE analysis_runs ADD COLUMN code_version TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE analysis_runs ADD COLUMN started_at TEXT",
+            "ALTER TABLE engine_runs ADD COLUMN prompt_version TEXT",
+            "ALTER TABLE engine_runs ADD COLUMN model TEXT",
+            "ALTER TABLE engine_runs ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0",
+            """CREATE TABLE IF NOT EXISTS scan_results (
+                scan_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )""",
+        ),
+    ),
+    MigrationStep(
+        version=3,
+        name="v080_active_job_deduplication",
+        statements=(
+            "DROP INDEX IF EXISTS idx_jobs_dedupe",
+            """CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_active_dedupe
+               ON jobs(dedupe_key)
+               WHERE dedupe_key IS NOT NULL AND status IN ('queued', 'running')""",
+        ),
+    ),
 )
 
 

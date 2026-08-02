@@ -15,14 +15,14 @@
 - [x] Task 08 — catalog/trading-calendar/market-phase slice
 - [x] Task 09 — remove data-access bypasses
 - [x] Checkpoint C1
-- [ ] Task 10 — DataSnapshotBuilder
-- [ ] Task 11 — explicit engine registry and technical engine
-- [ ] Task 12 — strict structured AI results
-- [ ] Task 13 — consensus policy
-- [ ] Task 14 — AnalysisOrchestrator profiles
-- [ ] Task 15 — persistent bounded JobService
-- [ ] Task 16 — post-persist report and notification tasks
-- [ ] Checkpoint C2
+- [x] Task 10 — DataSnapshotBuilder
+- [x] Task 11 — explicit engine registry and technical engine
+- [x] Task 12 — strict structured AI results
+- [x] Task 13 — consensus policy
+- [x] Task 14 — AnalysisOrchestrator profiles
+- [x] Task 15 — persistent bounded JobService
+- [x] Task 16 — post-persist report and notification tasks
+- [x] Checkpoint C2
 - [ ] Task 17 — owner session, CSRF and origin protection
 - [ ] Task 18 — versioned envelope and public v1 API
 - [ ] Task 19 — owner v1 API and rate limiting

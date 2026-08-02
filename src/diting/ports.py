@@ -11,6 +11,7 @@ from .schema import (
     CacheLookup,
     CacheRecord,
     DataResult,
+    DataSnapshot,
     FinancialRequest,
     Financials,
     FundFlow,
@@ -19,6 +20,7 @@ from .schema import (
     HistoricalSeries,
     InstrumentPage,
     InstrumentSearchRequest,
+    JobRecord,
     LLMRequest,
     LLMResponse,
     Notification,
@@ -91,9 +93,21 @@ class CacheStore(Protocol):
 
 @runtime_checkable
 class DurableStore(Protocol):
+    def save_data_snapshot(self, snapshot: DataSnapshot) -> None: ...
+
     def save_analysis_run(self, run: AnalysisRun) -> None: ...
 
     def get_analysis_run(self, run_id: str) -> AnalysisRun | None: ...
+
+    def create_job(self, job: JobRecord) -> None: ...
+
+    def get_job(self, job_id: str) -> JobRecord | None: ...
+
+    def get_active_job_by_dedupe(self, dedupe_key: str) -> JobRecord | None: ...
+
+    def update_job(self, job: JobRecord) -> None: ...
+
+    def interrupt_running_jobs(self, finished_at: datetime) -> int: ...
 
     def save_scan_result(self, result: ScanResult) -> None: ...
 

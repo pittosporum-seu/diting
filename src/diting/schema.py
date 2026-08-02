@@ -12,11 +12,14 @@ from .enums import (
     CacheState,
     CacheTier,
     DataSource,
+    EngineRunStatus,
     FetchMode,
+    JobType,
     Rating,
     RunStatus,
     StrategyState,
     TraceOutcome,
+    VerdictLabel,
 )
 
 # ============================================================
@@ -473,49 +476,191 @@ class TradingCalendarRequest:
 
 
 @dataclass(frozen=True)
+class AnalysisRequest:
+    """Frozen input for every CLI, HTTP, Python and worker analysis."""
+
+    symbol: str
+    profile: AnalysisProfile = AnalysisProfile.STANDARD
+    as_of: datetime | None = None
+    force_refresh: bool = False
+    requested_engines: tuple[str, ...] | None = None
+    request_id: str = ""
+    deadline: datetime | None = None
+    enable_sandbox: bool = False
+
+
+@dataclass(frozen=True)
 class DataSnapshot:
     snapshot_id: str
     symbol: str
     created_at: datetime
+    as_of: datetime
     quote: DataResult[RealtimeQuote] | None = None
     historical: DataResult[HistoricalSeries] | None = None
     financials: DataResult[Financials] | None = None
     fund_flow: DataResult[FundFlow] | None = None
+    provider_traces: tuple[ProviderTrace, ...] = ()
     completeness: float = 0.0
     snapshot_hash: str = ""
     warnings: tuple[DataWarning, ...] = ()
 
 
 @dataclass(frozen=True)
+class EngineCapabilities:
+    asset_types: tuple[str, ...] = ("stock", "etf")
+    required_data: tuple[str, ...] = ()
+    min_history_bars: int = 0
+    requires_llm: bool = False
+    requires_sandbox: bool = False
+    requires_network: bool = False
+    supports_batch: bool = False
+    deterministic: bool = True
+    timeout_seconds: int = 15
+
+
+@dataclass(frozen=True)
+class EngineContext:
+    deadline: datetime | None
+    config_hash: str
+    strategy_version: str
+    prompt_version: str | None = None
+    model: str | None = None
+
+
+@dataclass(frozen=True)
+class Evidence:
+    code: str
+    summary: str
+    value: float | str | None = None
+
+
+@dataclass(frozen=True)
+class Risk:
+    code: str
+    summary: str
+
+
+@dataclass(frozen=True)
+class EngineResult:
+    engine_name: str
+    engine_version: str
+    symbol: str
+    engine_score: float
+    rating: Rating
+    confidence: float
+    narrative: str
+    evidence: tuple[Evidence, ...] = ()
+    risks: tuple[Risk, ...] = ()
+    metadata: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
 class EngineRun:
     engine_name: str
     engine_version: str
-    status: RunStatus
+    status: EngineRunStatus
     deterministic: bool
     started_at: datetime
     finished_at: datetime | None = None
-    score: float | None = None
+    engine_score: float | None = None
     confidence: float | None = None
-    result: AnalysisResult | None = None
+    result: EngineResult | None = None
     error_code: str | None = None
     error_detail: str | None = None
+    prompt_version: str | None = None
+    model: str | None = None
+    duration_ms: int = 0
+
+    @property
+    def score(self) -> float | None:
+        """Compatibility read for persisted pre-v0.8 rows; new contracts use engine_score."""
+
+        return self.engine_score
+
+
+@dataclass(frozen=True)
+class ConsensusConflict:
+    engine_a: str
+    engine_b: str
+    score_a: float
+    score_b: float
+    severity: str
+
+
+@dataclass(frozen=True)
+class ConsensusResult:
+    symbol: str
+    analysis_score: float | None
+    confidence: float
+    weight_coverage: float
+    engines_used: tuple[str, ...] = ()
+    engines_failed: tuple[str, ...] = ()
+    conflicts: tuple[ConsensusConflict, ...] = ()
+    weight_snapshot: tuple[tuple[str, float], ...] = ()
+    insufficient_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class Verdict:
+    label: VerdictLabel
+    horizon: str
+    summary: str
+    bull_evidence: tuple[Evidence, ...] = ()
+    bear_evidence: tuple[Evidence, ...] = ()
+    risks: tuple[Risk, ...] = ()
+    invalidation_conditions: tuple[str, ...] = ()
+    confidence: float = 0.0
 
 
 @dataclass(frozen=True)
 class AnalysisRun:
     run_id: str
-    symbol: str
-    profile: AnalysisProfile
+    request: AnalysisRequest
     status: RunStatus
-    created_at: datetime
+    snapshot_id: str
     snapshot_hash: str
     config_hash: str
     strategy_version: str
+    code_version: str
+    started_at: datetime
     engine_runs: tuple[EngineRun, ...] = ()
-    analysis_score: float | None = None
-    confidence: float | None = None
+    consensus: ConsensusResult | None = None
+    verdict: Verdict | None = None
     completed_at: datetime | None = None
     warnings: tuple[DataWarning, ...] = ()
+
+    @property
+    def symbol(self) -> str:
+        return self.request.symbol
+
+    @property
+    def profile(self) -> AnalysisProfile:
+        return self.request.profile
+
+    @property
+    def analysis_score(self) -> float | None:
+        return self.consensus.analysis_score if self.consensus is not None else None
+
+    @property
+    def confidence(self) -> float | None:
+        return self.consensus.confidence if self.consensus is not None else None
+
+
+@dataclass(frozen=True)
+class JobRecord:
+    job_id: str
+    job_type: JobType
+    status: RunStatus
+    progress: float
+    request_json: str
+    created_at: datetime
+    dedupe_key: str | None = None
+    result_ref: str | None = None
+    error_code: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    deadline_at: datetime | None = None
+    cancel_requested: bool = False
 
 
 @dataclass(frozen=True)

@@ -84,9 +84,36 @@ class RunStatus(StrEnum):
     INTERRUPTED = "interrupted"
 
 
+class EngineRunStatus(StrEnum):
+    SUCCEEDED = "succeeded"
+    SKIPPED = "skipped"
+    TIMED_OUT = "timed_out"
+    FAILED = "failed"
+
+
+class EngineMode(StrEnum):
+    DETERMINISTIC = "deterministic"
+    LLM_STRUCTURED = "llm_structured"
+    LLM_CODE_SANDBOX = "llm_code_sandbox"
+
+
 class AnalysisProfile(StrEnum):
     STANDARD = "standard"
     DEEP = "deep"
+
+
+class VerdictLabel(StrEnum):
+    POSITIVE = "positive"
+    NEUTRAL = "neutral"
+    CAUTIOUS = "cautious"
+    INSUFFICIENT = "insufficient"
+
+
+class JobType(StrEnum):
+    ANALYSIS = "analysis"
+    SCAN = "scan"
+    REPORT = "report"
+    NOTIFICATION = "notification"
 
 
 class StrategyState(StrEnum):

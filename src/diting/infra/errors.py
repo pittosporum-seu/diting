@@ -114,6 +114,13 @@ class RateLimitError(AnalysisError):
         )
 
 
+class JobQueueFullError(AnalysisError):
+    """The bounded background queue has no remaining capacity."""
+
+    def __init__(self, message: str = "任务队列已满"):
+        super().__init__(message, error_code="JOB_QUEUE_FULL", http_status_code=503)
+
+
 class ConfigError(AnalysisError):
     """配置错误"""
 
@@ -150,6 +157,12 @@ class EngineFailedError(DitingError):
         self.symbol = symbol
         self.reason = reason
         super().__init__(f"[{engine_name}] {symbol}: {reason}")
+
+
+class StructuredOutputError(EngineFailedError):
+    """An LLM response failed the engine's strict output contract."""
+
+    error_code = "INVALID_STRUCTURED_OUTPUT"
 
 
 class SandboxError(DitingError):

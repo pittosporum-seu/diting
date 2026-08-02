@@ -113,6 +113,10 @@ def test_runtime_bootstrap_migrates_and_builds_gateway(tmp_path: Path) -> None:
         assert cache.exists()
         assert container.data_gateway is not None
         assert container.cache_store is not None
+        assert container.durable_store is not None
+        assert container.analysis is not None
+        assert container.jobs is not None
+        assert container.report is not None
     finally:
         container.close()
         ConfigLoader.reset()

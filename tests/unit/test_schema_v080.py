@@ -11,12 +11,14 @@ from src.diting.enums import (
     AnalysisProfile,
     CacheState,
     CacheTier,
+    EngineRunStatus,
     FetchMode,
     RunStatus,
     StrategyState,
     TraceOutcome,
 )
 from src.diting.schema import (
+    AnalysisRequest,
     AnalysisRun,
     CacheInfo,
     DataResult,
@@ -77,7 +79,7 @@ def test_failure_is_not_a_neutral_score() -> None:
     failed = EngineRun(
         engine_name="wyckoff",
         engine_version="2.0.0",
-        status=RunStatus.FAILED,
+        status=EngineRunStatus.FAILED,
         deterministic=False,
         started_at=NOW,
         finished_at=NOW,
@@ -85,13 +87,14 @@ def test_failure_is_not_a_neutral_score() -> None:
     )
     run = AnalysisRun(
         run_id="run-1",
-        symbol="002475",
-        profile=AnalysisProfile.STANDARD,
+        request=AnalysisRequest(symbol="002475", profile=AnalysisProfile.STANDARD),
         status=RunStatus.FAILED,
-        created_at=NOW,
+        snapshot_id="snapshot-id",
         snapshot_hash="snapshot",
         config_hash="config",
         strategy_version="analysis-v1",
+        code_version="0.8.0",
+        started_at=NOW,
         engine_runs=(failed,),
     )
 
@@ -142,3 +145,4 @@ def test_strategy_lifecycle_is_explicit() -> None:
         created_at=NOW,
     )
     assert strategy.state is StrategyState.VALIDATED
+    (EngineRunStatus,)
