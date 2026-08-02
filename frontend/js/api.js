@@ -1,157 +1,94 @@
-/**
- * API 封装层 — 所有后端网络请求统一入口
- * 谛听 · v0.7.1 — 统一使用 cacheManager (fetchWithCache)
- */
+/** Typed v1 API client. This is the only frontend module allowed to call fetch. */
 
-import { cacheManager } from './cache.js?v=0.7.7';
+const isGatewayPath = window.location.pathname.startsWith('/app/diting');
+const API_BASE = isGatewayPath ? '/api/diting/v1' : '/api/v1';
+const CSRF_KEY = 'diting_v1_csrf';
 
-// API 路径 — 本地开发用 /api，Caddy 网关用 /api/diting
-// 由 index.html 注入 window.DITING_API_BASE，缺省时自动检测
-const API_BASE = window.DITING_API_BASE || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? '/api' : '/api/diting');
-
-async function _request(method, path, body) {
-  try {
-    const opts = {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-    };
-    if (body) opts.body = JSON.stringify(body);
-
-    const res = await fetch(`${API_BASE}${path}`, opts);
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      return { ok: false, error: `HTTP ${res.status}: ${text || res.statusText}` };
-    }
-    const data = await res.json();
-    // v0.7.0: response envelope { server_time, cache_state, data, freshness }
-    return {
-      ok: true,
-      data: data.data !== undefined ? data.data : data,
-      server_time: data.server_time || null,
-      cache_state: data.cache_state || 'fresh',
-      freshness: data.freshness || null,
-    };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Network error' };
+class ApiError extends Error {
+  constructor(code, message, status, retryable = false) {
+    super(message || code);
+    this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+    this.retryable = retryable;
   }
 }
 
-/**
- * 基于 cacheManager 的统一缓存读取接口。
- * 替代旧 _swr()，统一使用 diting_cache_ 前缀。
- *
- * @param {string} url - API 路径（用作缓存键，自动加 api_ 前缀）
- * @param {object} options
- * @param {number} options.ttl - 缓存 TTL (秒), 默认 300 (5 分钟)
- * @param {boolean} options.forceRefresh - 强制跳过缓存，直接请求
- * @returns {Promise<*>} 解析后的数据
- */
-function fetchWithCache(url, options = {}) {
-    const { ttl = 300, forceRefresh = false } = options;
-    const cacheKey = 'api_' + url;
+function csrfToken() {
+  return window.sessionStorage.getItem(CSRF_KEY);
+}
 
-    if (!forceRefresh) {
-        const cached = cacheManager.get(cacheKey);
-        if (cached !== null) return Promise.resolve(cached);
-    }
+function clearCsrf() {
+  window.sessionStorage.removeItem(CSRF_KEY);
+}
 
-    return _request('GET', url).then(data => {
-        if (data.ok) {
-            // v0.7.0: include server_time in cached data for timestamp display
-            const enriched = { ...data.data };
-            if (data.server_time) enriched._server_time = data.server_time;
-            if (data.cache_state) enriched._cache_state = data.cache_state;
-            if (data.freshness) enriched._freshness = data.freshness;
-            cacheManager.set(cacheKey, enriched, ttl * 1000);
-            return enriched;
-        }
-        throw new Error(data.error || '请求失败');
+async function request(method, path, body = undefined) {
+  const headers = { Accept: 'application/json' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (!['GET', 'HEAD'].includes(method)) {
+    const csrf = csrfToken();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      credentials: 'same-origin',
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
+  } catch (error) {
+    throw new ApiError('NETWORK_ERROR', error.message || '网络连接失败', 0, true);
+  }
+  let envelope;
+  try {
+    envelope = await response.json();
+  } catch (_error) {
+    throw new ApiError('INVALID_RESPONSE', '服务返回了无效响应', response.status, true);
+  }
+  if (!response.ok || envelope.error) {
+    const error = envelope.error || {};
+    throw new ApiError(
+      error.code || `HTTP_${response.status}`,
+      error.message || '请求失败',
+      response.status,
+      Boolean(error.retryable),
+    );
+  }
+  return envelope;
 }
 
 const api = {
-  /** GET /api/health */
-  health() {
-    return _request('GET', '/health');
+  health: () => request('GET', '/health'),
+  dashboard: () => request('GET', '/dashboard'),
+  opportunities: () => request('GET', '/opportunities'),
+  search: (query, limit = 10) => request('GET', `/instruments/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+  quote: (symbol) => request('GET', `/stocks/${encodeURIComponent(symbol)}`),
+  analysis: (runId) => request('GET', `/analyses/${encodeURIComponent(runId)}`),
+  createAnalysis: (symbol, profile) => request('POST', '/analyses', { symbol, profile }),
+  job: (jobId) => request('GET', `/jobs/${encodeURIComponent(jobId)}`),
+  cancelJob: (jobId) => request('DELETE', `/jobs/${encodeURIComponent(jobId)}`),
+  session: () => request('GET', '/auth/session'),
+  async login(token) {
+    const envelope = await request('POST', '/auth/session', { token });
+    window.sessionStorage.setItem(CSRF_KEY, envelope.data.csrf_token);
+    return envelope;
   },
-
-  /** GET /api/stock/{code} */
-  stock(code) {
-    return _request('GET', `/stock/${encodeURIComponent(code)}`);
+  async logout() {
+    try {
+      return await request('DELETE', '/auth/session');
+    } finally {
+      clearCsrf();
+    }
   },
-
-  /** GET /api/dashboard */
-  dashboard() {
-    return _request('GET', '/dashboard');
-  },
-
-  /** GET /api/watchlist */
-  watchlist() {
-    return _request('GET', '/watchlist');
-  },
-
-  /** GET /api/opportunities */
-  opportunities() {
-    return _request('GET', '/opportunities');
-  },
-
-  /** GET /api/market-sentiment */
-  marketSentiment() {
-    return _request('GET', '/market-sentiment');
-  },
-
-  /** GET /api/settings */
-  settings() {
-    return _request('GET', '/settings');
-  },
-
-  /** POST /api/settings */
-  saveSettings(data) {
-    return _request('POST', '/settings', data);
-  },
-
-  /** POST /api/watchlist — 添加自选股 */
-  addWatchlist(code, name = '', market = 'sz') {
-    return _request('POST', '/watchlist', { code, name, market });
-  },
-
-  /** DELETE /api/watchlist/{code} — 删除自选股 */
-  removeWatchlist(code) {
-    return _request('DELETE', `/watchlist/${encodeURIComponent(code)}`);
-  },
-
-  /** GET /api/stock-search?q={keyword} — 模糊搜索股票 */
-  searchStock(q) {
-    return _request('GET', `/stock-search?q=${encodeURIComponent(q)}`);
-  },
-
-  /** GET /api/stock-name/{code} — 根据代码获取股票名称 */
-  getStockName(code) {
-    return _request('GET', `/stock-name/${encodeURIComponent(code)}`);
-  },
-
-  /** GET /api/stock-list — 全市场股票列表 */
-  stockList() {
-    return _request('GET', '/stock-list');
-  },
-
-  /** GET /api/cache/stats — 缓存统计 */
-  cacheStats() {
-    return _request('GET', '/cache/stats');
-  },
-
-  /** POST /api/cache/clear — 清除所有缓存 */
-  clearCache() {
-    return _request('POST', '/cache/clear');
-  },
-
-  /** POST /api/cache/refresh-scan — 强制刷新全市场扫描 */
-  refreshScan() {
-    return _request('POST', '/cache/refresh-scan');
-  },
-
-  /** 基于 cacheManager 的统一缓存读取（替代旧 _swr） */
-  fetchWithCache,
+  watchlist: () => request('GET', '/watchlist'),
+  addWatchlist: (entry) => request('POST', '/watchlist', entry),
+  removeWatchlist: (symbol) => request('DELETE', `/watchlist/${encodeURIComponent(symbol)}`),
+  preferences: () => request('GET', '/preferences'),
+  savePreference: (key, value) => request('PUT', '/preferences', { key, value }),
+  clearCache: (prefix = null) => request('POST', '/admin/cache/clear', { prefix }),
+  strategy: () => request('GET', '/admin/strategy'),
+  diagnostics: () => request('GET', '/admin/diagnostics'),
 };
 
-export { api };
+export { API_BASE, ApiError, api, clearCsrf, csrfToken };

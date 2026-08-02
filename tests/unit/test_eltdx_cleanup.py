@@ -56,12 +56,15 @@ def test_legacy_analysis_settings_exclude_eltdx() -> None:
     ]
 
 
-def test_settings_page_shows_real_degradation_chain() -> None:
-    """前端只展示当前仓库实际采用的数据源降级链。"""
-    source = (ROOT / "frontend/js/pages/settings.js").read_text(encoding="utf-8")
+def test_settings_page_does_not_hardcode_adapter_degradation_chain() -> None:
+    """v0.8 前端只读脱敏 diagnostics，不复制 bootstrap 的 Provider 顺序。"""
+    app_source = (ROOT / "frontend/js/app.js").read_text(encoding="utf-8")
+    api_source = (ROOT / "frontend/js/api.js").read_text(encoding="utf-8")
 
-    assert "降级链顺序：east_money → ashare → akshare" in source
-    assert "降级链顺序：eltdx" not in source
+    assert "/admin/diagnostics" in api_source
+    assert "eltdx" not in app_source.lower()
+    assert "east_money →" not in app_source
+    assert "mx_data →" not in app_source
 
 
 def test_provider_order_is_declared_only_in_bootstrap_config() -> None:
