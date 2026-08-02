@@ -20,7 +20,8 @@ Usage:
   scripts/deploy.sh stage --host HOST --bundle FILE --caddy-config FILE [--dry-run]
   scripts/deploy.sh verify --host HOST --commit SHA [--local-port PORT] [--dry-run]
   scripts/deploy.sh rehearse --host HOST --commit SHA [--dry-run]
-  scripts/deploy.sh promote --host HOST --commit SHA [--observe-seconds N] [--dry-run]
+  scripts/deploy.sh promote --host HOST --commit SHA [--observe-seconds N]
+    [--gateway-api-base URL] [--dry-run]
   scripts/deploy.sh rollback --host HOST --commit SHA [--dry-run]
 
 Required for `verify` (not logged or transmitted to the VPS):
@@ -111,6 +112,7 @@ BUNDLE=""
 CADDY_CONFIG=""
 LOCAL_PORT="$DEFAULT_LOCAL_PORT"
 OBSERVE_SECONDS=1800
+GATEWAY_API_BASE=http://127.0.0.1:8443/api/diting/v1
 
 while (($#)); do
   case "$1" in
@@ -120,6 +122,7 @@ while (($#)); do
     --caddy-config) CADDY_CONFIG="${2:-}"; shift 2 ;;
     --local-port) LOCAL_PORT="${2:-}"; shift 2 ;;
     --observe-seconds) OBSERVE_SECONDS="${2:-}"; shift 2 ;;
+    --gateway-api-base) GATEWAY_API_BASE="${2:-}"; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
@@ -211,7 +214,8 @@ case "$COMMAND" in
     [[ "$OBSERVE_SECONDS" =~ ^[0-9]+$ ]] || die "invalid --observe-seconds"
     run_or_print ssh "${ssh_args[@]}" "$HOST" sudo bash \
       "/tmp/diting-v080-$COMMIT/vps-deploy-v080.sh" promote \
-      --commit "$COMMIT" --observe-seconds "$OBSERVE_SECONDS"
+      --commit "$COMMIT" --observe-seconds "$OBSERVE_SECONDS" \
+      --gateway-api-base "$GATEWAY_API_BASE"
     ;;
   rollback)
     [[ -n "$HOST" ]] || die "--host is required"

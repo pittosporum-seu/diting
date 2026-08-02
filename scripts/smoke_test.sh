@@ -36,7 +36,7 @@ request() {
     --output "$RESPONSE" --write-out '%{http_code}' --request "$method" "$url" "$@" \
     || printf '000')"
   if [[ "$status" == "$expected" ]]; then
-    if [[ "$url" == *'/api/v1/'* ]]; then
+    if [[ "$url" == *'/v1/'* ]]; then
       check_envelope "$RESPONSE"
     fi
     printf 'PASS %-28s %s\n' "$label" "$status"
@@ -53,8 +53,12 @@ request dashboard 200 GET "$API_BASE/dashboard"
 request opportunities 200 GET "$API_BASE/opportunities"
 request anonymous-owner-boundary 401 GET "$API_BASE/watchlist"
 
-ROOT_BASE="${API_BASE%/api/v1}"
-request removed-v0.7-contract 410 GET "$ROOT_BASE/api/health"
+case "$API_BASE" in
+  */api/diting/v1) LEGACY_URL="${API_BASE%/v1}/health" ;;
+  */api/v1) LEGACY_URL="${API_BASE%/api/v1}/api/health" ;;
+  *) printf 'Unsupported API base: %s\n' "$API_BASE" >&2; exit 2 ;;
+esac
+request removed-v0.7-contract 410 GET "$LEGACY_URL"
 
 if [[ -n "${DITING_OWNER_TOKEN:-}" ]]; then
   chmod 600 "$COOKIE_JAR" "$RESPONSE" "$HEADERS" 2>/dev/null || true

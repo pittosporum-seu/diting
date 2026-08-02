@@ -52,6 +52,17 @@ wait_ready() {
   return 1
 }
 
+wait_gateway_ready() {
+  local api_base="$1"
+  for _attempt in $(seq 1 30); do
+    if curl --silent --fail --max-time 2 "$api_base/ready" >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 backup_if_present() {
   local source="$1" target="$2"
   if [[ -f "$source" ]]; then
@@ -242,7 +253,13 @@ prepare() {
       http://127.0.0.1:8101/api/v1
   )
 
-  previous_release="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+  previous_release=""
+  if [[ -e "$CURRENT_LINK" || -L "$CURRENT_LINK" ]]; then
+    [[ -L "$CURRENT_LINK" ]] || die "current release path is not a symlink"
+    previous_release="$(readlink -f "$CURRENT_LINK")"
+    [[ -d "$previous_release" ]] || die "current release symlink is broken"
+    safe_release_path "$previous_release"
+  fi
   printf 'ARCHIVE_DIR=%q\nPREVIOUS_RELEASE=%q\nRELEASE=%q\n' \
     "$archive_dir" "$previous_release" "$release" >"$deployment/state.env"
   chmod 0600 "$deployment/state.env"
@@ -301,7 +318,7 @@ restore_backup() {
 }
 
 rollback() {
-  local commit="$1" deployment archive_dir previous_release release
+  local commit="$1" deployment archive_dir previous_release release current_release
   validate_commit "$commit"
   deployment="$DEPLOYMENT_ROOT/$commit"
   require_file "$deployment/state.env"
@@ -318,6 +335,12 @@ rollback() {
     safe_release_path "$previous_release"
     ln -sfn "$previous_release" "$CURRENT_LINK.next"
     mv -Tf "$CURRENT_LINK.next" "$CURRENT_LINK"
+  elif [[ -L "$CURRENT_LINK" ]]; then
+    current_release="$(readlink -f "$CURRENT_LINK")"
+    safe_release_path "$current_release"
+    rm -f -- "$CURRENT_LINK"
+  elif [[ -e "$CURRENT_LINK" ]]; then
+    die "current release path is not a symlink"
   fi
   if [[ -f "$archive_dir/diting.service" ]]; then
     install -m 0644 "$archive_dir/diting.service" /etc/systemd/system/diting.service
@@ -357,10 +380,13 @@ prune_releases() {
 }
 
 promote() {
-  local commit="$1" observe_seconds="$2" deployment archive_dir previous_release release
+  local commit="$1" observe_seconds="$2" gateway_api_base="$3"
+  local deployment archive_dir previous_release release
   local started errors stale provider queue analysis_failed elapsed=0
   validate_commit "$commit"
   [[ "$observe_seconds" =~ ^[0-9]+$ ]] || die "invalid observation duration"
+  [[ "$gateway_api_base" =~ ^http://127\.0\.0\.1:[0-9]+/api/diting/v1$ ]] \
+    || die "gateway API base must be a loopback v1 URL"
   deployment="$DEPLOYMENT_ROOT/$commit"
   require_file "$deployment/verified"
   require_file "$deployment/rollback-rehearsed"
@@ -397,14 +423,34 @@ promote() {
   install -m 0644 "$deployment/Caddyfile" "/etc/caddy/Caddyfile.next-$commit"
   caddy validate --config "/etc/caddy/Caddyfile.next-$commit" --adapter caddyfile
   mv -f "/etc/caddy/Caddyfile.next-$commit" /etc/caddy/Caddyfile
-  systemctl daemon-reload
+  if ! systemctl daemon-reload; then
+    rollback "$commit"
+    die "systemd reload failed; rollback completed"
+  fi
   started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  systemctl start diting.service
+  if ! systemctl start diting.service; then
+    rollback "$commit"
+    die "new service start failed; rollback completed"
+  fi
   if ! wait_ready 8100; then
     rollback "$commit"
     die "new service readiness failed; rollback completed"
   fi
-  caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+  if ! caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
+    rollback "$commit"
+    die "gateway reload failed; rollback completed"
+  fi
+  if ! wait_gateway_ready "$gateway_api_base"; then
+    rollback "$commit"
+    die "gateway readiness failed; rollback completed"
+  fi
+  if ! (
+    cd "$release"
+    DITING_SMOKE_PUBLIC_ONLY=true bash scripts/smoke_test.sh "$gateway_api_base"
+  ); then
+    rollback "$commit"
+    die "gateway public smoke failed; rollback completed"
+  fi
 
   while ((elapsed < observe_seconds)); do
     sleep_for=10
@@ -416,6 +462,10 @@ promote() {
     if ! curl --silent --fail --max-time 3 http://127.0.0.1:8100/api/v1/ready >/dev/null; then
       rollback "$commit"
       die "readiness failed during observation; rollback completed"
+    fi
+    if ! curl --silent --fail --max-time 3 "$gateway_api_base/ready" >/dev/null; then
+      rollback "$commit"
+      die "gateway readiness failed during observation; rollback completed"
     fi
   done
   errors="$(journalctl -u diting.service --since "$started" --no-pager | grep -ci 'error' || true)"
@@ -441,6 +491,7 @@ CHECKSUM=""
 SERVICE=""
 CADDY=""
 OBSERVE_SECONDS=1800
+GATEWAY_API_BASE=http://127.0.0.1:8443/api/diting/v1
 while (($#)); do
   case "$1" in
     --commit) COMMIT="${2:-}"; shift 2 ;;
@@ -449,6 +500,7 @@ while (($#)); do
     --service) SERVICE="${2:-}"; shift 2 ;;
     --caddy) CADDY="${2:-}"; shift 2 ;;
     --observe-seconds) OBSERVE_SECONDS="${2:-}"; shift 2 ;;
+    --gateway-api-base) GATEWAY_API_BASE="${2:-}"; shift 2 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -457,7 +509,7 @@ case "$COMMAND" in
   prepare) prepare "$COMMIT" "$BUNDLE" "$CHECKSUM" "$SERVICE" "$CADDY" ;;
   verify) mark_verified "$COMMIT" ;;
   rehearse) rehearse_rollback "$COMMIT" ;;
-  promote) promote "$COMMIT" "$OBSERVE_SECONDS" ;;
+  promote) promote "$COMMIT" "$OBSERVE_SECONDS" "$GATEWAY_API_BASE" ;;
   rollback) rollback "$COMMIT" ;;
   *) die "command must be prepare, verify, rehearse, promote or rollback" ;;
 esac

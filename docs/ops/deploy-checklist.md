@@ -86,8 +86,12 @@ bash scripts/deploy.sh promote --host root@your-vps --commit "$SHA"
 
 Promotion stops the old service, takes fresh database backups, migrates live state, switches
 `/opt/diting/current` and the validated Caddyfile atomically, starts one non-root worker on 8100 and
-observes readiness for 1800 seconds. It summarizes error, stale, Provider, queue and analysis-failure
-log signals. Readiness failure triggers automatic rollback.
+immediately runs the public-only smoke through the real Caddy gateway. It then observes both the
+internal and gateway readiness endpoints for 1800 seconds and summarizes error, stale, Provider,
+queue and analysis-failure log signals. Either readiness path or the gateway smoke failing triggers
+automatic rollback. The default gateway base is
+`http://127.0.0.1:8443/api/diting/v1`; use `--gateway-api-base` only when the reviewed production
+Caddyfile deliberately listens on a different loopback port.
 
 For a time-bounded rehearsal environment only, `--observe-seconds 30` shortens observation. Do not
 shorten the production window.
