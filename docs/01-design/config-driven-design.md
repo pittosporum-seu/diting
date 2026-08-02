@@ -134,15 +134,15 @@ import yaml
 
 class ConfigLoader:
     """统一配置加载器。
-    
+
     读取 config/diting.yaml，支持：
     - 文件不存在 → 返回空 dict，各模块用代码默认值
     - 字段缺失 → 模块用代码默认值
     - 惰性加载 + 缓存
     """
-    
+
     _config: dict | None = None
-    
+
     @classmethod
     def get(cls, root: Path | None = None) -> dict:
         """加载 diting.yaml（惰性，缓存结果）"""
@@ -155,7 +155,7 @@ class ConfigLoader:
         with open(path) as f:
             cls._config = yaml.safe_load(f) or {}
         return cls._config
-    
+
     @classmethod
     def get_section(cls, section: str, root: Path | None = None) -> dict:
         """获取某个配置段落，如 get_section('providers')"""
@@ -247,14 +247,14 @@ from .base import DataProvider
 class ELtdxProvider(DataProvider):
     name = "eltdx"
     priority = 10
-    
+
     def health_check(self) -> bool:
         try:
             self._client()
             return True
         except Exception:
             return False
-    
+
     def fetch_realtime(self, symbols) -> dict[str, RealtimeQuote]:
         ...
 

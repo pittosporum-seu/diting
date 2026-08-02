@@ -47,8 +47,6 @@ class VmdCycleProvider(ContextProvider):
         parts.append(f"趋势{trend_dir}({trend_slope:+.4f})")
 
         for cyc in state["cycles"]:
-            parts.append(
-                f"{cyc['name']}{cyc['dir']}(周期{cyc['period']}天,{cyc['phase_desc']})"
-            )
+            parts.append(f"{cyc['name']}{cyc['dir']}(周期{cyc['period']}天,{cyc['phase_desc']})")
 
         return "周期状态: " + " | ".join(parts)

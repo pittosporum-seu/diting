@@ -2,3 +2,6 @@
 # CodeWhale 完成后在此追加一行，小爪 heartbeat 时检查
 
 {"step":"step2","status":"done","time":"2026-07-17T12:17:43+08:00","commit":"f7f2397"}
+{"task":"v080-task00","status":"completed","time":"2026-08-02T18:30:00+08:00","base_commit":"922cd920f570faafe76e544c1795d8336c87ecee","files":".gitignore,scripts/notify-diting.ps1,tests/unit/test_project_hygiene.py","tests":17,"ruff":"passed","ps_syntax":"passed","dryrun":"passed","risks":"none"}
+{"task":"v080-task00","status":"corrected","time":"2026-08-02T09:55:00+08:00","base_commit":"922cd920f570faafe76e544c1795d8336c87ecee","files":".gitignore,tests/unit/test_project_hygiene.py,docs/01-design/test-results/v080-task00-report.md","audit":"canonicalize research/artifacts/ top-level path, research/artifacts/** recursive ignore with directory re-inclusion, add summary.json to allow-list, fix test assertions, git check-ignore verified raw.csv ignored + manifest.json/summary.json trackable","tests":17,"ruff":"passed","git_check_ignore":"passed","risks":"none"}
+{"task":"v080-task00b","status":"completed","time":"2026-08-02T10:45:00+08:00","tests":"475 passed, 79 deselected","pre_commit":"passed twice and stable","ruff":"passed","frontend_js":"12 passed","fixes":"network test classification; remove quick_score opportunity fallback","risks":"deprecation warnings; legacy CLI startup cost"}

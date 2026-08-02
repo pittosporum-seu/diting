@@ -229,12 +229,14 @@ class VMDDecomposer:
             else:
                 phase_desc = "回落段"
 
-            state["cycles"].append({
-                "name": cycle_names.get(i, f"IMF{i}"),
-                "period": period,
-                "phase": round(phase, 2),
-                "phase_desc": phase_desc,
-                "dir": direction,
-            })
+            state["cycles"].append(
+                {
+                    "name": cycle_names.get(i, f"IMF{i}"),
+                    "period": period,
+                    "phase": round(phase, 2),
+                    "phase_desc": phase_desc,
+                    "dir": direction,
+                }
+            )
 
         return state

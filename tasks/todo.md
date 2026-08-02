@@ -1,0 +1,43 @@
+# 谛听 v0.8.0 任务清单
+
+- [x] Phase 0 archive: 105 files / 106,535,114 bytes, SHA256 verified
+- [x] Create `codex/v0.8.0` from `922cd92`
+- [x] Task 00 — repository hygiene and WSL notification bridge
+- [x] Task 00b — reproducible Windows/pre-commit gates
+- [ ] Task 01 — version and strict configuration foundation
+- [ ] Task 02 — domain contracts and ports
+- [ ] Task 03 — single bootstrap composition root
+- [ ] Checkpoint C0
+- [ ] Task 04 — idempotent database migrations
+- [ ] Task 05 — L1/L2 cache store and canonical keys
+- [ ] Task 06 — quote gateway vertical slice
+- [ ] Task 07 — historical/fundamental/fund-flow gateway slice
+- [ ] Task 08 — catalog/trading-calendar/market-phase slice
+- [ ] Task 09 — remove data-access bypasses
+- [ ] Checkpoint C1
+- [ ] Task 10 — DataSnapshotBuilder
+- [ ] Task 11 — explicit engine registry and technical engine
+- [ ] Task 12 — strict structured AI results
+- [ ] Task 13 — consensus policy
+- [ ] Task 14 — AnalysisOrchestrator profiles
+- [ ] Task 15 — persistent bounded JobService
+- [ ] Task 16 — post-persist report and notification tasks
+- [ ] Checkpoint C2
+- [ ] Task 17 — owner session, CSRF and origin protection
+- [ ] Task 18 — versioned envelope and public v1 API
+- [ ] Task 19 — owner v1 API and rate limiting
+- [ ] Task 20 — stable Python facade
+- [ ] Task 21 — v0.8 CLI
+- [ ] Task 22 — frontend API client, auth and state machine
+- [ ] Task 23 — remove legacy HTTP/Jinja flow
+- [ ] Checkpoint C3
+- [ ] Task 24 — strategy registry and lifecycle
+- [ ] Task 25 — experiment manifest and validation gates
+- [ ] Task 26 — mean_reversion_v1 candidate
+- [ ] Task 27 — active-strategy ScanOrchestrator
+- [ ] Checkpoint C4
+- [ ] Task 28 — OpenAPI and CI contract gates
+- [ ] Task 29 — real Chromium journeys
+- [ ] Task 30 — release-safe VPS deployment
+- [ ] Task 31 — documentation and release review
+- [ ] Checkpoint C5 / release

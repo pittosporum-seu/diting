@@ -22,7 +22,7 @@ DashboardService 接入 Step 1 新增的 FreshnessInfo 协议，让仪表盘 API
 ```python
 def get_dashboard_data(self, force_refresh=False):
     freshness = None
-    
+
     # L1: 内存
     if not force_refresh:
         cached = cm.mem_get_adaptive("dashboard", trading_ttl=60)
@@ -36,10 +36,10 @@ def get_dashboard_data(self, force_refresh=False):
             )
             cached.pop("_cached_at", None)
             return cached, freshness
-    
+
     # L2: SQLite
     # ...
-    
+
     # L3: API 请求
     result = {...}
     cm.mem_set("dashboard", {**result, "_cached_at": datetime.now(UTC)})

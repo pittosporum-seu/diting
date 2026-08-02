@@ -147,10 +147,10 @@ from diting.engines import register_engine, AnalysisEngine, AnalysisContext, Ana
 class MyCustomEngine(AnalysisEngine):
     name = "my_custom"
     version = "1.0.0"
-    
+
     def required_data(self) -> list[DataType]:
         return [DataType.REALTIME, DataType.HISTORICAL]
-    
+
     def analyze(self, ctx: AnalysisContext) -> AnalysisResult:
         # AI 规划 + Python 沙箱执行
         code = self._plan_computation(ctx)

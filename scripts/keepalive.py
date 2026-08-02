@@ -92,12 +92,12 @@ def main():
 
             # 服务挂了 - 尝试重启
             logging.warning("%s 异常，尝试重启", name)
-            
+
             # 检查重启频率限制
             now = time.time()
             history = restart_tracker.get(name, [])
             history = [t for t in history if now - t < svc.get("restart_window", 300)]
-            
+
             if len(history) >= svc.get("restart_limit", 3):
                 logging.error("%s 重启次数超限（%d次/%ds内），跳过", name, len(history), svc.get("restart_window", 300))
                 continue

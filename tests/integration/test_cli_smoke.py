@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import pytest
 from click.testing import CliRunner
 
 from src.diting.main import cli
@@ -34,6 +35,7 @@ class TestCLISmoke:
         assert result.exit_code == 0
         assert "谛听" in result.output
 
+    @pytest.mark.network
     def test_scan_single_symbol(self):
         """diting scan 002475 退出码 0。"""
         runner = CliRunner()
@@ -41,6 +43,7 @@ class TestCLISmoke:
         assert result.exit_code == 0
         assert "002475" in result.output or "暂时无法获取" in result.output
 
+    @pytest.mark.network
     def test_scan_multi_symbols(self):
         """diting scan 002475,603659 输出包含多只标的。"""
         runner = CliRunner()
@@ -53,12 +56,14 @@ class TestCLISmoke:
             or "数据获取失败" in result.output
         )
 
+    @pytest.mark.network
     def test_scan_json(self):
         """diting scan --json 输出。"""
         runner = CliRunner()
         result = runner.invoke(cli, ["scan", "002475", "--json"])
         assert result.exit_code == 0
 
+    @pytest.mark.network
     def test_l0_alias(self):
         """diting l0 002475（旧别名）退出码 0。"""
         runner = CliRunner()
@@ -66,24 +71,28 @@ class TestCLISmoke:
         assert result.exit_code == 0
         assert "002475" in result.output or "暂时无法获取" in result.output
 
+    @pytest.mark.network
     def test_l0_alias_multi(self):
         """diting l0 002475,603659 退出码 0。"""
         runner = CliRunner()
         result = runner.invoke(cli, ["l0", "002475,603659"])
         assert result.exit_code == 0
 
+    @pytest.mark.network
     def test_l1_alias(self):
         """diting l1 002475 被接受（旧别名兼容）。"""
         runner = CliRunner()
         result = runner.invoke(cli, ["l1", "002475"])
         assert "002475" in result.output or not result.output
 
+    @pytest.mark.network
     def test_l1_alias_with_more(self):
         """diting l1 002475 --more 显示技术分析。"""
         runner = CliRunner()
         result = runner.invoke(cli, ["l1", "002475", "--more"], catch_exceptions=False)
         assert result.exit_code in (0, 1) or "002475" in result.output
 
+    @pytest.mark.network
     def test_l2_alias(self):
         """diting l2 002475 --report 或输出报告。"""
         runner = CliRunner()
@@ -97,6 +106,7 @@ class TestCLISmoke:
         assert result.exit_code == 0
         assert "废弃" in result.output or "diting" in result.output
 
+    @pytest.mark.network
     def test_compare_smoke(self):
         """diting compare 002475,600519 退出码 0，输出对比。"""
         runner = CliRunner()
@@ -116,12 +126,14 @@ class TestCLISmoke:
             ]
         )
 
+    @pytest.mark.network
     def test_compare_json(self):
         """diting compare --json 退出码 0。"""
         runner = CliRunner()
         result = runner.invoke(cli, ["compare", "002475,603659", "--json"])
         assert result.exit_code == 0
 
+    @pytest.mark.network
     def test_compare_single(self):
         """diting compare 002475（单只）退出码 0。"""
         runner = CliRunner()
@@ -184,6 +196,7 @@ class TestCLISmoke:
         assert result.exit_code == 0
         assert "serve" in result.output.lower()
 
+    @pytest.mark.network
     def test_default_code_with_more(self):
         """diting 002475 --more 退出码 0 且包含技术面面板。"""
         runner = CliRunner()
@@ -194,6 +207,7 @@ class TestCLISmoke:
         assert "技术面" in result.output
         assert "RSI" in result.output
 
+    @pytest.mark.network
     def test_default_code_json(self):
         """diting 002475 --json 退出码 0，输出 JSON。"""
         runner = CliRunner()

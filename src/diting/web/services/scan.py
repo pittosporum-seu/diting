@@ -223,14 +223,10 @@ class ScanService(_BaseService):
 
             # 5. 分离已分析/未分析，主榜只用引擎分（保证里外一致）
             confirmed = [r for r in analyzed if r["analyzed"]]
-            pending = [r for r in analyzed if not r["analyzed"]]
             confirmed.sort(key=lambda x: x["score"], reverse=True)
-            pending.sort(key=lambda x: x["quick_score"] or 0, reverse=True)
 
-            # 主榜：已分析的排前面，不足 20 时用 pending 补位
+            # 主榜只展示已完成分析的结果；禁止用 quick_score 补位。
             top20 = confirmed[:20]
-            if len(top20) < 20:
-                top20 += pending[: 20 - len(top20)]
 
             from_watchlist = [it for it in top20 if it.get("source") == "watchlist"]
             from_market = [it for it in top20 if it.get("source") != "watchlist"]
