@@ -115,7 +115,11 @@ ensure_runtime_identity() {
   fi
   install -d -m 0755 -o root -g root /opt/diting "$RELEASE_ROOT"
   install -d -m 0700 -o diting -g diting "$STATE_ROOT" "$STATE_ROOT/reports"
-  install -d -m 0700 -o root -g root "$DEPLOYMENT_ROOT" "$ARCHIVE_ROOT" /etc/diting
+  # The candidate runs as `diting` and must be able to traverse the two
+  # root-owned deployment directories to reach its own 0700 data directory.
+  # Group execute grants traversal only; it does not permit listing or writes.
+  install -d -m 0710 -o root -g diting "$DEPLOYMENT_ROOT"
+  install -d -m 0700 -o root -g root "$ARCHIVE_ROOT" /etc/diting
   require_file "$ENV_FILE"
   chown root:diting "$ENV_FILE"
   chmod 0640 "$ENV_FILE"
@@ -198,7 +202,7 @@ prepare() {
   fi
 
   deployment="$DEPLOYMENT_ROOT/$commit"
-  install -d -m 0700 -o root -g root "$deployment"
+  install -d -m 0710 -o root -g diting "$deployment"
   install -m 0644 "$service" "$deployment/diting.service"
   install -m 0600 "$caddy" "$deployment/Caddyfile"
   candidate_data="$deployment/candidate-data"
