@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Protocol, runtime_checkable
 
+from .enums import StrategyState
 from .schema import (
     AnalysisRun,
     AuditEvent,
@@ -133,7 +134,21 @@ class DurableStore(Protocol):
 
     def save_scan_result(self, result: ScanResult) -> None: ...
 
-    def save_strategy(self, strategy: StrategyVersion) -> None: ...
+    def save_strategy(self, strategy: StrategyVersion) -> bool: ...
+
+    def get_strategy(self, name: str, version: str) -> StrategyVersion | None: ...
+
+    def list_strategies(self, name: str | None = None) -> tuple[StrategyVersion, ...]: ...
+
+    def transition_strategy(
+        self,
+        name: str,
+        version: str,
+        expected: StrategyState,
+        target: StrategyState,
+    ) -> bool: ...
+
+    def activate_strategy(self, name: str, version: str, activated_at: datetime) -> bool: ...
 
     def get_active_strategy(self, name: str) -> StrategyVersion | None: ...
 

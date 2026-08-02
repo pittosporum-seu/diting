@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import __version__
+from ..application.strategy_registry import StrategyRegistry
 from ..bootstrap import ApplicationContainer
 from ..enums import AnalysisProfile
 from ..infra.errors import AnalysisError
@@ -83,6 +84,7 @@ def build_owner_v1_router(
     router = APIRouter(prefix="/api/v1", tags=["owner-v1"])
     security = OwnerSecurity(container.auth, container.settings)
     store = container.durable_store
+    strategy_registry = StrategyRegistry(store, container.clock)
 
     @router.post("/analyses", response_model=ApiEnvelope[JobView], status_code=202)
     async def create_analysis(
@@ -261,6 +263,54 @@ def build_owner_v1_router(
         active = store.get_active_strategy(selected)
         return success_envelope(request, _strategy_status(selected, active))
 
+    @router.post(
+        "/admin/strategies/{name}/{version}/approve",
+        response_model=ApiEnvelope[StrategyStatusData],
+    )
+    async def approve_strategy(
+        request: Request,
+        name: Annotated[str, Path(pattern=r"^[a-z][a-z0-9_]{1,63}$")],
+        version: Annotated[str, Path(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")],
+        session: OwnerSession = Depends(security.require_owner_write),
+    ):
+        strategy = strategy_registry.approve(name, version)
+        _audit(container, session, request, "strategy.approved", f"{name}:{version}")
+        return success_envelope(request, _strategy_version_status(strategy))
+
+    @router.post(
+        "/admin/strategies/{name}/{version}/activate",
+        response_model=ApiEnvelope[StrategyStatusData],
+    )
+    async def activate_strategy(
+        request: Request,
+        name: Annotated[str, Path(pattern=r"^[a-z][a-z0-9_]{1,63}$")],
+        version: Annotated[str, Path(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")],
+        session: OwnerSession = Depends(security.require_owner_write),
+    ):
+        if name != container.settings.strategy.selected:
+            raise AnalysisError(
+                "strategy is not selected by production configuration",
+                error_code="STRATEGY_NOT_SELECTED",
+                http_status_code=409,
+            )
+        strategy = strategy_registry.activate(name, version)
+        _audit(container, session, request, "strategy.activated", f"{name}:{version}")
+        return success_envelope(request, _strategy_version_status(strategy))
+
+    @router.post(
+        "/admin/strategies/{name}/{version}/retire",
+        response_model=ApiEnvelope[StrategyStatusData],
+    )
+    async def retire_strategy(
+        request: Request,
+        name: Annotated[str, Path(pattern=r"^[a-z][a-z0-9_]{1,63}$")],
+        version: Annotated[str, Path(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")],
+        session: OwnerSession = Depends(security.require_owner_write),
+    ):
+        strategy = strategy_registry.retire(name, version)
+        _audit(container, session, request, "strategy.retired", f"{name}:{version}")
+        return success_envelope(request, _strategy_version_status(strategy))
+
     @router.get("/admin/diagnostics", response_model=ApiEnvelope[DiagnosticsData])
     async def diagnostics(
         request: Request,
@@ -345,6 +395,17 @@ def _strategy_status(selected: str, active: Any) -> StrategyStatusData:
         state=active.state.value,
         manifest_hash=active.manifest_hash,
         activated_at=active.activated_at,
+    )
+
+
+def _strategy_version_status(strategy: Any) -> StrategyStatusData:
+    return StrategyStatusData(
+        selected=strategy.name,
+        active=strategy.state.value == "active",
+        version=strategy.version,
+        state=strategy.state.value,
+        manifest_hash=strategy.manifest_hash,
+        activated_at=strategy.activated_at,
     )
 
 

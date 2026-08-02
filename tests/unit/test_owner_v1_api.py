@@ -13,13 +13,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+from src.diting.application.strategy_registry import StrategyRegistry
 from src.diting.bootstrap import ApplicationDependencies, create_container
 from src.diting.config import AppConfig, RuntimeConfig, SecurityConfig
-from src.diting.enums import JobType, RunStatus
+from src.diting.enums import JobType, RunStatus, StrategyState
 from src.diting.infra.errors import AnalysisError
 from src.diting.persistence.migrations import migrate_databases
 from src.diting.persistence.store_v080 import SQLiteDurableStore
-from src.diting.schema import JobRecord
+from src.diting.schema import JobRecord, StrategyVersion
 from src.diting.security.auth import AuthService, hash_owner_token
 from src.diting.web.contracts_v1 import error_envelope
 from src.diting.web.rate_limit import SlidingWindowRateLimiter
@@ -308,6 +309,49 @@ def test_analysis_and_scan_business_limits_return_stable_codes(tmp_path: Path) -
         assert first_scan.status_code == second_scan.status_code == 409
         assert scan_limited.status_code == 429
         assert scan_limited.json()["error"]["code"] == "SCAN_RATE_LIMITED"
+    finally:
+        client.close()
+
+
+def test_only_owner_can_approve_and_activate_selected_strategy(tmp_path: Path) -> None:
+    client, store, _, _, business = _build(tmp_path)
+    try:
+        registry = StrategyRegistry(store, FakeClock())
+        registry.register(
+            StrategyVersion(
+                name="mean_reversion_v1",
+                version="1.0.0",
+                state=StrategyState.DRAFT,
+                manifest_hash="manifest-hash",
+                created_at=NOW,
+            )
+        )
+        registry.mark_validated("mean_reversion_v1", "1.0.0")
+        path = "/api/v1/admin/strategies/mean_reversion_v1/1.0.0"
+
+        anonymous = client.post(f"{path}/approve")
+        csrf = _login(client)
+        missing_csrf = client.post(
+            f"{path}/approve",
+            headers={"Origin": "http://testserver"},
+        )
+        approved = client.post(f"{path}/approve", headers=_write_headers(csrf))
+        activated = client.post(f"{path}/activate", headers=_write_headers(csrf))
+
+        assert anonymous.status_code == 401
+        assert missing_csrf.status_code == 403
+        assert approved.json()["data"]["state"] == "approved"
+        assert activated.json()["data"]["active"] is True
+        active = store.get_active_strategy("mean_reversion_v1")
+        assert active is not None and active.version == "1.0.0"
+        with sqlite3.connect(business) as connection:
+            actions = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT action FROM audit_log WHERE action LIKE 'strategy.%'"
+                )
+            }
+        assert actions == {"strategy.approved", "strategy.activated"}
     finally:
         client.close()
 

@@ -376,23 +376,82 @@ class SQLiteDurableStore:
                 (result.scan_id, result.status.value, _dump(result), datetime.now().isoformat()),
             )
 
-    def save_strategy(self, strategy: StrategyVersion) -> None:
+    def save_strategy(self, strategy: StrategyVersion) -> bool:
+        try:
+            with self._lock, self._connect() as connection:
+                connection.execute(
+                    """INSERT INTO strategies(
+                           name, version, state, manifest_hash, definition_json,
+                           created_at, activated_at
+                       ) VALUES(?,?,?,?,?,?,?)""",
+                    (
+                        strategy.name,
+                        strategy.version,
+                        strategy.state.value,
+                        strategy.manifest_hash,
+                        _dump(strategy),
+                        strategy.created_at.isoformat(),
+                        strategy.activated_at.isoformat() if strategy.activated_at else None,
+                    ),
+                )
+        except sqlite3.IntegrityError:
+            return False
+        return True
+
+    def get_strategy(self, name: str, version: str) -> StrategyVersion | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM strategies WHERE name=? AND version=?",
+                (name, version),
+            ).fetchone()
+        return _parse_strategy(row) if row is not None else None
+
+    def list_strategies(self, name: str | None = None) -> tuple[StrategyVersion, ...]:
+        with self._connect() as connection:
+            if name is None:
+                rows = connection.execute(
+                    "SELECT * FROM strategies ORDER BY name, created_at, version"
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT * FROM strategies WHERE name=? ORDER BY created_at, version",
+                    (name,),
+                ).fetchall()
+        return tuple(_parse_strategy(row) for row in rows)
+
+    def transition_strategy(
+        self,
+        name: str,
+        version: str,
+        expected: StrategyState,
+        target: StrategyState,
+    ) -> bool:
         with self._lock, self._connect() as connection:
-            connection.execute(
-                """INSERT INTO strategies(
-                       name, version, state, manifest_hash, definition_json,
-                       created_at, activated_at
-                   ) VALUES(?,?,?,?,?,?,?)""",
-                (
-                    strategy.name,
-                    strategy.version,
-                    strategy.state.value,
-                    strategy.manifest_hash,
-                    _dump(strategy),
-                    strategy.created_at.isoformat(),
-                    strategy.activated_at.isoformat() if strategy.activated_at else None,
-                ),
+            cursor = connection.execute(
+                "UPDATE strategies SET state=? WHERE name=? AND version=? AND state=?",
+                (target.value, name, version, expected.value),
             )
+            return cursor.rowcount == 1
+
+    def activate_strategy(self, name: str, version: str, activated_at: datetime) -> bool:
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            target = connection.execute(
+                "SELECT state FROM strategies WHERE name=? AND version=?",
+                (name, version),
+            ).fetchone()
+            if target is None or target["state"] != StrategyState.APPROVED.value:
+                return False
+            connection.execute(
+                "UPDATE strategies SET state='retired' WHERE name=? AND state='active'",
+                (name,),
+            )
+            cursor = connection.execute(
+                """UPDATE strategies SET state='active', activated_at=?
+                   WHERE name=? AND version=? AND state='approved'""",
+                (activated_at.isoformat(), name, version),
+            )
+            return cursor.rowcount == 1
 
     def get_active_strategy(self, name: str) -> StrategyVersion | None:
         with self._connect() as connection:
@@ -401,14 +460,7 @@ class SQLiteDurableStore:
             ).fetchone()
         if row is None:
             return None
-        return StrategyVersion(
-            name=row["name"],
-            version=row["version"],
-            state=StrategyState(row["state"]),
-            manifest_hash=row["manifest_hash"],
-            created_at=_datetime(row["created_at"]),
-            activated_at=_datetime(row["activated_at"]) if row["activated_at"] else None,
-        )
+        return _parse_strategy(row)
 
     def close(self) -> None:
         """Connections are operation-scoped; no persistent handle needs closing."""
@@ -451,6 +503,17 @@ def _parse_tags(value: str | None) -> tuple[str, ...]:
     if isinstance(parsed, str):
         return (parsed,) if parsed else ()
     return ()
+
+
+def _parse_strategy(row: sqlite3.Row) -> StrategyVersion:
+    return StrategyVersion(
+        name=row["name"],
+        version=row["version"],
+        state=StrategyState(row["state"]),
+        manifest_hash=row["manifest_hash"],
+        created_at=_datetime(row["created_at"]),
+        activated_at=_datetime(row["activated_at"]) if row["activated_at"] else None,
+    )
 
 
 def _parse_request(raw: dict[str, Any], *, fallback_symbol: str, fallback: str) -> AnalysisRequest:

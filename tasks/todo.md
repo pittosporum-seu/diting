@@ -31,7 +31,7 @@
 - [x] Task 22 — frontend API client, auth and state machine
 - [x] Task 23 — remove legacy HTTP/Jinja flow
 - [x] Checkpoint C3
-- [ ] Task 24 — strategy registry and lifecycle
+- [x] Task 24 — strategy registry and lifecycle
 - [ ] Task 25 — experiment manifest and validation gates
 - [ ] Task 26 — mean_reversion_v1 candidate
 - [ ] Task 27 — active-strategy ScanOrchestrator
