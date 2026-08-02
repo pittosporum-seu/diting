@@ -29,7 +29,7 @@
 - [x] Task 20 — stable Python facade
 - [x] Task 21 — v0.8 CLI
 - [x] Task 22 — frontend API client, auth and state machine
-- [ ] Task 23 — remove legacy HTTP/Jinja flow
+- [x] Task 23 — remove legacy HTTP/Jinja flow
 - [ ] Checkpoint C3
 - [ ] Task 24 — strategy registry and lifecycle
 - [ ] Task 25 — experiment manifest and validation gates
