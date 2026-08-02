@@ -173,10 +173,24 @@ case "$COMMAND" in
       exit 0
     fi
     [[ -n "${DITING_OWNER_TOKEN:-}" ]] || die "DITING_OWNER_TOKEN is required for verification"
-    ssh "${ssh_args[@]}" -L "$LOCAL_PORT:127.0.0.1:8101" -N "$HOST" &
+    ssh "${ssh_args[@]}" -o ExitOnForwardFailure=yes \
+      -L "$LOCAL_PORT:127.0.0.1:8101" -N "$HOST" &
     tunnel_pid=$!
     trap 'kill "$tunnel_pid" 2>/dev/null || true' EXIT INT TERM
-    sleep 1
+    tunnel_ready=false
+    for _attempt in $(seq 1 30); do
+      if ! kill -0 "$tunnel_pid" 2>/dev/null; then
+        wait "$tunnel_pid" 2>/dev/null || true
+        die "SSH tunnel exited before becoming ready"
+      fi
+      if curl --silent --fail --max-time 1 \
+        "http://127.0.0.1:$LOCAL_PORT/api/v1/health" >/dev/null; then
+        tunnel_ready=true
+        break
+      fi
+      sleep 1
+    done
+    [[ "$tunnel_ready" == true ]] || die "SSH tunnel did not become ready within 30 seconds"
     DITING_SMOKE_ORIGIN="${DITING_SMOKE_ORIGIN:-https://pittosporum.cloud}" \
       bash "$SCRIPT_DIR/smoke_test.sh" "http://127.0.0.1:$LOCAL_PORT/api/v1"
     ssh "${ssh_args[@]}" "$HOST" sudo bash \
