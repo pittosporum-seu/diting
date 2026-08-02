@@ -108,8 +108,8 @@ def test_login_sets_strict_http_only_cookie_without_echoing_secrets(tmp_path: Pa
         cookie = response.headers["set-cookie"]
 
         assert response.status_code == 200
-        assert response.json()["authenticated"] is True
-        assert response.json()["csrf_token"]
+        assert response.json()["data"]["authenticated"] is True
+        assert response.json()["data"]["csrf_token"]
         assert OWNER_TOKEN not in response.text
         assert "session-secret" not in response.text
         assert "HttpOnly" in cookie
@@ -134,7 +134,7 @@ def test_write_requires_owner_origin_and_csrf(tmp_path: Path) -> None:
     try:
         assert client.post("/api/v1/protected").status_code == 401
         login = _login(client)
-        csrf = login.json()["csrf_token"]
+        csrf = login.json()["data"]["csrf_token"]
 
         missing_origin = client.post("/api/v1/protected", headers={CSRF_HEADER: csrf})
         foreign_origin = client.post(
@@ -159,7 +159,7 @@ def test_logout_revokes_server_session_and_clears_cookie(tmp_path: Path) -> None
     client, auth, _, _ = _build(tmp_path)
     try:
         login = _login(client)
-        csrf = login.json()["csrf_token"]
+        csrf = login.json()["data"]["csrf_token"]
         cookie_value = client.cookies[SESSION_COOKIE]
         response = client.delete(
             "/api/v1/auth/session",

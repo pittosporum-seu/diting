@@ -18,11 +18,13 @@ from ..infra.errors import AnalysisError, DataUnavailableError
 from ..schema import FreshnessInfo
 from .security import build_auth_router
 from .services import DashboardService, ScanService, StockService, WatchlistService
+from .v1 import build_v1_router
 
 router = APIRouter()
 container = bootstrap_runtime()
 assert container.auth is not None
 router.include_router(build_auth_router(container.auth, container.settings))
+router.include_router(build_v1_router(container))
 _cache_mgr = CacheManager()
 stock_service = StockService(cache_mgr=_cache_mgr, data_gateway=container.data_gateway)
 scan_service = ScanService(cache_mgr=_cache_mgr, data_gateway=container.data_gateway)

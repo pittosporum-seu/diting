@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -22,6 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__
 from ..infra.errors import AnalysisError
+from .contracts_v1 import error_envelope
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -105,6 +107,14 @@ app.mount("/app", StaticFiles(directory=str(FRONTEND), html=True), name="fronten
 templates = Jinja2Templates(directory=str(TEMPLATES))
 
 
+@app.middleware("http")
+async def attach_request_id(request: Request, call_next):
+    request.state.request_id = f"req_{uuid.uuid4().hex}"
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    return response
+
+
 # ── 全局异常处理器 ──────────────────────────────────────────
 # 统一所有 API 端点的错误响应格式为 ApiErrorResponse
 
@@ -112,6 +122,15 @@ templates = Jinja2Templates(directory=str(TEMPLATES))
 @app.exception_handler(AnalysisError)
 async def analysis_error_handler(request: Request, exc: AnalysisError) -> JSONResponse:
     """处理 AnalysisError 及其子类 → 返回统一 ApiErrorResponse。"""
+    if request.url.path.startswith("/api/v1/"):
+        message = str(exc) if exc.http_status_code < 500 else "服务暂时不可用"
+        return _v1_error_response(
+            request,
+            exc.http_status_code,
+            exc.error_code,
+            message,
+            retryable=exc.http_status_code in {429, 502, 503, 504},
+        )
     return JSONResponse(
         status_code=exc.http_status_code,
         content={
@@ -127,6 +146,8 @@ async def analysis_error_handler(request: Request, exc: AnalysisError) -> JSONRe
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
     """处理 ValueError（参数校验失败）→ 400 Bad Request。"""
+    if request.url.path.startswith("/api/v1/"):
+        return _v1_error_response(request, 400, "INVALID_PARAMETER", str(exc))
     return JSONResponse(
         status_code=400,
         content={
@@ -143,6 +164,13 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """处理 Starlette HTTPException（含 404 等）→ 统一 ApiErrorResponse。"""
     error_code_map = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}
+    if request.url.path.startswith("/api/v1/"):
+        return _v1_error_response(
+            request,
+            exc.status_code,
+            error_code_map.get(exc.status_code, "HTTP_ERROR"),
+            str(exc.detail) if exc.detail else "请求失败",
+        )
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -158,16 +186,51 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """兜底异常处理器 → 500 Internal Server Error。"""
+    if request.url.path.startswith("/api/v1/"):
+        return _v1_error_response(request, 500, "INTERNAL_ERROR", "内部服务器错误")
     return JSONResponse(
         status_code=500,
         content={
             "success": False,
             "error": "内部服务器错误",
             "error_code": "INTERNAL_ERROR",
-            "detail": str(exc),
+            "detail": None,
             "request_id": str(uuid.uuid4()),
         },
     )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    if request.url.path.startswith("/api/v1/"):
+        return _v1_error_response(request, 422, "VALIDATION_ERROR", "请求参数校验失败")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "error": "请求参数校验失败",
+            "error_code": "VALIDATION_ERROR",
+            "detail": None,
+            "request_id": str(uuid.uuid4()),
+        },
+    )
+
+
+def _v1_error_response(
+    request: Request,
+    status_code: int,
+    code: str,
+    message: str,
+    *,
+    retryable: bool = False,
+) -> JSONResponse:
+    envelope = error_envelope(
+        request,
+        code=code,
+        message=message,
+        retryable=retryable,
+    )
+    return JSONResponse(status_code=status_code, content=envelope.model_dump(mode="json"))
 
 
 from .routes import container, router  # noqa: E402, I001

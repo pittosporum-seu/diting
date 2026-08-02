@@ -161,7 +161,6 @@ def bootstrap_runtime(
 def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDependencies:
     """Construct the sole data and analysis paths used by runtime interfaces."""
 
-    from .ai.client import AIClient, LiteLLMPortAdapter
     from .application.jobs import BoundedLLMPort, JobService
     from .application.post_analysis import PostAnalysisDispatcher
     from .application.snapshot import DataSnapshotBuilder
@@ -245,6 +244,8 @@ def build_data_dependencies(settings: AppConfig, clock: Clock) -> ApplicationDep
     engines = [TechnicalEngine(), SnapshotVolumeProfileEngine()]
     api_key = Config._secret_value(settings.ai.api_key)
     if settings.ai.enabled and api_key:
+        from .ai.client import AIClient, LiteLLMPortAdapter
+
         llm = BoundedLLMPort(
             LiteLLMPortAdapter(AIClient(model=settings.ai.model, api_key=api_key)),
             max_concurrent=settings.pipeline.llm_concurrent,

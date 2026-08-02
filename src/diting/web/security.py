@@ -12,6 +12,7 @@ from ..config import AppConfig
 from ..infra.errors import AuthenticationError, AuthorizationError
 from ..schema import OwnerSession
 from ..security.auth import AuthService
+from .contracts_v1 import ApiEnvelope, AuthSessionData, success_envelope
 
 SESSION_COOKIE = "diting_owner_session"
 CSRF_HEADER = "X-CSRF-Token"
@@ -37,22 +38,29 @@ class OwnerSecurity:
         self.auth.validate_csrf(session, request.headers.get(CSRF_HEADER))
         return session
 
+    def require_read_access(self, request: Request) -> OwnerSession | None:
+        if self.settings.runtime.public_readonly:
+            return None
+        return self.require_owner(request)
+
 
 def build_auth_router(auth: AuthService, settings: AppConfig) -> APIRouter:
     router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
     security = OwnerSecurity(auth, settings)
 
-    @router.post("/session")
+    @router.post("/session", response_model=ApiEnvelope[AuthSessionData])
     async def login(request: Request, credentials: LoginRequest) -> JSONResponse:
         validate_origin(request, settings.security.allowed_origins)
         issued = auth.issue(credentials.token)
-        response = JSONResponse(
-            {
-                "authenticated": True,
-                "csrf_token": issued.csrf_token,
-                "expires_at": issued.session.expires_at.isoformat(),
-            }
+        envelope = success_envelope(
+            request,
+            AuthSessionData(
+                authenticated=True,
+                csrf_token=issued.csrf_token,
+                expires_at=issued.session.expires_at,
+            ),
         )
+        response = JSONResponse(envelope.model_dump(mode="json"))
         response.set_cookie(
             SESSION_COOKIE,
             issued.cookie_value,
@@ -64,23 +72,30 @@ def build_auth_router(auth: AuthService, settings: AppConfig) -> APIRouter:
         )
         return response
 
-    @router.get("/session")
-    async def session_status(request: Request) -> dict[str, object]:
+    @router.get("/session", response_model=ApiEnvelope[AuthSessionData])
+    async def session_status(request: Request):
         try:
             session = security.require_owner(request)
         except AuthenticationError:
-            return {"authenticated": False, "configured": auth.configured}
-        return {
-            "authenticated": True,
-            "configured": True,
-            "expires_at": session.expires_at.isoformat(),
-        }
+            return success_envelope(
+                request,
+                AuthSessionData(authenticated=False, configured=auth.configured),
+            )
+        return success_envelope(
+            request,
+            AuthSessionData(
+                authenticated=True,
+                configured=True,
+                expires_at=session.expires_at,
+            ),
+        )
 
-    @router.delete("/session")
+    @router.delete("/session", response_model=ApiEnvelope[AuthSessionData])
     async def logout(request: Request) -> JSONResponse:
         session = security.require_owner_write(request)
         auth.revoke(session)
-        response = JSONResponse({"authenticated": False})
+        envelope = success_envelope(request, AuthSessionData(authenticated=False))
+        response = JSONResponse(envelope.model_dump(mode="json"))
         response.delete_cookie(
             SESSION_COOKIE,
             path="/",
