@@ -35,7 +35,7 @@
 - [x] Task 25 — experiment manifest and validation gates
 - [x] Task 26 — mean_reversion_v1 candidate
 - [x] Task 27 — active-strategy ScanOrchestrator
-- [ ] Checkpoint C4
+- [x] Checkpoint C4
 - [ ] Task 28 — OpenAPI and CI contract gates
 - [ ] Task 29 — real Chromium journeys
 - [ ] Task 30 — release-safe VPS deployment
